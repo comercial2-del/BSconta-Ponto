@@ -7,7 +7,9 @@
 -- apenas para ver o formato esperado, casando pelos nomes de exemplo do
 -- 03_seed_colaboradores.exemplo.sql.
 --
--- Roda DEPOIS do 11_perfil_dados_pessoais.sql e do 03 (exemplo ou real).
+-- Roda DEPOIS do 11_perfil_dados_pessoais.sql, do 03 (exemplo ou real) e do
+-- 19_criptografia_dados_pessoais.sql (estes dados são gravados CIFRADOS —
+-- ver o cabeçalho do 19 para configurar app.settings.pii_key antes).
 --
 -- Idempotente: casa por nome exato; se não achar alguém, ignora essa linha.
 -- =============================================================================
@@ -20,15 +22,20 @@ with dados (nome, cpf, data_nascimento, endereco, cep) as (
 )
 update rh.colaboradores c
 set
-  cpf = dados.cpf,
-  data_nascimento = dados.data_nascimento,
-  endereco = dados.endereco,
-  cep = dados.cep,
+  cpf_enc = pgp_sym_encrypt(dados.cpf, current_setting('app.settings.pii_key')),
+  data_nascimento_enc = pgp_sym_encrypt(dados.data_nascimento::text, current_setting('app.settings.pii_key')),
+  endereco_enc = pgp_sym_encrypt(dados.endereco, current_setting('app.settings.pii_key')),
+  cep_enc = pgp_sym_encrypt(dados.cep, current_setting('app.settings.pii_key')),
   updated_at = now()
 from dados
 where c.nome = dados.nome;
 
--- Confirmação rápida:
-select codigo, nome, cpf, data_nascimento, endereco, cep
+-- Confirmação rápida (decifra na hora, só para exibir aqui no SQL Editor):
+select
+  codigo, nome,
+  pgp_sym_decrypt(cpf_enc, current_setting('app.settings.pii_key')) as cpf,
+  pgp_sym_decrypt(data_nascimento_enc, current_setting('app.settings.pii_key'))::date as data_nascimento,
+  pgp_sym_decrypt(endereco_enc, current_setting('app.settings.pii_key')) as endereco,
+  pgp_sym_decrypt(cep_enc, current_setting('app.settings.pii_key')) as cep
 from rh.colaboradores
 order by codigo;
