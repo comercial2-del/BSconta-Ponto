@@ -153,22 +153,21 @@
               </div>`
                 : ""
             }
-            ${
-              s.origem === "ferias"
-                ? s.status === "PENDENTE" || s.status === "EM_ANALISE"
-                  ? `<div style="margin-top:0.7rem;display:flex;justify-content:flex-end;gap:0.5rem">
-                  <div class="approve-reject">
+            <div style="margin-top:0.7rem;display:flex;justify-content:flex-end;align-items:center;gap:0.5rem">
+              ${
+                s.origem === "ferias"
+                  ? s.status === "PENDENTE" || s.status === "EM_ANALISE"
+                    ? `<div class="approve-reject">
                     <button type="button" class="approve" data-aprovar-ferias="${s.id}" aria-label="Aprovar">${ICONS.check}</button>
                     <button type="button" class="reject" data-recusar-ferias="${s.id}" aria-label="Recusar">${ICONS.x}</button>
-                  </div>
-                </div>`
+                  </div>`
+                    : ""
+                  : s.status !== "RESOLVIDA" && s.status !== "RECUSADA"
+                  ? `<button type="button" class="btn-primary auto" data-responder="${s.id}">${ICONS.send}<span>Responder</span></button>`
                   : ""
-                : s.status !== "RESOLVIDA" && s.status !== "RECUSADA"
-                ? `<div style="margin-top:0.7rem;display:flex;justify-content:flex-end">
-                <button type="button" class="btn-primary auto" data-responder="${s.id}">${ICONS.send}<span>Responder</span></button>
-              </div>`
-                : ""
-            }
+              }
+              <button type="button" class="btn-ghost danger" style="width:auto;padding:0.4rem 0.7rem" data-excluir="${s.id}" data-excluir-origem="${s.origem}">${ICONS.trash || ""}<span>Excluir</span></button>
+            </div>
           </div>`
             )
             .join("")
@@ -176,6 +175,29 @@
 
       document.querySelectorAll("[data-aprovar-ferias]").forEach((b) => b.addEventListener("click", () => resolverFeriasNaFila(b.dataset.aprovarFerias, true, b)));
       document.querySelectorAll("[data-recusar-ferias]").forEach((b) => b.addEventListener("click", () => resolverFeriasNaFila(b.dataset.recusarFerias, false, b)));
+
+      document.querySelectorAll("[data-excluir]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          const s = cacheSolicitacoes.find((x) => x.id === b.dataset.excluir);
+          const ok = await confirmDialog({
+            title: "Excluir solicitação",
+            message: `Excluir definitivamente a solicitação de ${s?.colaborador || "este colaborador"} (${s?.protocolo || ""})? Essa ação não pode ser desfeita.`,
+            confirmLabel: "Excluir",
+            danger: true,
+          });
+          if (!ok) return;
+          b.disabled = true;
+          try {
+            await rhExcluirSolicitacao(b.dataset.excluir, b.dataset.excluirOrigem);
+            await refrescarSolicitacoes();
+            showToast("Solicitação excluída.", "success");
+            render();
+          } catch (err) {
+            showToast(rhMensagemErroSupabase(err), "error");
+            b.disabled = false;
+          }
+        })
+      );
 
       document.querySelectorAll("[data-responder]").forEach((b) =>
         b.addEventListener("click", () => {

@@ -184,6 +184,7 @@
                   ? `<button type="button" class="btn-ghost" style="width:auto;padding:0.4rem 0.7rem" data-arquivar="${c.id}">Arquivar</button>`
                   : ""
               }
+              <button type="button" class="btn-ghost danger" style="width:auto;padding:0.4rem 0.7rem" data-excluir="${c.id}">${ICONS.trash || ""}<span>Excluir</span></button>
             </div>
           </div>`
             )
@@ -198,6 +199,28 @@
             await rhArquivarComunicado(b.dataset.arquivar);
             await refrescarComunicados();
             showToast("Comunicado arquivado.", "success");
+            render();
+          } catch (err) {
+            showToast(rhMensagemErroSupabase(err), "error");
+            b.disabled = false;
+          }
+        })
+      );
+      document.querySelectorAll("[data-excluir]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          const c = cacheComunicados.find((x) => x.id === b.dataset.excluir);
+          const ok = await confirmDialog({
+            title: "Excluir comunicado",
+            message: `Excluir definitivamente "${c?.titulo || "este comunicado"}"? Essa ação não pode ser desfeita.`,
+            confirmLabel: "Excluir",
+            danger: true,
+          });
+          if (!ok) return;
+          b.disabled = true;
+          try {
+            await rhExcluirComunicado(b.dataset.excluir);
+            await refrescarComunicados();
+            showToast("Comunicado excluído.", "success");
             render();
           } catch (err) {
             showToast(rhMensagemErroSupabase(err), "error");
