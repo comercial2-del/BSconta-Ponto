@@ -993,6 +993,59 @@ canvas { max-width: 100%; }
   background: var(--indigo-600); color: #fff; font-size: 0.62rem; font-weight: 800;
   padding: 0.15rem 0.5rem; border-radius: 999px; letter-spacing: 0.02em;
 }
+/* .selected: mesmo estado visual de .suggested, sem a fita "Sugerido" — usado
+   fora do contexto de geolocalização (ex.: escolha de modo no ajuste de ponto). */
+.local-choice.selected { border-color: var(--indigo-500); background: var(--indigo-50); color: var(--indigo-700); }
+
+/* ---- Modal "Solicitar ajuste de ponto" ------------------------------------ */
+.modal-ajuste { max-width: 32rem; }
+.ajuste-step-label {
+  display: flex; align-items: center; gap: 0.5rem; margin: 1.3rem 0 0.55rem;
+  font-size: 0.72rem; font-weight: 800; color: var(--indigo-600); text-transform: uppercase; letter-spacing: 0.05em;
+}
+.ajuste-step-label:first-child { margin-top: 0; }
+.ajuste-step-num {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 19px; height: 19px; border-radius: 50%; background: var(--indigo-100); color: var(--indigo-700);
+  font-size: 0.68rem; font-weight: 800;
+}
+.ajuste-dia-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.7rem 0.9rem; }
+@media (max-width: 480px) { .ajuste-dia-grid { grid-template-columns: 1fr; } }
+.ajuste-dia-field label {
+  display: flex; align-items: center; gap: 0.32rem; font-size: 0.76rem; font-weight: 700; color: var(--text-soft);
+  margin-bottom: 0.32rem; text-transform: uppercase; letter-spacing: 0.03em;
+}
+.ajuste-dia-field label svg { width: 13px; height: 13px; color: var(--indigo-500); flex-shrink: 0; }
+.ajuste-pontos-list { display: flex; flex-direction: column; gap: 0.6rem; }
+.ajuste-ponto-row {
+  display: flex; align-items: flex-end; gap: 0.55rem; padding: 0.65rem 0.7rem;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2);
+}
+.ajuste-ponto-row .field { margin-top: 0; flex: 1; min-width: 0; }
+.ajuste-remove-row {
+  flex-shrink: 0; width: 34px; height: 34px; border-radius: 9px; border: none;
+  background: var(--surface); color: var(--text-faint); display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: background 0.12s, color 0.12s;
+}
+.ajuste-remove-row svg { width: 15px; height: 15px; }
+.ajuste-remove-row:hover { background: var(--red-50); color: var(--red-600); }
+.ajuste-add-ponto-btn {
+  display: flex; align-items: center; justify-content: center; gap: 0.4rem; width: 100%;
+  margin-top: 0.6rem; padding: 0.6rem; border-radius: 10px; border: 1.5px dashed var(--border);
+  background: transparent; color: var(--indigo-600); font-weight: 700; font-size: 0.83rem; cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.ajuste-add-ponto-btn svg { width: 15px; height: 15px; }
+.ajuste-add-ponto-btn:hover { background: var(--indigo-50); border-color: var(--indigo-300); }
+.ajuste-add-ponto-btn:disabled { opacity: 0.45; cursor: default; }
+.ajuste-itens-list { display: flex; flex-wrap: wrap; gap: 0.2rem; }
+.ajuste-item-chip {
+  display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.74rem; font-weight: 600; color: var(--text-soft);
+  background: var(--surface-2); padding: 0.22rem 0.55rem; border-radius: 999px; white-space: nowrap;
+}
+.ajuste-modo-badge { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.72rem; font-weight: 700; padding: 0.2rem 0.55rem; border-radius: 999px; white-space: nowrap; }
+.ajuste-modo-badge.dia { background: var(--violet-100); color: var(--violet-700); }
+.ajuste-modo-badge.pontos { background: var(--teal-100); color: var(--teal-700); }
 
 /* ---- Toast "lembrete" (alerta de ponto) ----------------------------------- */
 .toast.reminder { border-color: var(--amber-100); background: var(--amber-50); }
