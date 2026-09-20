@@ -91,29 +91,28 @@
   </div>
 
   <div class="modal-overlay" id="modal-ajuste-ponto">
-    <div class="modal">
+    <div class="modal modal-ajuste">
       <div class="modal-header"><h3>Solicitar ajuste de ponto</h3><button class="modal-close" data-close-modal></button></div>
       <form id="form-ajuste-ponto">
         <div class="modal-body">
-          <div class="form-grid">
-            <div class="field full">
-              <label>O que você precisa?</label>
-              <div style="display:flex;flex-direction:column;gap:0.55rem">
-                <label class="check-row"><input type="radio" name="ajuste-tipo" value="CORRIGIR" id="ajuste-tipo-corrigir" checked /> Corrigir um horário já registrado</label>
-                <label class="check-row"><input type="radio" name="ajuste-tipo" value="ATRASADO" id="ajuste-tipo-atrasado" /> Lançar um ponto que não foi registrado (atrasado)</label>
-              </div>
-            </div>
-            <div class="field"><label>Data de referência</label><input type="date" id="ajuste-data" required /></div>
-            <div class="field"><label>Registro</label>
-              <select id="ajuste-registro" required>
-                <option value="entrada">Entrada</option>
-                <option value="intervaloSaida">Saída intervalo</option>
-                <option value="intervaloVolta">Retorno intervalo</option>
-                <option value="saida">Saída</option>
-              </select>
-            </div>
-            <div class="field full"><label>Horário correto</label><input type="time" id="ajuste-horario" required /></div>
-            <div class="field full"><label>Justificativa</label><textarea id="ajuste-justificativa" required placeholder="Explique rapidamente o que aconteceu..."></textarea></div>
+          <div class="field" style="margin-top:0">
+            <label>Data do ajuste</label>
+            <input type="date" id="ajuste-data" required />
+          </div>
+
+          <p class="ajuste-step-label"><span class="ajuste-step-num">1</span>O que você precisa ajustar?</p>
+          <div class="local-choice-grid">
+            <button type="button" class="local-choice" data-modo="dia"><span class="ajuste-modo-icon"></span><span>Dia inteiro</span></button>
+            <button type="button" class="local-choice" data-modo="pontos"><span class="ajuste-modo-icon"></span><span>Ponto específico</span></button>
+          </div>
+          <p class="field-hint" id="ajuste-modo-hint" style="margin-top:0.5rem"></p>
+
+          <p class="ajuste-step-label"><span class="ajuste-step-num">2</span>Horários</p>
+          <div id="ajuste-modo-conteudo"></div>
+
+          <p class="ajuste-step-label"><span class="ajuste-step-num">3</span>Justificativa</p>
+          <div class="field" style="margin-top:0">
+            <textarea id="ajuste-justificativa" required placeholder="Explique rapidamente o que aconteceu..."></textarea>
           </div>
         </div>
         <div class="modal-footer">
@@ -155,7 +154,16 @@
     function aplicarPendentes() {
       const p = DEMO.ponto;
       Object.keys(pendentesMap).forEach((data) => {
-        if (data === p.hoje.data) { p.hoje.pendenteAjuste = pendentesMap[data]; return; }
+        if (data === p.hoje.data) {
+          p.hoje.pendenteAjuste = pendentesMap[data];
+          // p.historico agora sempre contém uma entrada para hoje também
+          // (ver rhCarregarPonto) — é um objeto separado de p.hoje, então
+          // precisa receber o mesmo pendenteAjuste para o card de hoje na
+          // aba Histórico mostrar o selo "Ajuste pendente" corretamente.
+          const recHoje = p.historico.find((h) => h.data === data);
+          if (recHoje) recHoje.pendenteAjuste = pendentesMap[data];
+          return;
+        }
         let rec = p.historico.find((h) => h.data === data);
         if (!rec) { rec = { data, status: "completo", entrada: null, intervaloSaida: null, intervaloVolta: null, saida: null, horasTrabalhadas: null, horasExtras: 0, atrasoMin: 0, local: null, geo: null, alteradoPeloRH: null }; p.historico.push(rec); p.historico.sort((a, b) => a.data.localeCompare(b.data)); }
         rec.pendenteAjuste = pendentesMap[data];
@@ -177,6 +185,8 @@
     }
     document.querySelector("#modal-ajuste-ponto .modal-close").innerHTML = ICONS.x;
     document.getElementById("btn-enviar-ajuste-ponto").innerHTML = `${ICONS.send}<span>Enviar ao RH</span>`;
+    document.querySelector('#modal-ajuste-ponto [data-modo="dia"] .ajuste-modo-icon').innerHTML = ICONS.calendar;
+    document.querySelector('#modal-ajuste-ponto [data-modo="pontos"] .ajuste-modo-icon').innerHTML = ICONS.edit;
     const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
     let abaAtiva = "hoje";
     let periodoTipo = "semana";
@@ -190,6 +200,22 @@
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     }
     function porData(iso) { return DEMO.ponto.historico.find((h) => h.data === iso); }
+    // Lê os itens de um ajuste pendente aceitando o formato atual
+    // (`ajuste.itens`, um ou mais registros) e o formato antigo, singular
+    // (`{campo, campoLabel, horario}` direto no objeto) — solicitações
+    // pendentes criadas antes desta mudança continuam aparecendo certas no
+    // calendário. Ver rhItensAjustePonto (mesma lógica) em js/rh-ponto-data.js.
+    function itensAjustePendente(ajuste) {
+      if (!ajuste) return [];
+      if (Array.isArray(ajuste.itens) && ajuste.itens.length) return ajuste.itens;
+      if (ajuste.campo) return [{ campo: ajuste.campo, campoLabel: ajuste.campoLabel, horario: ajuste.horario }];
+      return [];
+    }
+    function resumoAjustePendente(ajuste) {
+      return itensAjustePendente(ajuste)
+        .map((it) => `${it.campoLabel} → ${it.horario}`)
+        .join(", ");
+    }
     function fmtHoras(h) {
       if (h === null || h === undefined) return "—";
       const sinal = h < 0 ? "-" : "";
@@ -321,8 +347,13 @@
       const previsto = previstoIntervalo(p.hoje.entrada);
       const ultimoFeito = steps.filter((s) => s.hora).slice(-1)[0];
       const proximos = nextStep ? steps.slice(steps.findIndex((s) => s.key === nextStep.key)) : [];
-      const horasDevendo = p.historico.reduce((acc, r) => acc + (Number(r.atrasoMin) || 0) / 60, 0);
-      const horasAcumuladas = p.historico.reduce((acc, r) => acc + (Number(r.horasExtras) || 0), 0);
+      // p.historico agora inclui o dia de hoje (ver js/rh-ponto-data.js) —
+      // exclui a data de hoje aqui também, para o "Detalhe do banco de
+      // horas" continuar contando só os dias já fechados, igual ao cálculo
+      // de p.saldoBancoHoras feito na camada de dados.
+      const historicoFechado = p.historico.filter((r) => r.data !== todayIso());
+      const horasDevendo = historicoFechado.reduce((acc, r) => acc + (Number(r.atrasoMin) || 0) / 60, 0);
+      const horasAcumuladas = historicoFechado.reduce((acc, r) => acc + (Number(r.horasExtras) || 0), 0);
 
       let ctaHtml;
       if (offline) {
@@ -543,28 +574,167 @@
     // no histórico); em vez disso essa ação abre uma solicitação que entra
     // na fila do RH (mesma fila de "Solicitações"), pra manter uma trilha
     // de aprovação de quem mudou o quê.
+    //
+    // Dois modos, escolhidos no passo 1 do modal:
+    //   "dia"    — ajuste do dia inteiro: até 4 campos fixos (Entrada,
+    //              Saída intervalo, Retorno intervalo, Saída), cada um com
+    //              seu próprio horário (em branco = não se aplica esse dia).
+    //   "pontos" — um ou mais registros específicos: lista dinâmica de
+    //              linhas, cada uma com o SEU PRÓPRIO estado {campo,
+    //              horario} — corrige o bug em que trocar o "Registro" no
+    //              formulário antigo mantinha o horário digitado antes,
+    //              porque havia um único <input type="time"> compartilhado
+    //              por qualquer registro escolhido. Aqui cada linha tem seu
+    //              próprio <input>, então nenhum valor "vaza" de um
+    //              registro para outro.
+    // A solicitação sempre grava `itens: [{campo, campoLabel, horario}, ...]`
+    // — 1 item no caso mais simples, vários quando o colaborador pede mais
+    // de um ajuste no mesmo dia (ver rhCriarAjustePonto/rhResolverAjustePonto
+    // em js/rh-ponto-data.js, que aplicam todos os itens de uma vez).
     // ------------------------------------------------------------------
-    let _seqAjustePonto = 201;
     const REGISTRO_LABELS = { entrada: "Entrada", intervaloSaida: "Saída intervalo", intervaloVolta: "Retorno intervalo", saida: "Saída" };
+    const REGISTRO_ORDEM = ["entrada", "intervaloSaida", "intervaloVolta", "saida"];
+
+    let ajusteModo = "pontos";
+    let pontosRows = [];
+    let _pontosRowSeq = 1;
+
+    function novaLinhaPonto() {
+      const usados = pontosRows.map((r) => r.campo);
+      const campo = REGISTRO_ORDEM.find((c) => !usados.includes(c)) || REGISTRO_ORDEM[0];
+      return { id: _pontosRowSeq++, campo, horario: "" };
+    }
 
     function abrirModalAjustePonto() {
       document.getElementById("form-ajuste-ponto").reset();
-      document.getElementById("ajuste-tipo-corrigir").checked = true;
+      ajusteModo = "pontos";
+      pontosRows = [novaLinhaPonto()];
       const dataInput = document.getElementById("ajuste-data");
       dataInput.value = todayIso();
       dataInput.max = todayIso();
+      atualizarModoAjuste();
       openModal("modal-ajuste-ponto");
+    }
+
+    // Escolha do modo (passo 1) — botões estáticos do modal, os listeners
+    // são presos uma única vez aqui (não dentro de abrirModalAjustePonto,
+    // que roda de novo a cada abertura do modal e duplicaria os handlers).
+    document.querySelectorAll('#modal-ajuste-ponto [data-modo]').forEach((btn) =>
+      btn.addEventListener("click", () => {
+        if (ajusteModo === btn.dataset.modo) return;
+        ajusteModo = btn.dataset.modo;
+        if (ajusteModo === "pontos" && !pontosRows.length) pontosRows = [novaLinhaPonto()];
+        atualizarModoAjuste();
+      })
+    );
+
+    function atualizarModoAjuste() {
+      document.querySelectorAll('#modal-ajuste-ponto [data-modo]').forEach((b) => b.classList.toggle("selected", b.dataset.modo === ajusteModo));
+      document.getElementById("ajuste-modo-hint").textContent =
+        ajusteModo === "dia"
+          ? "Informe os horários certos de todos os registros do dia — deixe em branco o que não se aplica."
+          : "Escolha exatamente quais registros do dia precisam de correção ou lançamento, um por linha.";
+      renderConteudoModoAjuste();
+    }
+
+    function renderConteudoModoAjuste() {
+      const wrap = document.getElementById("ajuste-modo-conteudo");
+      if (ajusteModo === "dia") {
+        wrap.innerHTML = `
+          <div class="ajuste-dia-grid">
+            ${REGISTRO_ORDEM.map(
+              (campo) => `
+              <div class="ajuste-dia-field">
+                <label>${iconePasso(campo)}${REGISTRO_LABELS[campo]}</label>
+                <input type="time" id="ajuste-dia-${campo}" />
+              </div>`
+            ).join("")}
+          </div>`;
+        return;
+      }
+      wrap.innerHTML = `
+        <div class="ajuste-pontos-list" id="ajuste-pontos-list"></div>
+        <button type="button" class="ajuste-add-ponto-btn" id="btn-add-ponto-ajuste">${ICONS.plus}<span>Adicionar outro ponto</span></button>`;
+      renderPontosRows();
+      document.getElementById("btn-add-ponto-ajuste").addEventListener("click", () => {
+        if (pontosRows.length >= REGISTRO_ORDEM.length) return;
+        pontosRows.push(novaLinhaPonto());
+        renderPontosRows();
+      });
+    }
+
+    // Lista dinâmica do modo "pontos" — cada linha tem campo (select) e
+    // horário (input) independentes, guardados em `pontosRows`. As opções
+    // do select excluem os campos já usados por OUTRAS linhas, pra evitar
+    // pedir ajuste duplicado/contraditório do mesmo registro duas vezes.
+    function renderPontosRows() {
+      const list = document.getElementById("ajuste-pontos-list");
+      if (!list) return;
+      list.innerHTML = pontosRows
+        .map((row) => {
+          const usadosPorOutros = pontosRows.filter((r) => r.id !== row.id).map((r) => r.campo);
+          const opcoes = REGISTRO_ORDEM.filter((c) => c === row.campo || !usadosPorOutros.includes(c));
+          return `
+          <div class="ajuste-ponto-row" data-row-id="${row.id}">
+            <div class="field"><label>Registro</label>
+              <select class="ajuste-ponto-campo" data-row-id="${row.id}">
+                ${opcoes.map((c) => `<option value="${c}" ${c === row.campo ? "selected" : ""}>${REGISTRO_LABELS[c]}</option>`).join("")}
+              </select>
+            </div>
+            <div class="field"><label>Horário</label>
+              <input type="time" class="ajuste-ponto-horario" data-row-id="${row.id}" value="${row.horario || ""}" required />
+            </div>
+            ${pontosRows.length > 1 ? `<button type="button" class="ajuste-remove-row" data-row-id="${row.id}" title="Remover este ponto">${ICONS.trash}</button>` : ""}
+          </div>`;
+        })
+        .join("");
+
+      const addBtn = document.getElementById("btn-add-ponto-ajuste");
+      if (addBtn) addBtn.disabled = pontosRows.length >= REGISTRO_ORDEM.length;
+
+      list.querySelectorAll(".ajuste-ponto-campo").forEach((sel) =>
+        sel.addEventListener("change", (e) => {
+          const row = pontosRows.find((r) => r.id === Number(e.target.dataset.rowId));
+          if (row) row.campo = e.target.value;
+          renderPontosRows();
+        })
+      );
+      list.querySelectorAll(".ajuste-ponto-horario").forEach((inp) =>
+        inp.addEventListener("input", (e) => {
+          const row = pontosRows.find((r) => r.id === Number(e.target.dataset.rowId));
+          if (row) row.horario = e.target.value;
+        })
+      );
+      list.querySelectorAll(".ajuste-remove-row").forEach((btn) =>
+        btn.addEventListener("click", (e) => {
+          pontosRows = pontosRows.filter((r) => r.id !== Number(e.currentTarget.dataset.rowId));
+          renderPontosRows();
+        })
+      );
+    }
+
+    function coletarItensAjuste() {
+      if (ajusteModo === "dia") {
+        return REGISTRO_ORDEM.map((campo) => ({
+          campo,
+          campoLabel: REGISTRO_LABELS[campo],
+          horario: document.getElementById(`ajuste-dia-${campo}`)?.value || "",
+        })).filter((it) => it.horario);
+      }
+      return pontosRows
+        .map((r) => ({ campo: r.campo, campoLabel: REGISTRO_LABELS[r.campo], horario: r.horario || "" }))
+        .filter((it) => it.horario);
     }
 
     document.getElementById("form-ajuste-ponto").addEventListener("submit", async (e) => {
       e.preventDefault();
       const btnEnviar = document.getElementById("btn-enviar-ajuste-ponto");
-      const atrasado = document.getElementById("ajuste-tipo-atrasado").checked;
       const data = document.getElementById("ajuste-data").value;
-      const campo = document.getElementById("ajuste-registro").value;
-      const registroLabel = REGISTRO_LABELS[campo] || campo;
-      const horario = document.getElementById("ajuste-horario").value;
       const justificativa = document.getElementById("ajuste-justificativa").value.trim();
+      const itens = coletarItensAjuste();
+
+      if (!data) { showToast("Selecione a data do ajuste.", "error"); return; }
+      if (!itens.length) { showToast("Informe pelo menos um horário para ajustar.", "error"); return; }
 
       btnEnviar.disabled = true;
       try {
@@ -573,9 +743,8 @@
         // aprovar/recusar). Visível pelo RH em qualquer aba/dispositivo,
         // não depende mais do navegador de quem pediu.
         const solicitacao = await rhCriarAjustePonto({
-          colaboradorId: session.employeeId, colaboradorNome: session.name, data,
-          campo, campoLabel: registroLabel, horario,
-          tipo: atrasado ? "ATRASADO" : "CORRIGIR", justificativa,
+          colaboradorId: session.employeeId, colaboradorNome: session.name,
+          data, modo: ajusteModo, itens, justificativa,
         });
         pendentesMap = await rhDiasComAjustePendente(session.employeeId);
         aplicarPendentes();
@@ -832,7 +1001,7 @@
         // ganha alteradoPeloRH e volta ao fluxo normal (com o selo "corrigido").
         bucket = "pendente";
         statusLabel = "Ajuste pendente";
-        metaLabel = rec.pendenteAjuste.tipo === "ATRASADO" ? "Lançamento aguardando RH" : "Correção aguardando RH";
+        metaLabel = rec.pendenteAjuste.modo === "dia" ? "Ajuste do dia aguardando RH" : "Ajuste de ponto aguardando RH";
       } else if (rec) {
         if (rec.status === "falta") {
           bucket = "falta"; statusLabel = "Falta";
@@ -864,7 +1033,7 @@
       else if (selected) classes.push("is-selected");
 
       const tituloCard = rec?.pendenteAjuste
-        ? `Ajuste pendente — ${esc(rec.pendenteAjuste.campoLabel)} solicitado para ${esc(rec.pendenteAjuste.horario)}, aguardando aprovação do RH`
+        ? `Ajuste pendente — ${esc(resumoAjustePendente(rec.pendenteAjuste))}, aguardando aprovação do RH`
         : rec?.alteradoPeloRH
         ? esc(`Alterado pelo RH — ${rec.alteradoPeloRH.motivo}`)
         : "";
