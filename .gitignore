@@ -1,0 +1,18 @@
+# BSconta+ RH — arquivos que nunca devem ser commitados neste repositório.
+# Ver seção "Segurança e dados" do README.
+
+# Scripts de seed com dados REAIS de colaborador (CPF, nascimento, endereço).
+# Estes rodam uma única vez direto no Supabase (SQL Editor) e ficam só na
+# máquina local. A versão versionada/pública é a .exemplo.sql correspondente,
+# com dados fictícios.
+db/supabase/03_seed_colaboradores.sql
+db/supabase/18_dados_pessoais_planilha.sql
+
+# Segredos, chaves e variáveis de ambiente locais.
+.env
+.env.*
+*.pem
+*.key
+
+# Arquivos de sistema/editor.
+.DS_Store
