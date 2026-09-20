@@ -288,7 +288,20 @@
     // correção no histórico de ponto (o dia sai de "pendente" e passa a
     // exibir "Alterado pelo RH"); recusar libera o dia sem alterar nada.
     // ------------------------------------------------------------------
-    const TIPO_AJUSTE_LABEL = { CORRIGIR: "Correção de horário", ATRASADO: "Lançamento atrasado" };
+    const MODO_AJUSTE_LABEL = { dia: "Dia inteiro", pontos: "Pontos específicos" };
+
+    // Aceita o formato atual (`ajuste_ponto.itens`, um ou mais registros por
+    // solicitação) e o formato antigo, singular (`{campo, campoLabel,
+    // horario}` direto no objeto) — solicitações pendentes criadas antes da
+    // tela de ajuste passar a suportar múltiplos registros continuam
+    // aparecendo certas aqui. Mesma lógica de rhItensAjustePonto em
+    // js/rh-ponto-data.js.
+    function itensAjustePonto(ajuste) {
+      if (!ajuste) return [];
+      if (Array.isArray(ajuste.itens) && ajuste.itens.length) return ajuste.itens;
+      if (ajuste.campo) return [{ campo: ajuste.campo, campoLabel: ajuste.campoLabel, horario: ajuste.horario }];
+      return [];
+    }
 
     async function refrescarAjustes() {
       const { data, error } = await sb
@@ -302,10 +315,9 @@
         id: row.id,
         protocolo: row.protocolo,
         colaborador: row.colaboradores?.nome || "—",
-        tipo: row.ajuste_ponto?.tipo,
+        modo: row.ajuste_ponto?.modo || "pontos",
         data: row.ajuste_ponto?.data,
-        campoLabel: row.ajuste_ponto?.campoLabel,
-        horario: row.ajuste_ponto?.horario,
+        itens: itensAjustePonto(row.ajuste_ponto),
         justificativa: row.ajuste_ponto?.justificativa || "",
       }));
     }
@@ -336,16 +348,16 @@
         ? `
         <div class="table-scroll">
           <table>
-            <thead><tr><th>Colaborador</th><th>Tipo</th><th>Data</th><th>Registro solicitado</th><th>Motivo</th><th></th></tr></thead>
+            <thead><tr><th>Colaborador</th><th>Tipo</th><th>Data</th><th>Registros solicitados</th><th>Motivo</th><th></th></tr></thead>
             <tbody>
               ${rows
                 .map(
                   (s) => `<tr>
                 <td><div class="person-cell"><span class="avatar avatar-sm ${avatarColorClass(s.colaborador)}">${initials(s.colaborador)}</span>${esc(s.colaborador)}</div></td>
-                <td>${TIPO_AJUSTE_LABEL[s.tipo] || s.tipo}</td>
+                <td><span class="ajuste-modo-badge ${s.modo}">${MODO_AJUSTE_LABEL[s.modo] || s.modo}</span></td>
                 <td>${fmtDate(s.data)}</td>
-                <td>${esc(s.campoLabel)} → <strong>${esc(s.horario)}</strong></td>
-                <td style="max-width:280px">${esc(s.justificativa || "—")}</td>
+                <td><div class="ajuste-itens-list">${s.itens.map((it) => `<span class="ajuste-item-chip">${esc(it.campoLabel)} → <strong>${esc(it.horario)}</strong></span>`).join("")}</div></td>
+                <td style="max-width:260px">${esc(s.justificativa || "—")}</td>
                 <td style="text-align:right">
                   <div class="approve-reject">
                     <button type="button" class="approve" data-aprovar-ajuste="${esc(s.id)}" aria-label="Aprovar">${ICONS.check}</button>
@@ -636,7 +648,7 @@
               ${isToday ? `<span class="ponto-today-badge">HOJE</span>` : ""}
             </div>
             <div class="ponto-day-middle">
-              <span class="ponto-day-status">${isWeekend ? "Fim de semana" : info.label}</span>
+              <span class="ponto-day-status">${!rec && isWeekend ? "Fim de semana" : info.label}</span>
               <span class="ponto-day-hours">${info.hours || ""}</span>
             </div>
             <div class="ponto-day-footer">
