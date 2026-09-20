@@ -173,6 +173,8 @@
             btnSubmit.textContent = "Entrar";
             return;
           }
+          if (perfil.primeiroAcesso) {          window.location.href = "trocar-senha.html";          return;
+          }
           const isRh = perfil.role === "RH" || perfil.role === "RH_ADMIN";
           window.location.href = isRh ? "rh/dashboard.html" : "colaborador/dashboard.html";
         } catch (err) {
