@@ -179,14 +179,32 @@ async function rhCarregarPonto(colaboradorId) {
 
   const todasLinhas = rows || [];
   const linhaHoje = todasLinhas.find((r) => r.data === hojeIso);
-  const historico = todasLinhas.filter((r) => r.data !== hojeIso).map(rhMapPontoRow);
 
   const hoje = linhaHoje
     ? rhMapPontoRow(linhaHoje)
     : { data: hojeIso, status: "hoje", entrada: null, intervaloSaida: null, intervaloVolta: null, saida: null, local: null, geo: null };
 
-  const horasDevendo = historico.reduce((acc, r) => acc + (Number(r.atrasoMin) || 0) / 60, 0);
-  const horasAcumuladas = historico.reduce((acc, r) => acc + (Number(r.horasExtras) || 0), 0);
+  // "historico" é a lista usada pelas telas de Histórico (calendário, busca
+  // por data, tabela detalhada) e por isso precisa conter TODOS os dias com
+  // dado — inclusive hoje. Antes esta lista excluía a data de hoje
+  // (`.filter(r => r.data !== hojeIso)`), o que fazia a aba "Histórico"
+  // nunca encontrar o registro do dia atual: `porData()`/`registrosDoPeriodo()`
+  // em colaborador/ponto.html só procuram nesta lista, então o dia de hoje
+  // sempre caía no fallback de "Sem registro"/"Fim de semana", mesmo com
+  // ponto batido e salvo corretamente no banco (a aba "Hoje" lê de `hoje`,
+  // por isso sempre mostrava certo). Corrige a causa raiz aqui, na origem
+  // do dado, em vez de remendar cada tela que consome `historico`.
+  const historico = todasLinhas.map(rhMapPontoRow);
+  if (!linhaHoje) historico.push({ ...hoje });
+  historico.sort((a, b) => a.data.localeCompare(b.data));
+
+  // O saldo de banco de horas continua contando só os dias JÁ FECHADOS
+  // (exclui hoje explicitamente por data, não mais "por ausência da lista")
+  // — hoje ainda está em andamento, então atraso/hora-extra do dia não deve
+  // entrar no saldo acumulado até a jornada terminar.
+  const historicoFechado = historico.filter((r) => r.data !== hojeIso);
+  const horasDevendo = historicoFechado.reduce((acc, r) => acc + (Number(r.atrasoMin) || 0) / 60, 0);
+  const horasAcumuladas = historicoFechado.reduce((acc, r) => acc + (Number(r.horasExtras) || 0), 0);
 
   return {
     colaboradorId,
@@ -222,14 +240,34 @@ async function rhSalvarPontoHoje(colaboradorId, diaHoje) {
   return rhMapPontoRow(data);
 }
 
+/** Extrai a lista de itens {campo, campoLabel, horario} de um ajuste de
+ * ponto, aceitando tanto o formato atual (`ajuste.itens`, um ou mais
+ * registros por solicitação) quanto o formato antigo, singular
+ * (`{campo, campoLabel, horario}` direto no objeto) — necessário porque
+ * pode haver solicitações antigas ainda PENDENTES no banco, criadas antes
+ * desta mudança, e elas continuam precisando ser aprovadas/recusadas
+ * normalmente. */
+function rhItensAjustePonto(ajuste) {
+  if (!ajuste) return [];
+  if (Array.isArray(ajuste.itens) && ajuste.itens.length) return ajuste.itens;
+  if (ajuste.campo) return [{ campo: ajuste.campo, campoLabel: ajuste.campoLabel, horario: ajuste.horario }];
+  return [];
+}
+
 /** Cria o pedido de ajuste de ponto — uma linha real em rh.solicitacoes
  * (não mais um "flag" dentro do próprio registro de ponto, porque a
  * política de RLS não deixa o colaborador editar um dia que não seja hoje;
- * o RH é quem aplica a correção de fato quando aprova). */
-async function rhCriarAjustePonto({ colaboradorId, colaboradorNome, data, campo, campoLabel, horario, tipo, justificativa }) {
+ * o RH é quem aplica a correção de fato quando aprova).
+ * `itens` é uma lista de {campo, campoLabel, horario} — um por registro do
+ * dia que precisa ser ajustado (pode ser 1, alguns, ou os 4). `modo` é só
+ * metadado de exibição ("dia" = ajuste do dia inteiro, "pontos" = um ou
+ * mais registros específicos), não muda como a aprovação é aplicada. */
+async function rhCriarAjustePonto({ colaboradorId, colaboradorNome, data, modo, itens, justificativa }) {
+  if (!Array.isArray(itens) || !itens.length) throw new Error("Informe pelo menos um horário para ajustar.");
   const protocolo = `PTO-${Date.now().toString(36).toUpperCase()}`;
-  const tipoLabel = tipo === "ATRASADO" ? "Lançamento de ponto atrasado" : "Correção de horário registrado";
-  const descricao = `${tipoLabel} em ${data} — ${campoLabel} para ${horario}. Motivo: ${justificativa}`;
+  const modoLabel = modo === "dia" ? "Ajuste do dia inteiro" : itens.length > 1 ? "Ajuste de múltiplos registros" : "Ajuste de registro";
+  const resumo = itens.map((it) => `${it.campoLabel} → ${it.horario}`).join(", ");
+  const descricao = `${modoLabel} em ${data} — ${resumo}. Motivo: ${justificativa}`;
   const { data: row, error } = await sb
     .from("solicitacoes")
     .insert({
@@ -239,7 +277,7 @@ async function rhCriarAjustePonto({ colaboradorId, colaboradorNome, data, campo,
       descricao,
       status: "PENDENTE",
       prioridade: "normal",
-      ajuste_ponto: { data, campo, campoLabel, horario, tipo, justificativa: justificativa || "" },
+      ajuste_ponto: { data, modo: modo || "pontos", itens, justificativa: justificativa || "" },
     })
     .select()
     .single();
@@ -249,7 +287,7 @@ async function rhCriarAjustePonto({ colaboradorId, colaboradorNome, data, campo,
 
 /** Para o calendário do colaborador mostrar "Ajuste pendente" nos dias
  * certos: busca as solicitações de ajuste de ponto ainda PENDENTES dele e
- * devolve um Set com as datas afetadas. */
+ * devolve um mapa data → objeto de ajuste (com `itens`, ver rhItensAjustePonto). */
 async function rhDiasComAjustePendente(colaboradorId) {
   const { data, error } = await sb
     .from("solicitacoes")
@@ -265,14 +303,18 @@ async function rhDiasComAjustePendente(colaboradorId) {
   return mapa;
 }
 
-/** RH: aprova ou recusa um pedido de ajuste de ponto. Se aprovado, aplica a
- * correção de verdade no dia (rh.ponto_registros), recalculando
- * status/horas/atraso, e marca "alterado_pelo_rh". */
+/** RH: aprova ou recusa um pedido de ajuste de ponto. Se aprovado, aplica
+ * TODOS os itens do pedido de uma vez (um dia pode ter vários registros
+ * corrigidos/lançados na mesma solicitação) no dia informado
+ * (rh.ponto_registros), recalculando status/horas/atraso uma única vez com
+ * o resultado final, e marca "alterado_pelo_rh". */
 async function rhResolverAjustePonto(solicitacaoId, aprovado, resolvidoPorNome) {
   const { data: solicitacao, error: getErr } = await sb.from("solicitacoes").select("*").eq("id", solicitacaoId).single();
   if (getErr) throw getErr;
   const ajuste = solicitacao.ajuste_ponto;
   if (!ajuste) throw new Error("Esta solicitação não tem dados de ajuste de ponto associados.");
+  const itens = rhItensAjustePonto(ajuste);
+  if (!itens.length) throw new Error("Esta solicitação não tem nenhum registro de ajuste.");
 
   if (aprovado) {
     const { data: linhaAtual } = await sb
@@ -283,19 +325,20 @@ async function rhResolverAjustePonto(solicitacaoId, aprovado, resolvidoPorNome) 
       .maybeSingle();
 
     const colunaPorCampo = { entrada: "entrada", intervaloSaida: "intervalo_saida", intervaloVolta: "intervalo_volta", saida: "saida" };
-    const coluna = colunaPorCampo[ajuste.campo];
-    if (!coluna) throw new Error("Campo de ajuste desconhecido: " + ajuste.campo);
-
     const base = {
       entrada: linhaAtual?.entrada || null,
       intervalo_saida: linhaAtual?.intervalo_saida || null,
       intervalo_volta: linhaAtual?.intervalo_volta || null,
       saida: linhaAtual?.saida || null,
     };
-    base[coluna] = ajuste.horario;
+    for (const item of itens) {
+      const coluna = colunaPorCampo[item.campo];
+      if (!coluna) throw new Error("Campo de ajuste desconhecido: " + item.campo);
+      base[coluna] = item.horario;
+    }
     const config = await rhBuscarConfigJornada(solicitacao.colaborador_id);
     const calculo = rhCalcularDia(base, config);
-    const tipoLabel = ajuste.tipo === "ATRASADO" ? "Lançamento atrasado" : "Correção de horário";
+    const resumo = itens.map((it) => `${it.campoLabel} definido para ${it.horario}`).join("; ");
 
     const payload = {
       colaborador_id: solicitacao.colaborador_id,
@@ -305,7 +348,7 @@ async function rhResolverAjustePonto(solicitacaoId, aprovado, resolvidoPorNome) 
       local: linhaAtual?.local || null,
       geo: linhaAtual?.geo || null,
       pendente_ajuste: null,
-      alterado_pelo_rh: { por: resolvidoPorNome || "RH", em: new Date().toISOString(), motivo: `${tipoLabel} aprovado — ${ajuste.campoLabel} definido para ${ajuste.horario}.` },
+      alterado_pelo_rh: { por: resolvidoPorNome || "RH", em: new Date().toISOString(), motivo: `Ajuste aprovado — ${resumo}.` },
     };
     const { error: upsertErr } = await sb.from("ponto_registros").upsert(payload, { onConflict: "colaborador_id,data" });
     if (upsertErr) throw upsertErr;

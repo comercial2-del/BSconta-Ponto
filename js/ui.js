@@ -634,30 +634,19 @@ function geoLinkHtml(geo) {
   return `<a href="https://www.google.com/maps?q=${encodeURIComponent(geo.lat + "," + geo.lng)}" target="_blank" rel="noopener" class="geo-link" title="Abrir localização do ponto no Google Maps${precisao}" aria-label="Abrir localização do ponto no Google Maps">${ICONS.mapPin}</a>`;
 }
 
-// Localizações de demonstração usadas apenas quando a base de protótipo ainda
-// não possui coordenadas salvas naquele registro. No ambiente real, o ponto
-// deve trazer a geolocalização capturada pelo navegador/banco.
-const DEMO_GEO_POINTS = [
-  { lat: -19.9199114640, lng: -43.9545997849, precisao: 25 },
-  { lat: -19.9278021629, lng: -43.9523092414, precisao: 18 },
-  { lat: -19.9191660103, lng: -43.9372564086, precisao: 20 },
-  { lat: -19.9320643464, lng: -43.9532260952, precisao: 18 },
-  { lat: -19.9321692806, lng: -43.9511232470, precisao: 22 },
-  { lat: -19.9282911876, lng: -43.9433146863, precisao: 20 },
-  { lat: -19.9175238527, lng: -43.9519068137, precisao: 25 },
-  { lat: -19.9295904100, lng: -43.9359557386, precisao: 25 },
-  { lat: -19.9225120000, lng: -43.9452190000, precisao: 15 },
-];
-
-function demoGeoForDate(iso) {
-  if (!iso || !DEMO_GEO_POINTS.length) return null;
-  const digits = String(iso).replace(/\D/g, "");
-  const key = Number(digits.slice(-4)) || 0;
-  return DEMO_GEO_POINTS[key % DEMO_GEO_POINTS.length];
-}
-
+// geoLinkForPonto(geo, iso) — usada nas tabelas de Histórico (colaborador e
+// RH). ATENÇÃO: existia aqui um gerador de coordenadas FALSAS
+// (DEMO_GEO_POINTS / demoGeoForDate), que inventava uma latitude/longitude
+// a partir dos dígitos da data sempre que o registro não tinha geo real
+// salvo — ou seja, o pin do mapa podia abrir uma localização inventada,
+// nunca capturada de fato, sem nenhuma indicação visual de que era falsa.
+// Isso é exatamente o tipo de "localização mockada/de desenvolvimento
+// usada indevidamente" que não pode existir no fluxo real: removido.
+// Agora, sem geo real salvo (registro antigo, ou local marcado sem
+// permissão de localização concedida na hora), simplesmente não há link —
+// nunca mostramos uma localização que não foi realmente coletada.
 function geoLinkForPonto(geo, iso) {
-  return geoLinkHtml(geo || demoGeoForDate(iso));
+  return geoLinkHtml(geo);
 }
 
 /**
