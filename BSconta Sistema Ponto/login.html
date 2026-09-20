@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Entrar — BSconta+ RH</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/theme-v2.css" />
+</head>
+<body>
+  <main class="login-wrap">
+    <div class="login-blobs"><span></span><span></span><span></span></div>
+
+    <div class="login-shell">
+      <section class="login-promo">
+        <div class="brand-row">
+          <img class="logo-mark" src="assets/bsconta-icon.png" alt="" />
+          <div>
+            <h2>BSConta<sup>+</sup></h2>
+            <p>Contabilidade Digital</p>
+          </div>
+        </div>
+
+        <h1 class="login-hero-title">Gestão de pessoas,<span>simples e humana.</span></h1>
+        <p class="login-hero-sub">O ambiente único para colaboradores e RH acompanharem jornada, férias, benefícios e comunicados da BSconta+.</p>
+
+        <ul class="login-features">
+          <li><span class="feat-icon">${'' /* placeholder removed below */}</span></li>
+        </ul>
+      </section>
+
+      <div class="card login-card">
+        <div class="brand-row login-card-brand">
+          <img class="login-logo" src="assets/bsconta-icon.png" alt="" />
+          <strong>BSConta<sup>+</sup></strong>
+        </div>
+        <h1 class="login-title">Sistema de Gestão de Colaboradores e RH</h1>
+        <p class="login-subtitle" id="login-subtitle">Entre com seu e-mail e senha cadastrados.</p>
+
+        <form id="login-form">
+          <div class="field">
+            <label for="employee-email">E-mail</label>
+            <div class="input-icon-wrap">
+              <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
+              <input type="email" id="employee-email" required placeholder="seunome@bsconta.com.br" autocomplete="username" autocapitalize="none" />
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="employee-code">Senha</label>
+            <div class="input-icon-wrap">
+              <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11h10a2 2 0 0 1 2 2v6H5v-6a2 2 0 0 1 2-2Z"/><path d="M8 11V8a4 4 0 1 1 8 0v3"/><path d="M12 15v1"/></svg>
+              <input type="password" id="employee-code" class="has-toggle" required placeholder="Sua senha" autocomplete="current-password" />
+              <button type="button" class="input-icon-btn" id="btn-toggle-senha" aria-label="Mostrar senha" aria-pressed="false">
+                <svg class="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg class="icon-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a18.4 18.4 0 0 1 4.22-5.06M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 7 11 7a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <p class="login-hint-text" id="forgot-hint" style="display:block; text-align:right; margin: 0.4rem 0 0.25rem;">
+            <a href="#" id="link-esqueci-senha" style="color:inherit; text-decoration:underline; cursor:pointer;">Esqueci minha senha</a>
+          </p>
+
+          <p class="error-text" id="error-text" style="display: none"></p>
+          <p class="login-hint-text" id="info-text" style="display: none; color:#1a7a3c;"></p>
+          <button type="submit" class="btn-primary" id="btn-submit">Entrar</button>
+        </form>
+
+        <div class="demo-box login-secure-box">
+          <span class="secure-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 3.5V11c0 5-3.4 8.5-8 9.5-4.6-1-8-4.5-8-9.5V5.5z"/><path d="M8.5 12l2.5 2.5L15.5 9.5"/></svg></span>
+          <div>
+            <p class="lbl">Acesso seguro</p>
+            <p id="secure-box-text">Autenticação real via Supabase Auth — sua senha nunca é vista pela aplicação.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>window.BASE_PATH = "";</script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-client.js"></script>
+  <script src="js/rh-supabase-auth.js"></script>
+  <script>
+    (async function () {
+      const form = document.getElementById("login-form");
+      const errorText = document.getElementById("error-text");
+      const infoText = document.getElementById("info-text");
+      const btnSubmit = document.getElementById("btn-submit");
+      const emailInput = document.getElementById("employee-email");
+      const senhaInput = document.getElementById("employee-code");
+      const linkEsqueci = document.getElementById("link-esqueci-senha");
+      const btnToggleSenha = document.getElementById("btn-toggle-senha");
+      const iconEye = btnToggleSenha.querySelector(".icon-eye");
+      const iconEyeOff = btnToggleSenha.querySelector(".icon-eye-off");
+
+      btnToggleSenha.addEventListener("click", () => {
+        const mostrando = senhaInput.type === "text";
+        senhaInput.type = mostrando ? "password" : "text";
+        iconEye.style.display = mostrando ? "" : "none";
+        iconEyeOff.style.display = mostrando ? "none" : "";
+        btnToggleSenha.setAttribute("aria-pressed", String(!mostrando));
+        btnToggleSenha.setAttribute("aria-label", mostrando ? "Mostrar senha" : "Ocultar senha");
+      });
+
+      function mostrarErro(msg) {
+        infoText.style.display = "none";
+        errorText.textContent = msg;
+        errorText.style.display = "block";
+      }
+      function mostrarInfo(msg) {
+        errorText.style.display = "none";
+        infoText.textContent = msg;
+        infoText.style.display = "block";
+      }
+      function traduzErroLogin(err) {
+        const msg = String(err?.message || err || "");
+        if (/Invalid login credentials/i.test(msg)) return "E-mail ou senha incorretos.";
+        if (/Email not confirmed/i.test(msg)) return "Este e-mail ainda não foi confirmado. Confira sua caixa de entrada.";
+        if (/schema must be one of|relation .*rh\..* does not exist/i.test(msg)) {
+          return "O banco de dados do RH ainda não foi configurado neste projeto Supabase. Veja SETUP-SUPABASE.md.";
+        }
+        return "Não foi possível entrar: " + msg;
+      }
+
+      if (!window.sb) {
+        mostrarErro("O cliente do Supabase não foi carregado. Confira sua conexão e tente novamente.");
+      } else {
+        // Se já existe uma sessão real válida, manda direto pro portal certo.
+        await rhRedirecionarSeJaLogado();
+      }
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        errorText.style.display = "none";
+        infoText.style.display = "none";
+
+        const email = emailInput.value.trim();
+        const senha = senhaInput.value;
+        if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+          mostrarErro("Informe um e-mail válido.");
+          return;
+        }
+        if (!senha) {
+          mostrarErro("Informe sua senha.");
+          return;
+        }
+        if (!window.sb) {
+          mostrarErro("O cliente do Supabase não foi carregado. Confira sua conexão e tente novamente.");
+          return;
+        }
+
+        btnSubmit.disabled = true;
+        btnSubmit.textContent = "Entrando...";
+        try {
+          await rhLoginReal(email, senha);
+          const { data: authData } = await sb.auth.getSession();
+          const perfil = await rhFetchPerfilCompleto(authData.session.user.id, authData.session.user.email);
+          if (!perfil) {
+            await sb.auth.signOut();
+            mostrarErro(
+              "Login correto, mas você ainda não tem um papel definido no sistema de RH. Peça a um RH_ADMIN para te cadastrar em Configurações > Usuários."
+            );
+            btnSubmit.disabled = false;
+            btnSubmit.textContent = "Entrar";
+            return;
+          }
+          if (perfil.status === "INATIVO") {
+            await sb.auth.signOut();
+            mostrarErro("Este cadastro está INATIVO no RH. Fale com o setor de Recursos Humanos.");
+            btnSubmit.disabled = false;
+            btnSubmit.textContent = "Entrar";
+            return;
+          }
+          const isRh = perfil.role === "RH" || perfil.role === "RH_ADMIN";
+          window.location.href = isRh ? "rh/dashboard.html" : "colaborador/dashboard.html";
+        } catch (err) {
+          mostrarErro(traduzErroLogin(err));
+          btnSubmit.disabled = false;
+          btnSubmit.textContent = "Entrar";
+        }
+      });
+
+      linkEsqueci.addEventListener("click", async (e) => {
+        e.preventDefault();
+        errorText.style.display = "none";
+        infoText.style.display = "none";
+        const email = emailInput.value.trim();
+        if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+          mostrarErro("Digite seu e-mail no campo acima antes de pedir a recuperação de senha.");
+          return;
+        }
+        if (!window.sb) {
+          mostrarErro("O cliente do Supabase não foi carregado.");
+          return;
+        }
+        try {
+          await rhEsqueciSenha(email);
+          mostrarInfo("Se este e-mail tiver uma conta, enviamos um link de redefinição de senha para ele.");
+        } catch (err) {
+          mostrarErro("Não foi possível enviar o e-mail de recuperação: " + (err?.message || err));
+        }
+      });
+
+      document.querySelectorAll("#login-form input").forEach((input) => {
+        input.addEventListener("input", () => {
+          errorText.style.display = "none";
+        });
+      });
+
+      // Preenche os ícones/rótulos que dependem do JS (mantém o HTML acima limpo)
+      document.querySelector(".login-features").innerHTML = [
+        { icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>', text: "Ponto, férias e benefícios num só lugar" },
+        { icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>', text: "Gestão completa de colaboradores para o RH" },
+        { icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>', text: "Solicitações e comunicados sem burocracia" },
+      ].map((f) => `<li><span class="feat-icon">${f.icon}</span>${f.text}</li>`).join("");
+    })();
+  </script>
+  <script src="js/ui-effects.js"></script>
+</body>
+</html>

@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard RH — BSconta+ RH</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+  <link rel="stylesheet" href="../css/theme-v2.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div id="app-header"></div>
+    <div class="app-content">
+      <main class="main">
+        <div id="top-header" class="top-header"></div>
+        <div id="content"><div class="loading-wrap"><div class="spinner"></div></div></div>
+      </main>
+    </div>
+  </div>
+
+  <script>window.BASE_PATH = "../";</script>
+  <script src="../js/demo-data.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/supabase-client.js"></script>
+  <script src="../js/rh-supabase-auth.js"></script>
+  <script src="../js/rh-ponto-data.js"></script>
+  <script src="../js/rh-ferias-data.js"></script>
+  <script src="../js/rh-solicitacoes-data.js"></script>
+  <script>
+(async function () {
+    const session = await requireRoleReal("RH");
+    if (!session) return;
+    function firstName(n) { return (n || "").split(" ")[0]; }
+
+    // Dados agregados reais (rh.colaboradores, rh.ponto_registros,
+    // rh.ferias_solicitacoes, rh.solicitacoes) — substitui DEMO.rhKpis /
+    // DEMO.rhDepartamentos / DEMO.rhPontoHoje / DEMO.rhAniversariantes /
+    // DEMO.rhSolicitacoesPendentes / DEMO.rhFeriasProximas, que eram só
+    // dados fixos em memória (js/demo-data.js).
+    let dash = {
+      totalColaboradores: 0, ativos: 0, afastados: 0, feriasProximas: 0, solicitacoesPendentes: 0,
+      departamentos: [], aniversariantes: [], pontoHoje: [], solicitacoesPendentesRows: [], feriasProximasRows: [],
+    };
+
+    async function refrescarDashboard() {
+      const hojeIso = rhTodayIso();
+      const mesAtual = new Date().getMonth() + 1;
+      const em30dias = new Date();
+      em30dias.setDate(em30dias.getDate() + 30);
+      const em30diasIso = em30dias.toISOString().slice(0, 10);
+
+      const [{ data: colabRows, error: e1 }, { data: pontoHojeRows, error: e2 }, feriasRH, solicitacoesRH] = await Promise.all([
+        sb.from("colaboradores").select(`id, nome, departamento, status, data_nascimento, ${RH_COLABORADOR_JORNADA_COLS}`).order("nome"),
+        sb.from("ponto_registros").select("colaborador_id, entrada, local").eq("data", hojeIso),
+        rhCarregarFeriasRH(),
+        rhCarregarSolicitacoesRH(),
+      ]);
+      if (e1) throw e1;
+      if (e2) throw e2;
+
+      const colaboradores = colabRows || [];
+      dash.totalColaboradores = colaboradores.length;
+      dash.ativos = colaboradores.filter((c) => c.status === "ATIVO").length;
+      dash.afastados = colaboradores.filter((c) => c.status === "AFASTADO").length;
+
+      const porDepto = {};
+      colaboradores.forEach((c) => { const d = c.departamento || "Sem departamento"; porDepto[d] = (porDepto[d] || 0) + 1; });
+      dash.departamentos = Object.entries(porDepto).map(([nome, qtd]) => ({ nome, qtd })).sort((a, b) => b.qtd - a.qtd);
+
+      dash.aniversariantes = colaboradores
+        .filter((c) => c.data_nascimento && Number(c.data_nascimento.slice(5, 7)) === mesAtual)
+        .map((c) => ({ nome: c.nome, data: fmtDate(c.data_nascimento).slice(0, 5) }))
+        .sort((a, b) => a.data.localeCompare(b.data));
+
+      // Classificação real por pessoa (jornada configurada em
+      // rh/colaboradores.html) — substitui o "h*60+m-8*60>5" fixo que
+      // assumia 08:00 pra todo mundo, e agora respeita dia de descanso
+      // (dias_trabalho) em vez de contar como falta.
+      const pontoPorId = {};
+      (pontoHojeRows || []).forEach((r) => { pontoPorId[r.colaborador_id] = r; });
+      dash.pontoHoje = colaboradores
+        .filter((c) => c.status !== "INATIVO")
+        .map((c) => {
+          const row = pontoPorId[c.id];
+          const entrada = row ? rhHoraCurta(row.entrada) : null;
+          const config = rhConfigJornada(c);
+          const status = c.status === "AFASTADO" ? "afastado" : rhClassificarStatusHoje({ entradaReal: entrada, config, dataIso: hojeIso });
+          return { nome: c.nome, status, local: row?.local || null };
+        });
+
+      dash.feriasProximasRows = feriasRH
+        .filter((f) => f.status === "APROVADA" && f.inicio >= hojeIso && f.inicio <= em30diasIso)
+        .sort((a, b) => (a.inicio < b.inicio ? -1 : 1));
+      dash.feriasProximas = dash.feriasProximasRows.length;
+
+      dash.solicitacoesPendentesRows = solicitacoesRH.filter((s) => s.status === "PENDENTE");
+      dash.solicitacoesPendentes = dash.solicitacoesPendentesRows.length;
+    }
+
+    function render() {
+      const k = dash;
+      const maxDept = Math.max(1, ...dash.departamentos.map((d) => d.qtd));
+      const pontoRows = dash.pontoHoje;
+      const pontoStats = [
+        { label: "Em dia", value: pontoRows.filter((r) => r.status === "completo").length, bg: "var(--emerald-50)", fg: "var(--emerald-600)", icon: ICONS.checkCircle },
+        { label: "Atraso", value: pontoRows.filter((r) => r.status === "atraso").length, bg: "var(--amber-50)", fg: "var(--amber-700)", icon: ICONS.alertCircle },
+        { label: "Falta", value: pontoRows.filter((r) => r.status === "falta").length, bg: "var(--red-50)", fg: "var(--red-600)", icon: ICONS.xCircle },
+        { label: "Home office", value: pontoRows.filter((r) => r.local === "HOME_OFFICE").length, bg: "var(--indigo-50)", fg: "var(--indigo-600)", icon: ICONS.home },
+        { label: "Presencial", value: pontoRows.filter((r) => r.local === "PRESENCIAL").length, bg: "var(--teal-50)", fg: "var(--teal-600)", icon: ICONS.mapPin },
+      ];
+
+      document.getElementById("content").innerHTML = `
+        <div class="space-y">
+          <div class="row-between">
+            <div>
+              <h1 class="page-title">Olá, ${esc(firstName(session.name))} 👋</h1>
+              <p class="page-sub">Visão geral da equipe BSconta+ — ${k.totalColaboradores} colaboradores no total.</p>
+            </div>
+            <div class="header-actions">
+              <a href="colaboradores.html?novo=1" class="btn-primary auto">${ICONS.plus}<span>Novo colaborador</span></a>
+            </div>
+          </div>
+
+          <div id="kpi-grid"></div>
+
+          <div class="grid-2">
+            <div class="card card-p">
+              <h2>Colaboradores por departamento</h2>
+              <div style="display:flex;flex-direction:column;gap:0.75rem">
+                ${dash.departamentos.length
+                  ? dash.departamentos
+                      .map(
+                        (d) => `
+                  <div>
+                    <div class="funnel-row-top" style="font-size:0.85rem;margin-bottom:0.3rem">
+                      <span class="name" style="color:var(--text)">${esc(d.nome)}</span>
+                      <span class="meta">${d.qtd} colaborador${d.qtd === 1 ? "" : "es"}</span>
+                    </div>
+                    <div class="funnel-bar-track"><div class="funnel-bar-fill" style="width:${(d.qtd / maxDept) * 100}%"></div></div>
+                  </div>`
+                      )
+                      .join("")
+                  : `<p class="page-sub" style="margin:0">Nenhum colaborador cadastrado ainda.</p>`}
+              </div>
+            </div>
+
+            <div class="card card-p">
+              <div class="row-between" style="margin-bottom:0.5rem">
+                <h2 style="margin:0">Aniversariantes do mês</h2>
+                <span class="badge badge-neutral">${dash.aniversariantes.length}</span>
+              </div>
+              ${dash.aniversariantes.length
+                ? dash.aniversariantes
+                    .map(
+                      (a) => `
+                <div style="display:flex;align-items:center;gap:0.7rem;padding:0.55rem 0;border-bottom:1px solid var(--surface-2)">
+                  <div class="avatar ${avatarColorClass(a.nome)}">${initials(a.nome)}</div>
+                  <div style="flex:1"><p style="margin:0;font-weight:600;font-size:0.87rem">${esc(a.nome)}</p></div>
+                  <span class="badge badge-neutral">${ICONS.cake}${a.data}</span>
+                </div>`
+                    )
+                    .join("")
+                : `<p class="page-sub" style="margin:0">Nenhum aniversário este mês (ou data de nascimento não cadastrada).</p>`}
+            </div>
+          </div>
+
+          <div class="grid-3-mixed">
+            <div class="card card-p">
+              <div class="row-between" style="margin-bottom:0.4rem">
+                <h2 style="margin:0">Jornada de hoje</h2>
+                <a href="ponto.html" class="card-link">Ver detalhes</a>
+              </div>
+              <div style="display:flex;flex-direction:column">
+                ${pontoStats
+                  .map(
+                    (s) => `
+                  <div style="display:flex;align-items:center;gap:0.65rem;padding:0.45rem 0;border-bottom:1px solid var(--surface-2)">
+                    <span class="benefit-icon" style="width:34px;height:34px;background:${s.bg};color:${s.fg}">${s.icon}</span>
+                    <span style="flex:1;font-size:0.85rem">${s.label}</span>
+                    <strong style="font-size:0.92rem">${s.value}</strong>
+                  </div>`
+                  )
+                  .join("")}
+              </div>
+            </div>
+
+            <div class="card card-p">
+              <div class="row-between" style="margin-bottom:0.5rem">
+                <h2 style="margin:0">Solicitações pendentes</h2>
+                <a href="solicitacoes.html" class="card-link">Ver todas</a>
+              </div>
+              <div class="table-scroll">
+                <table>
+                  <thead><tr><th>Colaborador</th><th>Categoria</th><th>Data</th><th></th></tr></thead>
+                  <tbody>
+                    ${dash.solicitacoesPendentesRows.length
+                      ? dash.solicitacoesPendentesRows
+                          .slice(0, 5)
+                          .map(
+                            (s) => `<tr>
+                        <td><div class="person-cell"><span class="avatar avatar-sm ${avatarColorClass(s.colaborador)}">${initials(s.colaborador)}</span>${esc(s.colaborador)}</div></td>
+                        <td>${esc(s.categoria)}</td>
+                        <td>${fmtDate(s.data)}</td>
+                        <td style="text-align:right"><a href="solicitacoes.html" class="btn-ghost" style="width:auto;padding:0.35rem 0.65rem;font-size:0.8rem">Resolver</a></td>
+                      </tr>`
+                          )
+                          .join("")
+                      : `<tr><td colspan="4"><p class="page-sub" style="margin:0.4rem 0">Nenhuma solicitação pendente.</p></td></tr>`}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="card card-p">
+              <h2>Férias próximas</h2>
+              ${dash.feriasProximasRows.length
+                ? dash.feriasProximasRows
+                    .slice(0, 5)
+                    .map(
+                      (v) => `
+                <div style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem 0;border-bottom:1px solid var(--surface-2)">
+                  <span class="avatar avatar-sm ${avatarColorClass(v.colaborador)}">${initials(v.colaborador)}</span>
+                  <div style="flex:1;min-width:0">
+                    <p style="margin:0;font-weight:600;font-size:0.83rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(v.colaborador)}</p>
+                    <p style="margin:0.1rem 0 0;font-size:0.76rem;color:var(--text-faint)">${fmtDate(v.inicio)} a ${fmtDate(v.fim)}</p>
+                  </div>
+                  <span class="badge badge-neutral">${v.dias}d</span>
+                </div>`
+                    )
+                    .join("")
+                : `<p class="page-sub" style="margin:0">Nenhuma férias aprovada nos próximos 30 dias.</p>`}
+            </div>
+          </div>
+
+          <div class="card card-p">
+            <h2>Atalhos</h2>
+            <div style="display:flex;flex-wrap:wrap;gap:0.7rem">
+              ${shortcut("colaboradores.html", ICONS.users, "Gerenciar colaboradores")}
+              ${shortcut("ferias.html", ICONS.palmTree, "Aprovar férias")}
+              ${shortcut("comunicados.html", ICONS.megaphone, "Novo comunicado")}
+              ${shortcut("relatorios.html", ICONS.reports, "Ver relatórios")}
+              ${shortcut("documentos.html", ICONS.fileText, "Enviar documento")}
+            </div>
+          </div>
+        </div>
+      `;
+
+      renderKpiGrid(document.getElementById("kpi-grid"), [
+        { label: "Total de colaboradores", value: k.totalColaboradores, tone: "indigo", icon: ICONS.users },
+        { label: "Ativos", value: k.ativos, tone: "green", icon: ICONS.checkCircle },
+        { label: "Afastados", value: k.afastados, tone: "amber", icon: ICONS.alertCircle },
+        { label: "Férias próximas (30 dias)", value: k.feriasProximas, tone: "teal", icon: ICONS.palmTree },
+        { label: "Solicitações pendentes", value: k.solicitacoesPendentes, tone: "violet", icon: ICONS.messageSquare },
+      ], true);
+    }
+
+    function shortcut(href, icon, label) {
+      return `<a href="${href}" class="btn-ghost" style="width:auto">${icon}<span>${label}</span></a>`;
+    }
+
+    if (session) {
+      renderShell(session, withBadges(NAV_RH, await rhNavBadges()));
+      try {
+        await refrescarDashboard();
+      } catch (err) {
+        rhShowFatalError(rhMensagemErroSupabase(err));
+        return;
+      }
+      const notificacoes = [];
+      if (dash.solicitacoesPendentes > 0) {
+        notificacoes.push({ text: `${dash.solicitacoesPendentes} solicitação${dash.solicitacoesPendentes === 1 ? "" : "ões"} aguardando análise.`, time: "agora", unread: true, icon: ICONS.messageSquare });
+      }
+      if (dash.afastados > 0) {
+        notificacoes.push({ text: `${dash.afastados} colaborador${dash.afastados === 1 ? "" : "es"} afastado${dash.afastados === 1 ? "" : "s"} atualmente.`, time: "agora", unread: false, icon: ICONS.alertCircle });
+      }
+      renderTopHeader(document.getElementById("top-header"), session, { notifications: notificacoes });
+      render();
+    }
+  
+})();
+</script>
+  <script src="../js/ui-effects.js"></script>
+</body>
+</html>

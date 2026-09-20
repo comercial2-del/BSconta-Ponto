@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Férias — BSconta+ RH</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+  <link rel="stylesheet" href="../css/theme-v2.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div id="app-header"></div>
+    <div class="app-content">
+      <main class="main">
+        <div id="top-header" class="top-header"></div>
+        <div id="content"><div class="loading-wrap"><div class="spinner"></div></div></div>
+      </main>
+    </div>
+  </div>
+
+  <script>window.BASE_PATH = "../";</script>
+  <script src="../js/demo-data.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/supabase-client.js"></script>
+  <script src="../js/rh-supabase-auth.js"></script>
+  <script src="../js/rh-ferias-data.js"></script>
+  <script>
+(async function () {
+    const session = await requireRoleReal("RH");
+    if (!session) return;
+    let filtro = "PENDENTES";
+    let cacheFerias = [];
+
+    async function refrescarFerias() {
+      cacheFerias = await rhCarregarFeriasRH();
+    }
+
+    function mesAtualIso() {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    }
+
+    function render() {
+      const pendentesCount = cacheFerias.filter((f) => f.status === "PENDENTE" || f.status === "EM_ANALISE").length;
+      const aprovadasCount = cacheFerias.filter((f) => f.status === "APROVADA").length;
+      const recusadasCount = cacheFerias.filter((f) => f.status === "RECUSADA").length;
+
+      document.getElementById("content").innerHTML = `
+        <div class="space-y">
+          <div class="row-between">
+            <div>
+              <h1 class="page-title">Gestão de Férias</h1>
+              <p class="page-sub">Analise e acompanhe as solicitações de férias de toda a equipe.</p>
+            </div>
+          </div>
+
+          <div id="kpi-grid"></div>
+
+          <div class="card card-p">
+            <div class="row-between" style="margin-bottom:1rem">
+              <div class="period-buttons">
+                <button type="button" data-f="PENDENTES" class="active">Pendentes</button>
+                <button type="button" data-f="APROVADAS">Aprovadas</button>
+                <button type="button" data-f="RECUSADAS">Recusadas</button>
+                <button type="button" data-f="TODAS">Todas</button>
+              </div>
+            </div>
+            <div id="view-wrap"></div>
+          </div>
+        </div>
+      `;
+
+      renderKpiGrid(document.getElementById("kpi-grid"), [
+        { label: "Aguardando análise", value: pendentesCount, tone: "amber", icon: ICONS.messageSquare },
+        { label: "Aprovadas (período atual)", value: aprovadasCount, tone: "green", icon: ICONS.checkCircle },
+        { label: "Recusadas", value: recusadasCount, tone: "red", icon: ICONS.xCircle },
+        { label: "Dias de férias no mês", value: cacheFerias.filter((f) => f.inicio.startsWith(mesAtualIso()) || f.fim.startsWith(mesAtualIso())).reduce((a, f) => a + f.dias, 0), tone: "indigo", icon: ICONS.palmTree },
+      ]);
+
+      document.querySelectorAll("[data-f]").forEach((btn) =>
+        btn.addEventListener("click", () => {
+          document.querySelectorAll("[data-f]").forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+          filtro = btn.dataset.f;
+          renderView();
+        })
+      );
+      renderView();
+    }
+
+    function filteredRows() {
+      if (filtro === "TODAS") return cacheFerias;
+      if (filtro === "APROVADAS") return cacheFerias.filter((f) => f.status === "APROVADA");
+      if (filtro === "RECUSADAS") return cacheFerias.filter((f) => f.status === "RECUSADA");
+      return cacheFerias.filter((f) => f.status === "PENDENTE" || f.status === "EM_ANALISE");
+    }
+
+    async function resolverFerias(solicitacaoId, aprovado, botao) {
+      const f = cacheFerias.find((x) => x.id === solicitacaoId);
+      const botoesLinha = botao.closest(".approve-reject")?.querySelectorAll("button");
+      if (botoesLinha) botoesLinha.forEach((b) => (b.disabled = true));
+      try {
+        await rhResolverFerias(solicitacaoId, aprovado);
+        await refrescarFerias();
+        showToast(aprovado ? `Férias de ${f?.colaborador || "colaborador"} aprovadas.` : `Férias de ${f?.colaborador || "colaborador"} recusadas.`, aprovado ? "success" : "error");
+        render();
+      } catch (err) {
+        showToast(rhMensagemErroSupabase(err), "error");
+        if (botoesLinha) botoesLinha.forEach((b) => (b.disabled = false));
+      }
+    }
+
+    function renderView() {
+      document.getElementById("view-wrap").innerHTML = listHtml();
+      document.querySelectorAll("[data-approve]").forEach((b) =>
+        b.addEventListener("click", () => resolverFerias(b.dataset.approve, true, b))
+      );
+      document.querySelectorAll("[data-reject]").forEach((b) =>
+        b.addEventListener("click", () => resolverFerias(b.dataset.reject, false, b))
+      );
+    }
+
+    function listHtml() {
+      const rows = filteredRows();
+      if (!rows.length) return emptyStateHtml({ icon: ICONS.palmTree, title: "Nada por aqui", desc: "Nenhuma solicitação neste filtro." });
+      return `
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Colaborador</th><th>Período</th><th class="cell-num">Dias</th><th>Status</th><th>Solicitado em</th><th></th></tr></thead>
+            <tbody>
+              ${rows
+                .map(
+                  (f) => `<tr>
+                <td><div class="person-cell"><span class="avatar avatar-sm ${avatarColorClass(f.colaborador)}">${initials(f.colaborador)}</span>${esc(f.colaborador)}</div></td>
+                <td>${fmtDate(f.inicio)} a ${fmtDate(f.fim)}</td>
+                <td class="cell-num">${f.dias}</td>
+                <td>${statusBadgeHtml(f.status, STATUS_LABELS)}</td>
+                <td>${fmtDate(f.solicitadoEm)}</td>
+                <td style="text-align:right">
+                  ${
+                    f.status === "PENDENTE" || f.status === "EM_ANALISE"
+                      ? `<div class="approve-reject">
+                        <button type="button" class="approve" data-approve="${f.id}" aria-label="Aprovar">${ICONS.check}</button>
+                        <button type="button" class="reject" data-reject="${f.id}" aria-label="Recusar">${ICONS.x}</button>
+                      </div>`
+                      : ""
+                  }
+                </td>
+              </tr>`
+                )
+                .join("")}
+            </tbody>
+          </table>
+        </div>`;
+    }
+
+    if (session) {
+      renderShell(session, withBadges(NAV_RH, await rhNavBadges()));
+      renderTopHeader(document.getElementById("top-header"), session, { notifications: [] });
+      document.getElementById("content").innerHTML = `<div class="loading-wrap"><div class="spinner"></div></div>`;
+      try {
+        await refrescarFerias();
+        render();
+      } catch (err) {
+        rhShowFatalError(rhMensagemErroSupabase(err));
+      }
+    }
+
+})();
+</script>
+  <script src="../js/ui-effects.js"></script>
+</body>
+</html>

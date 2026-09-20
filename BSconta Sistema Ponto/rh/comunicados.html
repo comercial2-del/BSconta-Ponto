@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Comunicados — BSconta+ RH</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+  <link rel="stylesheet" href="../css/theme-v2.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div id="app-header"></div>
+    <div class="app-content">
+      <main class="main">
+        <div id="top-header" class="top-header"></div>
+        <div id="content"><div class="loading-wrap"><div class="spinner"></div></div></div>
+      </main>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-novo">
+    <div class="modal">
+      <div class="modal-header"><h3 id="nc-modal-titulo">Novo comunicado</h3><button class="modal-close" data-close-modal></button></div>
+      <form id="form-novo">
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="field full"><label>Título</label><input type="text" id="nc-titulo" required placeholder="Ex.: Nova política de benefícios" /></div>
+            <div class="field full"><label>Conteúdo</label><textarea id="nc-conteudo" rows="4" required placeholder="Escreva o comunicado..."></textarea></div>
+            <div class="field"><label>Público</label>
+              <select id="nc-publico">
+                <option value="Todos os colaboradores">Todos os colaboradores</option>
+                <option value="Departamento">Departamento específico</option>
+                <option value="Colaborador">Colaborador específico</option>
+              </select>
+            </div>
+            <div class="field" id="nc-publico-detalhe-wrap" style="display:none">
+              <label id="nc-publico-detalhe-label">Selecione</label>
+              <select id="nc-publico-detalhe"></select>
+            </div>
+            <div class="field"><label>Agendar publicação (opcional)</label><input type="date" id="nc-data" /></div>
+            <div class="field full"><label class="check-row"><input type="checkbox" id="nc-urgente" /> Marcar como importante / urgente</label></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-ghost" data-close-modal>Cancelar</button>
+          <button type="submit" class="btn-primary auto" id="nc-submit-label">Publicar comunicado</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>window.BASE_PATH = "../";</script>
+  <script src="../js/demo-data.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/supabase-client.js"></script>
+  <script src="../js/rh-supabase-auth.js"></script>
+  <script src="../js/rh-comunicados-data.js"></script>
+  <script>
+(async function () {
+    const session = await requireRoleReal("RH");
+    if (!session) return;
+    document.querySelector("#modal-novo .modal-close").innerHTML = ICONS.x;
+
+    let cacheComunicados = [];
+    let cacheDepartamentos = [];
+    let cacheColaboradores = [];
+    let comunicadoEditandoId = null;
+
+    async function refrescarComunicados() {
+      [cacheComunicados, cacheDepartamentos, cacheColaboradores] = await Promise.all([
+        rhCarregarComunicadosRH(),
+        rhListarDepartamentosComunicado(),
+        rhListarColaboradoresComunicado(),
+      ]);
+    }
+
+    function refreshPublicoDetalhe(colaboradorIdSelecionado, departamentoSelecionado) {
+      const tipo = document.getElementById("nc-publico").value;
+      const wrap = document.getElementById("nc-publico-detalhe-wrap");
+      const label = document.getElementById("nc-publico-detalhe-label");
+      const sel = document.getElementById("nc-publico-detalhe");
+      if (tipo === "Departamento") {
+        wrap.style.display = "";
+        label.textContent = "Departamento";
+        sel.innerHTML = cacheDepartamentos.map((d) => `<option value="${esc(d)}" ${d === departamentoSelecionado ? "selected" : ""}>${esc(d)}</option>`).join("");
+      } else if (tipo === "Colaborador") {
+        wrap.style.display = "";
+        label.textContent = "Colaborador";
+        sel.innerHTML = cacheColaboradores.map((c) => `<option value="${c.id}" ${c.id === colaboradorIdSelecionado ? "selected" : ""}>${esc(c.nome)}</option>`).join("");
+      } else {
+        wrap.style.display = "none";
+      }
+    }
+
+    function statusBadge(status) {
+      const map = { PUBLICADO: "badge-green", AGENDADO: "badge-admin", ARQUIVADO: "badge-neutral" };
+      return `<span class="badge ${map[status] || "badge-neutral"}">${STATUS_LABELS[status] || status}</span>`;
+    }
+
+    function descricaoPublico(c) {
+      if (c.publicoTipo === "DEPARTAMENTO") return `Departamento: ${c.publicoDepartamento || "—"}`;
+      if (c.publicoTipo === "COLABORADOR") {
+        const col = cacheColaboradores.find((x) => x.id === c.publicoColaboradorId);
+        return `Colaborador: ${col?.nome || "—"}`;
+      }
+      return "Todos os colaboradores";
+    }
+
+    function render() {
+      const publicados = cacheComunicados.filter((c) => c.status === "PUBLICADO").length;
+      const agendados = cacheComunicados.filter((c) => c.status === "AGENDADO").length;
+      const urgentes = cacheComunicados.filter((c) => c.urgente).length;
+
+      document.getElementById("content").innerHTML = `
+        <div class="space-y">
+          <div class="row-between">
+            <div>
+              <h1 class="page-title">Comunicados</h1>
+              <p class="page-sub">Publique e acompanhe avisos e comunicados para a equipe.</p>
+            </div>
+            <button type="button" class="btn-primary auto" id="btn-novo">${ICONS.megaphone}<span>Novo comunicado</span></button>
+          </div>
+
+          <div id="kpi-grid"></div>
+
+          <div id="lista" class="space-y"></div>
+        </div>
+      `;
+
+      renderKpiGrid(document.getElementById("kpi-grid"), [
+        { label: "Publicados", value: publicados, tone: "green", icon: ICONS.checkCircle },
+        { label: "Agendados", value: agendados, tone: "indigo", icon: ICONS.calendar },
+        { label: "Marcados como urgentes", value: urgentes, tone: "red", icon: ICONS.alertCircle },
+      ]);
+
+      document.getElementById("btn-novo").addEventListener("click", () => {
+        comunicadoEditandoId = null;
+        document.getElementById("nc-modal-titulo").textContent = "Novo comunicado";
+        document.getElementById("nc-submit-label").textContent = "Publicar comunicado";
+        document.getElementById("form-novo").reset();
+        refreshPublicoDetalhe();
+        openModal("modal-novo");
+      });
+
+      renderLista();
+    }
+
+    function abrirModalEditar(id) {
+      const c = cacheComunicados.find((x) => x.id === id);
+      if (!c) return;
+      comunicadoEditandoId = id;
+      document.getElementById("nc-modal-titulo").textContent = "Editar comunicado";
+      document.getElementById("nc-submit-label").textContent = "Salvar alterações";
+      document.getElementById("nc-titulo").value = c.titulo;
+      document.getElementById("nc-conteudo").value = c.conteudo;
+      document.getElementById("nc-urgente").checked = c.urgente;
+      document.getElementById("nc-data").value = c.dataAgendada || "";
+      const publicoSelect = { TODOS: "Todos os colaboradores", DEPARTAMENTO: "Departamento", COLABORADOR: "Colaborador" }[c.publicoTipo] || "Todos os colaboradores";
+      document.getElementById("nc-publico").value = publicoSelect;
+      refreshPublicoDetalhe(c.publicoColaboradorId, c.publicoDepartamento);
+      openModal("modal-novo");
+    }
+
+    function renderLista() {
+      document.getElementById("lista").innerHTML = cacheComunicados.length
+        ? cacheComunicados
+            .map(
+              (c) => `
+          <div class="announcement-card">
+            <div class="row-between">
+              <div style="display:flex;align-items:center;gap:0.5rem">
+                ${c.urgente ? `<span class="badge badge-urgent">${ICONS.alertCircle}Urgente</span>` : ""}
+                <h3 style="margin:0">${esc(c.titulo)}</h3>
+              </div>
+              ${statusBadge(c.status)}
+            </div>
+            <p style="margin:0.4rem 0 0;font-size:0.83rem;color:var(--text-faint)">${esc(descricaoPublico(c))} · ${fmtDate(c.data)}</p>
+            <p style="margin:0.6rem 0 0;font-size:0.85rem;color:var(--text-muted)">${esc(c.conteudo)}</p>
+            <div style="margin-top:0.7rem;display:flex;justify-content:flex-end;gap:0.5rem">
+              <button type="button" class="btn-ghost" style="width:auto;padding:0.4rem 0.7rem" data-editar="${c.id}">${ICONS.edit}<span>Editar</span></button>
+              ${
+                c.status !== "ARQUIVADO"
+                  ? `<button type="button" class="btn-ghost" style="width:auto;padding:0.4rem 0.7rem" data-arquivar="${c.id}">Arquivar</button>`
+                  : ""
+              }
+            </div>
+          </div>`
+            )
+            .join("")
+        : emptyStateHtml({ icon: ICONS.megaphone, title: "Nenhum comunicado ainda", desc: "Publique o primeiro comunicado para a equipe." });
+
+      document.querySelectorAll("[data-editar]").forEach((b) => b.addEventListener("click", () => abrirModalEditar(b.dataset.editar)));
+      document.querySelectorAll("[data-arquivar]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          b.disabled = true;
+          try {
+            await rhArquivarComunicado(b.dataset.arquivar);
+            await refrescarComunicados();
+            showToast("Comunicado arquivado.", "success");
+            render();
+          } catch (err) {
+            showToast(rhMensagemErroSupabase(err), "error");
+            b.disabled = false;
+          }
+        })
+      );
+    }
+
+    if (session) {
+      renderShell(session, withBadges(NAV_RH, await rhNavBadges()));
+      renderTopHeader(document.getElementById("top-header"), session, { notifications: [] });
+      document.getElementById("content").innerHTML = `<div class="loading-wrap"><div class="spinner"></div></div>`;
+      try {
+        await refrescarComunicados();
+        render();
+        wireModalClosers();
+      } catch (err) {
+        rhShowFatalError(rhMensagemErroSupabase(err));
+        return;
+      }
+      document.getElementById("nc-publico").addEventListener("change", () => refreshPublicoDetalhe());
+      document.getElementById("form-novo").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const titulo = document.getElementById("nc-titulo").value.trim();
+        const conteudo = document.getElementById("nc-conteudo").value.trim();
+        const publicoSelecionado = document.getElementById("nc-publico").value;
+        const publicoTipo = { "Todos os colaboradores": "TODOS", Departamento: "DEPARTAMENTO", Colaborador: "COLABORADOR" }[publicoSelecionado] || "TODOS";
+        const detalhe = document.getElementById("nc-publico-detalhe").value;
+        const dataAgendada = document.getElementById("nc-data").value;
+        const urgente = document.getElementById("nc-urgente").checked;
+
+        const btn = document.getElementById("nc-submit-label");
+        const textoOriginal = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = "Salvando...";
+        const comunicadoAtual = comunicadoEditandoId ? cacheComunicados.find((x) => x.id === comunicadoEditandoId) : null;
+        try {
+          await rhSalvarComunicado({
+            id: comunicadoEditandoId,
+            titulo,
+            conteudo,
+            urgente,
+            publicoTipo,
+            publicoDepartamento: publicoTipo === "DEPARTAMENTO" ? detalhe : null,
+            publicoColaboradorId: publicoTipo === "COLABORADOR" ? detalhe : null,
+            dataAgendada,
+            // Editar um comunicado ARQUIVADO só muda o conteúdo — não o
+            // republica sozinho (não há campo de status no formulário; pra
+            // reativar, o RH cria um novo comunicado).
+            statusManual: comunicadoAtual?.status === "ARQUIVADO" ? "ARQUIVADO" : undefined,
+          });
+          await refrescarComunicados();
+          closeModal("modal-novo");
+          showToast(comunicadoEditandoId ? "Comunicado atualizado." : "Comunicado publicado com sucesso.", "success");
+          render();
+        } catch (err) {
+          showToast(rhMensagemErroSupabase(err), "error");
+        } finally {
+          btn.disabled = false;
+          btn.textContent = textoOriginal;
+        }
+      });
+    }
+  
+})();
+</script>
+  <script src="../js/ui-effects.js"></script>
+</body>
+</html>

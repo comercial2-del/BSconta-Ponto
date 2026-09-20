@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Documentos — BSconta+ Colaborador</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+  <link rel="stylesheet" href="../css/theme-v2.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div id="app-header"></div>
+    <div class="app-content">
+      <main class="main">
+        <div id="top-header" class="top-header"></div>
+        <div id="content"><div class="loading-wrap"><div class="spinner"></div></div></div>
+      </main>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-doc-preview" aria-hidden="true">
+    <div class="modal modal-doc-preview">
+      <div class="modal-header"><div><h3 id="preview-title">Visualização do documento</h3><p class="modal-subtitle" id="preview-subtitle"></p></div><button class="modal-close" data-close-modal aria-label="Fechar"></button></div>
+      <div class="modal-body modal-preview-body"><div class="pdf-frame-wrap"><iframe id="pdf-frame" title="Pré-visualização do PDF"></iframe></div></div>
+      <div class="modal-footer"><button type="button" class="btn-ghost" data-close-modal>Fechar</button><button type="button" class="btn-primary auto" id="preview-download">Baixar PDF</button></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-govbr" aria-hidden="true">
+    <div class="modal modal-govbr">
+      <div class="modal-header"><div><h3>Assinar com GOV.BR</h3><p class="modal-subtitle" id="govbr-title"></p></div><button class="modal-close" data-close-modal aria-label="Fechar"></button></div>
+      <div class="modal-body">
+        <div class="govbr-notice"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 3.5V11c0 5-3.4 8.5-8 9.5-4.6-1-8-4.5-8-9.5V5.5z"/><path d="M8.5 12l2.5 2.5L15.5 9.5"/></svg></span><div><strong>Assinatura realizada no portal oficial</strong><p>O sistema abre o Assinador GOV.BR para você concluir a assinatura. Depois, baixe o PDF assinado e importe-o aqui para registrar a conclusão.</p></div></div>
+        <div class="govbr-steps">
+          <div><span>1</span><p>Abra o <strong>Assinador GOV.BR</strong> e entre com sua conta.</p></div>
+          <div><span>2</span><p>Envie o PDF que você visualizou nesta tela e escolha o local da assinatura.</p></div>
+          <div><span>3</span><p>Confirme a assinatura no GOV.BR e <strong>baixe o arquivo assinado</strong>.</p></div>
+          <div><span>4</span><p>Volte ao BSconta+ e importe o PDF assinado para atualizar o status.</p></div>
+        </div>
+        <div class="govbr-action-row"><a class="btn-primary auto" id="btn-open-govbr" href="https://assinador.iti.br/" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17s2-1 3-3 1-4 3-4 1 5 3 5 2-6 4-6 1 4 3 4 2-1 2-1"/><path d="M3 21h18"/></svg><span>Abrir GOV.BR</span></a><button type="button" class="btn-ghost" id="btn-govbr-continue">Já baixei o assinado</button></div>
+        <div id="govbr-import-panel" class="govbr-import-panel" hidden>
+          <label class="field-label">PDF assinado</label>
+          <input type="file" id="govbr-signed-file" accept="application/pdf,.pdf" />
+          <button type="button" class="btn-primary" id="btn-confirm-govbr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>Registrar assinatura</span></button>
+          <p class="hint">O status só muda para “Assinado” depois que o arquivo assinado for importado.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-import-signed" aria-hidden="true">
+    <div class="modal modal-sm">
+      <div class="modal-header"><div><h3>Importar documento assinado</h3><p class="modal-subtitle">Envie o PDF assinado externamente.</p></div><button class="modal-close" data-close-modal aria-label="Fechar"></button></div>
+      <div class="modal-body">
+        <div class="dropzone dropzone-doc" id="signed-dropzone"><input type="file" id="signed-file" accept="application/pdf,.pdf" hidden /><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v12"/></svg><p><strong>Selecione o PDF assinado</strong></p><span class="hint">O arquivo será vinculado ao documento pendente.</span><div class="selected-file" id="signed-selected" hidden></div></div>
+        <button type="button" class="btn-primary" id="btn-confirm-import" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>Importar e concluir</span></button>
+      </div>
+    </div>
+  </div>
+
+  <script>window.BASE_PATH = "../";</script>
+  <script src="../js/demo-data.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/supabase-client.js"></script>
+  <script src="../js/rh-supabase-auth.js"></script>
+  <script src="../js/rh-documentos-data.js"></script>
+  <script>
+(async function () {
+    const session = await requireRoleReal("COLABORADOR");
+    if (!session) return;
+    if (!session.employeeId) {
+      rhShowFatalError("Este login não está vinculado a um cadastro de colaborador (rh.colaboradores). Peça ao RH para vincular seu usuário.");
+      return;
+    }
+    const statusLabels = { ...STATUS_LABELS, PENDENTE: "Pendente de assinatura", ASSINADO: "Assinado", AGUARDANDO_IMPORTACAO: "Aguardando importação" };
+    let previewUrl = null;
+    let activeDocId = null;
+    let signedFile = null;
+    let cacheDocs = [];
+
+    async function refrescarDocs() {
+      cacheDocs = await rhListarDocumentosColaborador(session.employeeId);
+    }
+
+    function myDocs() { return cacheDocs; }
+    function statusChip(status) { return `<span class="status-badge status-${status}">${statusLabels[status] || status}</span>`; }
+    function isSignatureDoc(d) { return d.workflow === "ASSINATURA"; }
+
+    function render() {
+      const docs = myDocs();
+      const assinatura = docs.filter(isSignatureDoc);
+      const pendentes = assinatura.filter((d) => d.status !== "ASSINADO");
+      const assinados = assinatura.filter((d) => d.status === "ASSINADO");
+      const publicados = docs.filter((d) => d.workflow === "PUBLICADO");
+
+      document.getElementById("content").innerHTML = `
+        <div class="space-y">
+          <div class="row-between"><div><h1 class="page-title">Documentos</h1><p class="page-sub">Visualize seus documentos, assine os que estiverem pendentes e acompanhe o histórico.</p></div></div>
+          ${pendentes.length ? `<div class="doc-alert"><span>${ICONS.alertCircle}</span><div><strong>${pendentes.length} documento${pendentes.length > 1 ? "s" : ""} aguardando sua assinatura</strong><p>Abra o PDF antes de escolher GOV.BR ou enviar o arquivo assinado de volta.</p></div></div>` : ""}
+          <div class="kpi-grid">
+            <div class="kpi-card kpi-card--icon tone-indigo"><div class="kpi-card-top"><div class="kpi-icon tone-indigo">${ICONS.signature}</div><p class="kpi-label">Para assinar</p></div><p class="kpi-value">${pendentes.length}</p></div>
+            <div class="kpi-card kpi-card--icon tone-green"><div class="kpi-card-top"><div class="kpi-icon tone-green">${ICONS.checkCircle}</div><p class="kpi-label">Assinados</p></div><p class="kpi-value">${assinados.length}</p></div>
+            <div class="kpi-card kpi-card--icon tone-teal"><div class="kpi-card-top"><div class="kpi-icon tone-teal">${ICONS.fileText}</div><p class="kpi-label">Publicados</p></div><p class="kpi-value">${publicados.length}</p></div>
+          </div>
+          <div class="card card-p">
+            <div class="doc-section-heading"><div><h2>Documentos para assinatura</h2><p>Os documentos abaixo foram enviados pelo RH ou importados já preparados para assinatura.</p></div><span class="badge badge-neutral">${assinatura.length} documento${assinatura.length !== 1 ? "s" : ""}</span></div>
+            <div class="doc-list">${assinatura.length ? assinatura.map(renderDocCard).join("") : emptyStateHtml({ icon: ICONS.signature, title: "Nenhum documento para assinatura", desc: "Quando o RH enviar um documento, ele aparecerá aqui." })}</div>
+          </div>
+          <div class="card card-p">
+            <div class="doc-section-heading"><div><h2>Documentos publicados</h2><p>Holerites e outros documentos já disponibilizados para consulta.</p></div></div>
+            <div id="published-table"></div>
+          </div>
+        </div>
+      `;
+      renderPublished(publicados);
+      wireActions();
+    }
+
+    function renderDocCard(d) {
+      const pending = d.status !== "ASSINADO";
+      const signed = d.status === "ASSINADO";
+      return `<article class="document-card ${pending ? "is-pending" : "is-signed"}">
+        <div class="document-card-main"><div class="document-icon">${signed ? ICONS.checkCircle : ICONS.fileText}</div><div><div class="document-card-title-row"><h3>${esc(d.titulo || d.tipo)}</h3>${statusChip(d.status)}</div><p>${esc(d.tipo)} • ${esc(d.competencia || "Sem competência")}</p><small>${d.enviadoEm ? `Enviado em ${fmtDate(String(d.enviadoEm).slice(0,10))}` : "Disponível para assinatura"}${d.assinadoEm ? ` • Assinado em ${fmtDate(String(d.assinadoEm).slice(0,10))}` : ""}</small></div></div>
+        <div class="document-card-actions"><button type="button" class="btn-ghost" data-view="${esc(d.id)}">${ICONS.eye}<span>Visualizar PDF</span></button><button type="button" class="btn-ghost" data-download="${esc(d.id)}">${ICONS.download}<span>Baixar PDF</span></button>${pending ? `<button type="button" class="btn-primary auto" data-govbr="${esc(d.id)}">${ICONS.signature}<span>Assinar com GOV.BR</span></button><button type="button" class="btn-ghost" data-import="${esc(d.id)}">${ICONS.upload}<span>Importar assinado</span></button>` : `<span class="doc-complete-note">${ICONS.checkCircle}<span>Documento concluído</span></span>`}</div>
+      </article>`;
+    }
+
+    function renderPublished(rows) {
+      document.getElementById("published-table").innerHTML = rows.length ? `<div class="table-scroll no-scrollbar"><table><thead><tr><th>Competência</th><th>Tipo</th><th>Publicado em</th><th></th></tr></thead><tbody>${rows.map((d) => `<tr><td><strong>${esc(d.competencia)}</strong></td><td><span class="badge badge-neutral">${esc(d.tipo)}</span></td><td>${fmtDate(d.data || d.publicadoEm || d.enviadoEm?.slice(0,10))}</td><td style="text-align:right"><button type="button" class="btn-ghost" style="width:auto" data-view="${esc(d.id)}">${ICONS.eye}<span>Visualizar</span></button></td></tr>`).join("")}</tbody></table></div>` : emptyStateHtml({ icon: ICONS.fileText, title: "Nenhum documento publicado", desc: "Seu histórico aparecerá aqui quando o RH disponibilizar arquivos." });
+    }
+
+    async function openPreview(id) {
+      const doc = myDocs().find((d) => d.id === id); if (!doc) return;
+      const signed = doc.status === "ASSINADO" && doc.arquivoAssinadoPath;
+      let blob;
+      try {
+        blob = await rhBaixarArquivoDocumento(signed ? doc.arquivoAssinadoPath : doc.arquivoPath);
+      } catch (err) {
+        showToast(rhMensagemErroSupabase(err), "error");
+        return;
+      }
+      if (!blob) { showToast("O PDF não está disponível.", "info"); return; }
+      if (previewUrl) URL.revokeObjectURL(previewUrl); previewUrl = URL.createObjectURL(blob);
+      document.getElementById("pdf-frame").src = previewUrl;
+      document.getElementById("preview-title").textContent = doc.titulo || doc.tipo;
+      document.getElementById("preview-subtitle").textContent = `${doc.tipo} • ${statusLabels[doc.status] || doc.status}`;
+      document.getElementById("preview-download").onclick = () => downloadBlob(blob, signed ? doc.arquivoAssinadoNome : doc.arquivoNome);
+      openModal("modal-doc-preview");
+    }
+
+    async function downloadDoc(id) {
+      const doc = myDocs().find((d) => d.id === id); if (!doc) return;
+      const signed = doc.status === "ASSINADO" && doc.arquivoAssinadoPath;
+      let blob;
+      try {
+        blob = await rhBaixarArquivoDocumento(signed ? doc.arquivoAssinadoPath : doc.arquivoPath);
+      } catch (err) {
+        showToast(rhMensagemErroSupabase(err), "error");
+        return;
+      }
+      if (!blob) { showToast("O arquivo não está disponível.", "info"); return; }
+      downloadBlob(blob, signed ? doc.arquivoAssinadoNome : doc.arquivoNome);
+    }
+    function downloadBlob(blob, filename) { const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = filename || "documento.pdf"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 800); }
+
+    async function openGovbr(id) {
+      activeDocId = id;
+      try {
+        await rhColaboradorMarcarAguardandoImportacao(id);
+        await refrescarDocs();
+      } catch (err) {
+        showToast(rhMensagemErroSupabase(err), "error");
+        return;
+      }
+      const doc = myDocs().find((d) => d.id === id); if (!doc) return;
+      document.getElementById("govbr-title").textContent = doc.titulo || doc.tipo;
+      document.getElementById("govbr-import-panel").hidden = true;
+      document.getElementById("govbr-signed-file").value = "";
+      openModal("modal-govbr");
+    }
+
+    function openImport(id) {
+      activeDocId = id; signedFile = null;
+      document.getElementById("signed-file").value = "";
+      document.getElementById("signed-selected").hidden = true;
+      document.getElementById("btn-confirm-import").disabled = true;
+      openModal("modal-import-signed");
+    }
+
+    async function confirmImport(method = "EXTERNA", fileOverride = null) {
+      const file = fileOverride || signedFile;
+      if (!activeDocId || !file) { showToast("Selecione o PDF assinado.", "error"); return; }
+      if (!/pdf/i.test(file.type) && !file.name.toLowerCase().endsWith(".pdf")) { showToast("Importe um arquivo PDF assinado.", "error"); return; }
+      try {
+        await rhColaboradorRegistrarAssinatura({ documentoId: activeDocId, colaboradorId: session.employeeId, file, metodo: method });
+        await refrescarDocs();
+        closeModal(method === "GOVBR" ? "modal-govbr" : "modal-import-signed");
+        showToast("Documento assinado registrado com sucesso. O RH já consegue acompanhar o status.", "success");
+        render();
+      } catch (err) {
+        showToast(rhMensagemErroSupabase(err), "error");
+      }
+    }
+
+    function wireActions() {
+      document.querySelectorAll("[data-view]").forEach((b) => b.addEventListener("click", () => openPreview(b.dataset.view)));
+      document.querySelectorAll("[data-download]").forEach((b) => b.addEventListener("click", () => downloadDoc(b.dataset.download)));
+      document.querySelectorAll("[data-govbr]").forEach((b) => b.addEventListener("click", () => openGovbr(b.dataset.govbr)));
+      document.querySelectorAll("[data-import]").forEach((b) => b.addEventListener("click", () => openImport(b.dataset.import)));
+    }
+
+    if (session) {
+      try {
+        await refrescarDocs();
+        renderShell(session, NAV_COLABORADOR);
+        renderTopHeader(document.getElementById("top-header"), session, { notifications: [] });
+        render();
+        wireModalClosers();
+        document.querySelectorAll(".modal-close").forEach((b) => b.innerHTML = ICONS.x);
+        const sf = document.getElementById("signed-file"); const sd = document.getElementById("signed-dropzone");
+        sd.addEventListener("click", () => sf.click());
+        sf.addEventListener("change", () => { signedFile = sf.files?.[0] || null; document.getElementById("btn-confirm-import").disabled = !signedFile; if (signedFile) { document.getElementById("signed-selected").hidden = false; document.getElementById("signed-selected").innerHTML = `${ICONS.fileText}<div><strong>${esc(signedFile.name)}</strong><span>${(signedFile.size/1024/1024).toFixed(2)} MB</span></div>`; } });
+        document.getElementById("btn-confirm-import").addEventListener("click", () => confirmImport("EXTERNA"));
+        document.getElementById("btn-govbr-continue").addEventListener("click", () => { document.getElementById("govbr-import-panel").hidden = false; document.getElementById("govbr-signed-file").focus(); });
+        document.getElementById("btn-confirm-govbr").addEventListener("click", () => confirmImport("GOVBR", document.getElementById("govbr-signed-file").files?.[0] || null));
+      } catch (err) {
+        rhShowFatalError(rhMensagemErroSupabase(err));
+        return;
+      }
+    }
+
+})();
+</script>
+  <script src="../js/ui-effects.js"></script>
+</body>
+</html>

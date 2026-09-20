@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Colaboradores — BSconta+ RH</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+  <link rel="stylesheet" href="../css/theme-v2.css" />
+
+  <style>
+    .bs-profile-btn{min-width:96px;justify-content:center;white-space:nowrap}
+    .field-static{min-height:40px;display:flex;align-items:center;padding:.58rem .72rem;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text);font-size:.82rem}
+    .strong-code{font-weight:800;color:var(--indigo-700)}
+    .edit-code-input{font-weight:800;letter-spacing:.01em;color:var(--indigo-700);background:linear-gradient(180deg,var(--surface),var(--surface-2));}
+    .field-help{display:block;margin-top:.32rem;font-size:.68rem;line-height:1.35;color:var(--text-faint)}
+    .notice{padding:.75rem .85rem;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text-soft);font-size:.76rem;line-height:1.45}
+    @media (max-width:720px){.bs-profile-btn{min-width:88px}.modal{max-width:100%!important}}
+
+    /* Chips de "dias de trabalho": antes usavam o checkbox nativo do
+       navegador dentro de uma pílula, o que ficava visualmente estranho
+       (quadradinho do checkbox ao lado do texto). Agora o checkbox fica
+       oculto (mas continua acessível) e o estado selecionado é indicado
+       só pela cor/borda do chip. */
+    .day-chip{position:relative;display:inline-flex;align-items:center;justify-content:center;width:2.7rem;height:2.35rem;border:1.5px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text-soft);font-size:.74rem;font-weight:700;letter-spacing:.01em;cursor:pointer;transition:background .12s,border-color .12s,color .12s;user-select:none}
+    .day-chip input{position:absolute;opacity:0;width:0;height:0;pointer-events:none}
+    .day-chip:hover{border-color:var(--indigo-300);}
+    .day-chip.is-active{background:var(--indigo-600);border-color:var(--indigo-600);color:#fff}
+
+    /* Ícone nativo do input de horário: por padrão vem grande e em cinza/preto
+       neutro do navegador, o que lembra visualmente o ícone de "bater ponto"
+       do app — mas aqui o campo é só o horário de jornada cadastrado pelo RH,
+       não um registro de ponto. Deixamos o ícone menor e na cor do tema para
+       diferenciar dos dois contextos. */
+    input[type="time"]::-webkit-calendar-picker-indicator{opacity:.55;filter:none;color:var(--indigo-600);transform:scale(.85);cursor:pointer}
+  </style>
+
+  <style>
+    /* Layout de colunas por percentual — só faz sentido a partir de ~900px de
+       largura; abaixo disso (tablet estreito e celular) 8 colunas + ações não
+       cabem em texto legível com table-layout:fixed, e as palavras quebravam
+       letra por letra. Por isso essas regras agora só valem a partir de
+       901px — abaixo disso a tabela volta ao padrão já usado no resto do
+       sistema (.table-scroll com rolagem horizontal e largura natural), que
+       mantém o texto legível. */
+    @media (min-width:901px) {
+      .collaborators-table { width:100%; min-width:0; table-layout:fixed; }
+      .collaborators-table th, .collaborators-table td { white-space:normal; word-break:break-word; overflow-wrap:anywhere; }
+      .collaborators-table th:nth-child(1), .collaborators-table td:nth-child(1) { width:18%; }
+      .collaborators-table th:nth-child(2), .collaborators-table td:nth-child(2) { width:9%; }
+      .collaborators-table th:nth-child(3), .collaborators-table td:nth-child(3) { width:18%; }
+      .collaborators-table th:nth-child(4), .collaborators-table td:nth-child(4) { width:15%; }
+      .collaborators-table th:nth-child(5), .collaborators-table td:nth-child(5) { width:13%; }
+      .collaborators-table th:nth-child(6), .collaborators-table td:nth-child(6) { width:8%; }
+      .collaborators-table th:nth-child(7), .collaborators-table td:nth-child(7) { width:8%; }
+      .collaborators-table th:nth-child(8), .collaborators-table td:nth-child(8) { width:11%; }
+    }
+    .bs-profile-btn { min-width:112px; padding-inline:1rem; }
+  </style>
+
+</head>
+<body>
+  <div class="app-shell">
+    <div id="app-header"></div>
+    <div class="app-content">
+      <main class="main">
+        <div id="top-header" class="top-header"></div>
+        <div id="content"><div class="loading-wrap"><div class="spinner"></div></div></div>
+      </main>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-novo">
+    <div class="modal">
+      <div class="modal-header"><h3>Cadastrar colaborador</h3><button class="modal-close" data-close-modal>${''}</button></div>
+      <form id="form-novo">
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="field full"><label>Nome completo</label><input id="novo-nome" type="text" required placeholder="Ex.: Ana Beatriz Silva" /></div>
+            <div class="field"><label>Cargo</label><input id="novo-cargo" type="text" required /></div>
+            <div class="field"><label>Departamento</label>
+              <select id="novo-departamento" required>
+                <option value="">Selecione</option>
+                <option>Fiscal</option><option>Contábil</option><option>Financeiro</option>
+                <option>Administrativo</option><option>Recursos Humanos</option><option>Comercial</option>
+              </select>
+            </div>
+            <div class="field"><label>Data de admissão</label><input id="novo-admissao" type="date" /></div>
+            <div class="field"><label>Data de aniversário</label><input id="novo-data-nascimento" type="date" /></div>
+            <div class="field"><label>Entrada</label><input id="novo-horario-entrada" type="time" /></div>
+            <div class="field"><label>Saída</label><input id="novo-horario-saida" type="time" /></div>
+            <div class="field"><label>Início do intervalo</label><input id="novo-intervalo-inicio" type="time" /></div>
+            <div class="field"><label>Fim do intervalo</label><input id="novo-intervalo-fim" type="time" /></div>
+            <div class="field full"><label>Dias de trabalho</label><div id="novo-dias" style="display:flex;flex-wrap:wrap;gap:.45rem"></div></div>
+            <div class="field"><label>Horas semanais</label><input id="novo-horas-semanais" type="number" min="0" max="60" step="0.5" placeholder="Ex.: 44" /></div>
+            <div class="field full">
+              <label>Como criar o acesso?</label>
+              <div style="display:flex;flex-direction:column;gap:.5rem;margin-top:.3rem">
+                <label style="display:flex;align-items:flex-start;gap:.5rem;font-weight:400;cursor:pointer">
+                  <input type="radio" name="novo-modo-acesso" value="convite" checked style="margin-top:.2rem" />
+                  <span>Convite por e-mail real — a pessoa recebe um e-mail da Supabase e define a própria senha.</span>
+                </label>
+                <label style="display:flex;align-items:flex-start;gap:.5rem;font-weight:400;cursor:pointer">
+                  <input type="radio" name="novo-modo-acesso" value="interno" style="margin-top:.2rem" />
+                  <span>Login automático (uso interno da BSconta) — o sistema gera um e-mail e uma senha na hora, sem precisar de caixa de e-mail real.</span>
+                </label>
+              </div>
+            </div>
+            <div class="field full" id="novo-email-wrap"><label>E-mail corporativo</label><input id="novo-email" type="email" required /></div>
+          </div>
+          <div class="notice" style="margin-top:.9rem" id="novo-modo-notice">Ao cadastrar, a Supabase envia um e-mail real de convite para este endereço, com um link para a pessoa definir a própria senha. O acesso só passa a existir depois que ela concluir esse convite.</div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-ghost" data-close-modal>Cancelar</button>
+          <button type="submit" class="btn-primary auto" id="novo-btn-submit">Convidar colaborador</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-credenciais">
+    <div class="modal">
+      <div class="modal-header"><h3>Login gerado</h3><button class="modal-close" data-close-modal>${''}</button></div>
+      <div class="modal-body">
+        <div class="notice" style="margin-bottom:1rem">Anote esta senha agora. Ela não fica salva em nenhum lugar (nem no banco de dados) e não pode ser recuperada depois — só é possível gerar uma nova.</div>
+        <div class="form-grid">
+          <div class="field full"><label>E-mail de login</label><div class="field-static" id="cred-email" style="font-weight:700"></div></div>
+          <div class="field full"><label>Senha gerada</label><div class="field-static" id="cred-senha" style="font-weight:700;font-family:monospace;letter-spacing:.03em"></div></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-ghost" id="cred-copiar">Copiar e-mail e senha</button>
+        <button type="button" class="btn-primary auto" data-close-modal>Já anotei, fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-perfil">
+    <div class="modal" style="max-width: 640px">
+      <div class="modal-header">
+        <div>
+          <h3 id="perfil-titulo">Perfil do colaborador</h3>
+          <p class="page-sub" style="margin:0.2rem 0 0">Dados cadastrais e ações do colaborador.</p>
+        </div>
+        <button class="modal-close" data-close-modal>${''}</button>
+      </div>
+      <div class="modal-body" id="perfil-body"></div>
+      <div class="modal-footer" style="justify-content:space-between">
+        <button type="button" class="btn-ghost danger" id="btn-excluir-perfil">Excluir colaborador</button>
+        <div style="display:flex;gap:.6rem">
+          <button type="button" class="btn-ghost" data-close-modal>Fechar</button>
+          <button type="button" class="btn-primary auto" id="btn-editar-perfil">Editar colaborador</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-editar">
+    <div class="modal" style="max-width: 640px">
+      <div class="modal-header"><h3>Editar colaborador</h3><button class="modal-close" data-close-modal>${''}</button></div>
+      <form id="form-editar">
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="field full"><label>Nome completo</label><input id="edit-nome" type="text" required /></div>
+            <div class="field"><label>E-mail corporativo</label><input id="edit-email" type="email" required /></div>
+            <div class="field"><label>Código de Colaborador</label><input id="edit-codigo" class="edit-code-input" type="text" inputmode="text" autocomplete="off" pattern="BSconta\+\d+" maxlength="32" required /><span class="field-help">Editável pelo RH. Deve seguir o padrão BSconta+12, BSconta+13...</span></div>
+            <div class="field"><label>Cargo</label><input id="edit-cargo" type="text" required /></div>
+            <div class="field"><label>Departamento</label>
+              <select id="edit-departamento" required>
+                <option value="">Selecione</option>
+                <option>Fiscal</option><option>Fiscal/Contábil</option><option>Contábil</option><option>Financeiro</option>
+                <option>Administrativo</option><option>Departamento Pessoal</option><option>Recursos Humanos</option><option>Comercial</option>
+              </select>
+            </div>
+            <div class="field"><label>Data de admissão</label><input id="edit-admissao" type="date" /></div>
+            <div class="field"><label>Data de aniversário</label><input id="edit-data-nascimento" type="date" /></div>
+            <div class="field"><label>Entrada</label><input id="edit-horario-entrada" type="time" /></div>
+            <div class="field"><label>Saída</label><input id="edit-horario-saida" type="time" /></div>
+            <div class="field"><label>Início do intervalo</label><input id="edit-intervalo-inicio" type="time" /></div>
+            <div class="field"><label>Fim do intervalo</label><input id="edit-intervalo-fim" type="time" /></div>
+            <div class="field full"><label>Dias de trabalho</label><div id="edit-dias" style="display:flex;flex-wrap:wrap;gap:.45rem"></div></div>
+            <div class="field"><label>Horas semanais</label><input id="edit-horas-semanais" type="number" min="0" max="60" step="0.5" placeholder="Ex.: 44" /></div>
+            <div class="field"><label>Status</label>
+              <select id="edit-status"><option value="ATIVO">Ativo</option><option value="AFASTADO">Afastado</option><option value="INATIVO">Inativo</option></select>
+            </div>
+            <div class="field">
+              <label>Data de desligamento</label>
+              <input id="edit-data-desligamento" type="date" />
+              <p class="field-hint" style="margin:.3rem 0 0;font-size:.78rem;color:var(--text-faint)">Preenchida automaticamente ao marcar "Inativo" — edite aqui só se precisar registrar uma data retroativa diferente de hoje. Só é salva de fato quando o Status acima também estiver como "Inativo" (em qualquer outro status, o sistema mantém esta data em branco).</p>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-ghost" data-close-modal>Cancelar</button>
+          <button type="submit" class="btn-primary auto">Salvar alterações</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>window.BASE_PATH = "../";</script>
+  <script src="../js/demo-data.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/supabase-client.js"></script>
+  <script src="../js/rh-supabase-auth.js"></script>
+  <script>
+(async function () {
+    const session = await requireRoleReal("RH");
+    if (!session) return;
+    document.querySelector("#modal-novo .modal-close").innerHTML = ICONS.x;
+
+    const PAGE_SIZE = 8;
+    let state = { busca: "", departamento: "", status: "", page: 1 };
+    let colaboradores = [];
+
+    // ---------------------------------------------------------------------
+    // Camada de dados REAL (rh.colaboradores no Supabase) — substitui por
+    // completo js/employee-registry.js (que guardava tudo em localStorage,
+    // sem nenhuma ligação com o banco). O mapeamento abaixo só serve para
+    // não precisar reescrever toda a renderização já existente, que lê
+    // campos em camelCase (nome, codigoColaborador, horarioEntrada...).
+    // ---------------------------------------------------------------------
+    function mapColaboradorFromDB(row) {
+      return {
+        id: row.id,
+        nome: row.nome,
+        email: row.email,
+        codigoColaborador: row.codigo || "—",
+        cargo: row.cargo,
+        departamento: row.departamento,
+        admissao: row.admissao,
+        dataNascimento: row.data_nascimento || null,
+        status: row.status,
+        dataDesligamento: row.data_desligamento || null,
+        horarioEntrada: row.horario_entrada || null,
+        horarioSaida: row.horario_saida || null,
+        intervaloInicio: row.intervalo_inicio || null,
+        intervaloFim: row.intervalo_fim || null,
+        diasTrabalho: row.dias_trabalho || [],
+        horasSemanais: row.horas_semanais,
+        fonteCadastro: "Banco de dados (rh.colaboradores)",
+        emailProvisorio: /^BSconta@\d+/i.test(row.email || ""),
+      };
+    }
+
+    async function carregarColaboradores() {
+      const { data, error } = await sb.from("colaboradores").select("*").order("nome");
+      if (error) throw error;
+      colaboradores = (data || []).map(mapColaboradorFromDB);
+      return colaboradores;
+    }
+
+    function traduzErroBanco(error) {
+      const msg = String(error?.message || error || "");
+      if (/duplicate key.*colaboradores_email_key|colaboradores_email/i.test(msg)) return "Este e-mail já está cadastrado para outro colaborador.";
+      if (/duplicate key.*colaboradores_codigo_key|colaboradores_codigo/i.test(msg)) return "Este código já está sendo usado por outro colaborador.";
+      return msg || "Erro ao falar com o banco de dados.";
+    }
+
+    function statusPill(status) {
+      const map = { ATIVO: ["on", "Ativo"], AFASTADO: ["away", "Afastado"], INATIVO: ["off", "Inativo"] };
+      const [cls, label] = map[status] || ["off", status];
+      return `<span class="status-pill ${cls}"><span class="dot"></span>${label}</span>`;
+    }
+    function fmt(iso) { if (!iso) return "—"; const [y, m, d] = iso.split("-"); return `${d}/${m}/${y}`; }
+
+    const WORK_DAYS = ["SEG","TER","QUA","QUI","SEX","SÁB","DOM"];
+    function formatWorkDays(days) {
+      return Array.isArray(days) && days.length ? days.join(' · ') : 'Não definido';
+    }
+    function formatSchedule(employee) {
+      const e = employee.horarioEntrada || ''; const s = employee.horarioSaida || '';
+      const i = employee.intervaloInicio || ''; const f = employee.intervaloFim || '';
+      if (!e && !s) return 'Não definido';
+      return `${e || '—'} às ${s || '—'}${i || f ? ` · intervalo ${i || '—'}–${f || '—'}` : ''}`;
+    }
+    function renderDayChecks(containerId, selectedDays=[]) {
+      const host=document.getElementById(containerId); if(!host) return;
+      host.innerHTML=WORK_DAYS.map(d=>{
+        const on = selectedDays.includes(d);
+        return `<label class="day-chip${on ? ' is-active' : ''}"><input type="checkbox" value="${d}" ${on?'checked':''}>${d}</label>`;
+      }).join('');
+      host.querySelectorAll('input[type=checkbox]').forEach(cb=>{
+        cb.addEventListener('change', () => cb.closest('.day-chip').classList.toggle('is-active', cb.checked));
+      });
+    }
+    function selectedDaysFrom(containerId){ return [...document.querySelectorAll(`#${containerId} input[type=checkbox]:checked`)].map(x=>x.value); }
+
+    function filtered() {
+      return colaboradores.filter((c) => {
+        if (state.busca && !c.nome.toLowerCase().includes(state.busca.toLowerCase())) return false;
+        if (state.departamento && c.departamento !== state.departamento) return false;
+        if (state.status && c.status !== state.status) return false;
+        return true;
+      });
+    }
+
+    function render() {
+      const departamentos = [...new Set(colaboradores.map((c) => c.departamento).filter(Boolean))].sort();
+
+      document.getElementById("content").innerHTML = `
+        <div class="space-y">
+          <div class="row-between">
+            <div>
+              <h1 class="page-title">Colaboradores</h1>
+              <p class="page-sub">${colaboradores.length} colaboradores cadastrados no total.</p>
+            </div>
+            <button type="button" class="btn-primary auto" id="btn-novo">${ICONS.plus}<span>Novo colaborador</span></button>
+          </div>
+
+          <div class="card card-p">
+            <div class="filters-row" style="margin-bottom:1rem">
+              <div class="input-icon-wrap">${ICONS.search.replace("<svg ", '<svg class="input-icon" ')}<input type="text" id="f-busca" placeholder="Buscar por nome..." /></div>
+              <select id="f-departamento"><option value="">Todos os departamentos</option>${departamentos.map((d) => `<option>${d}</option>`).join("")}</select>
+              <select id="f-status"><option value="">Todos os status</option><option value="ATIVO">Ativo</option><option value="AFASTADO">Afastado</option><option value="INATIVO">Inativo</option></select>
+            </div>
+            <div id="table-wrap"></div>
+          </div>
+        </div>
+      `;
+
+      document.getElementById("f-busca").addEventListener("input", (e) => { state.busca = e.target.value; state.page = 1; renderTable(); });
+      document.getElementById("f-departamento").addEventListener("change", (e) => { state.departamento = e.target.value; state.page = 1; renderTable(); });
+      document.getElementById("f-status").addEventListener("change", (e) => { state.status = e.target.value; state.page = 1; renderTable(); });
+      document.getElementById("btn-novo").addEventListener("click", () => openModal("modal-novo"));
+
+      renderTable();
+    }
+
+    function renderTable() {
+      const rows = filtered();
+      const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+      state.page = Math.min(state.page, totalPages);
+      const pageRows = rows.slice((state.page - 1) * PAGE_SIZE, state.page * PAGE_SIZE);
+
+      document.getElementById("table-wrap").innerHTML = rows.length
+        ? `
+        <div class="table-scroll">
+          <table class="collaborators-table">
+            <thead><tr><th>Colaborador</th><th>Código</th><th>E-mail</th><th>Cargo</th><th>Departamento</th><th>Admissão</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+              ${pageRows
+                .map(
+                  (c) => `<tr>
+                <td><div class="person-cell"><span class="avatar avatar-sm ${avatarColorClass(c.nome)}">${initials(c.nome)}</span>${esc(c.nome)}</div></td>
+                <td><strong>${esc(c.codigoColaborador)}</strong></td>
+                <td>${esc(c.email)}</td>
+                <td>${esc(c.cargo || "—")}</td>
+                <td>${esc(c.departamento || "—")}</td>
+                <td>${fmt(c.admissao)}</td>
+                <td>${statusPill(c.status)}</td>
+                <td style="text-align:right"><button type="button" class="btn-ghost bs-profile-btn" data-ver="${esc(c.id)}">Ver perfil</button></td>
+              </tr>`
+                )
+                .join("")}
+            </tbody>
+          </table>
+        </div>
+        <div class="pagination">
+          <span class="pg-info">Mostrando ${pageRows.length} de ${rows.length} colaboradores</span>
+          <div class="pg-btns">
+            <button type="button" id="pg-prev" ${state.page === 1 ? "disabled" : ""}>${ICONS.chevronLeft}</button>
+            ${Array.from({ length: totalPages }, (_, i) => `<button type="button" class="pg-num ${i + 1 === state.page ? "active" : ""}" data-page="${i + 1}">${i + 1}</button>`).join("")}
+            <button type="button" id="pg-next" ${state.page === totalPages ? "disabled" : ""}>${ICONS.chevronRight}</button>
+          </div>
+        </div>`
+        : emptyStateHtml({ icon: ICONS.users, title: "Nenhum colaborador encontrado", desc: "Tente ajustar a busca ou os filtros selecionados." });
+
+      document.querySelectorAll(".pg-num").forEach((b) => b.addEventListener("click", () => { state.page = Number(b.dataset.page); renderTable(); }));
+      document.getElementById("pg-prev")?.addEventListener("click", () => { state.page--; renderTable(); });
+      document.getElementById("pg-next")?.addEventListener("click", () => { state.page++; renderTable(); });
+      document.querySelectorAll("[data-ver]").forEach((b) => b.addEventListener("click", () => openEmployeeProfile(b.dataset.ver)));
+    }
+
+
+    let perfilEmployeeId = null;
+    let editEmployeeId = null;
+
+    function getEmployeeById(id) {
+      return colaboradores.find((employee) => employee.id === id) || null;
+    }
+
+    /** Mostra o e-mail/senha recém-gerados no modal-credenciais (uma única
+     * vez — não há como reabrir isso depois, a senha não fica salva). */
+    function mostrarCredenciaisGeradas({ email, senha }) {
+      document.getElementById("cred-email").textContent = email;
+      document.getElementById("cred-senha").textContent = senha;
+      const btnCopiar = document.getElementById("cred-copiar");
+      btnCopiar.textContent = "Copiar e-mail e senha";
+      btnCopiar.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(`E-mail: ${email}\nSenha: ${senha}`);
+          btnCopiar.textContent = "Copiado!";
+          setTimeout(() => { btnCopiar.textContent = "Copiar e-mail e senha"; }, 2000);
+        } catch {
+          showToast("Não foi possível copiar automaticamente — selecione e copie manualmente.", "error");
+        }
+      };
+      openModal("modal-credenciais");
+    }
+
+    /** Gera login automático (uso interno) para um colaborador que já existe
+     * no cadastro mas ainda não tem conta — caso do e-mail provisório. */
+    async function gerarLoginParaColaborador(colaboradorId) {
+      const employee = getEmployeeById(colaboradorId);
+      const ok = await confirmDialog({
+        title: "Gerar login automático",
+        message: `Gerar um e-mail e senha internos para ${employee?.nome || "este colaborador"}? O e-mail cadastrado atualmente será substituído pelo novo e-mail de login gerado.`,
+        confirmLabel: "Gerar login",
+      });
+      if (!ok) return;
+      try {
+        const resultado = await rhCriarLoginColaborador({ colaboradorId });
+        await carregarColaboradores();
+        closeModal("modal-perfil");
+        render();
+        wireModalClosers();
+        mostrarCredenciaisGeradas(resultado);
+        showToast(`Login gerado para ${resultado.colaborador.nome}.`, "success");
+      } catch (error) {
+        showToast(error.message || String(error), "error");
+      }
+    }
+
+    function openEmployeeProfile(id) {
+      const employee = getEmployeeById(id);
+      if (!employee) { showToast("Colaborador não encontrado.", "error"); return; }
+      perfilEmployeeId = employee.id;
+      document.getElementById("perfil-titulo").textContent = employee.nome;
+      document.getElementById("perfil-body").innerHTML = `
+        <div style="display:flex;align-items:center;gap:.9rem;margin-bottom:1.25rem">
+          <span class="avatar ${avatarColorClass(employee.nome)}" style="width:52px;height:52px;font-size:.9rem">${initials(employee.nome)}</span>
+          <div>
+            <div style="font-weight:800;color:var(--text);font-size:1rem">${esc(employee.nome)}</div>
+            <div style="display:flex;align-items:center;gap:.5rem;margin-top:.28rem">${statusPill(employee.status)}<span style="color:var(--text-faint);font-size:.76rem">${esc(employee.codigoColaborador)}</span></div>
+          </div>
+        </div>
+        <div class="form-grid" style="margin:0">
+          <div class="field"><label>E-mail corporativo</label><div class="field-static">${esc(employee.email || "—")}</div></div>
+          <div class="field"><label>Código de Colaborador</label><div class="field-static strong-code">${esc(employee.codigoColaborador || "—")}</div></div>
+          <div class="field"><label>Cargo</label><div class="field-static">${esc(employee.cargo || "—")}</div></div>
+          <div class="field"><label>Departamento</label><div class="field-static">${esc(employee.departamento || "—")}</div></div>
+          <div class="field"><label>Data de admissão</label><div class="field-static">${fmt(employee.admissao)}</div></div>
+          <div class="field"><label>Data de aniversário</label><div class="field-static">${fmt(employee.dataNascimento)}</div></div>
+          ${employee.dataDesligamento ? `<div class="field"><label>Data de desligamento</label><div class="field-static">${fmt(employee.dataDesligamento)}</div></div>` : ""}
+          <div class="field"><label>Jornada</label><div class="field-static">${formatSchedule(employee)}</div></div>
+          <div class="field"><label>Dias de trabalho</label><div class="field-static">${esc(formatWorkDays(employee.diasTrabalho))}</div></div>
+          <div class="field"><label>Horas semanais</label><div class="field-static">${employee.horasSemanais != null ? esc(String(employee.horasSemanais).replace('.', ',')) + ' h/semana' : 'Não definido'}</div></div>
+          <div class="field"><label>Cadastro</label><div class="field-static">${esc(employee.fonteCadastro || "Sistema")}</div></div>
+        </div>
+        ${employee.emailProvisorio ? `<div class="notice" style="margin-top:1rem">Este e-mail é provisório (a planilha original não tinha e-mail corporativo desta pessoa) — esta pessoa ainda não tem login no sistema.<br><br><button type="button" class="btn-primary auto" id="btn-gerar-login-provisorio" style="margin-top:.5rem">Gerar login automático (uso interno)</button></div>` : ""}
+      `;
+      document.getElementById("btn-gerar-login-provisorio")?.addEventListener("click", () => gerarLoginParaColaborador(employee.id));
+      openModal("modal-perfil");
+    }
+
+    function openEditEmployee(id) {
+      const employee = getEmployeeById(id);
+      if (!employee) { showToast("Colaborador não encontrado.", "error"); return; }
+      editEmployeeId = employee.id;
+      document.getElementById("edit-nome").value = employee.nome || "";
+      document.getElementById("edit-email").value = employee.email || "";
+      document.getElementById("edit-codigo").value = employee.codigoColaborador || "";
+      document.getElementById("edit-cargo").value = employee.cargo || "";
+      document.getElementById("edit-departamento").value = employee.departamento || "";
+      document.getElementById("edit-admissao").value = employee.admissao || "";
+      document.getElementById("edit-data-nascimento").value = employee.dataNascimento || "";
+      document.getElementById("edit-data-desligamento").value = employee.dataDesligamento || "";
+      document.getElementById("edit-horario-entrada").value = employee.horarioEntrada || "";
+      document.getElementById("edit-horario-saida").value = employee.horarioSaida || "";
+      document.getElementById("edit-intervalo-inicio").value = employee.intervaloInicio || "";
+      document.getElementById("edit-intervalo-fim").value = employee.intervaloFim || "";
+      document.getElementById("edit-horas-semanais").value = employee.horasSemanais || "";
+      renderDayChecks("edit-dias", employee.diasTrabalho || []);
+      document.getElementById("edit-status").value = employee.status || "ATIVO";
+      closeModal("modal-perfil");
+      openModal("modal-editar");
+    }
+
+    async function deleteEmployee(id) {
+      const employee = getEmployeeById(id);
+      if (!employee) { showToast("Colaborador não encontrado.", "error"); return; }
+      const ok = await confirmDialog({
+        title: "Excluir colaborador",
+        message: `Excluir ${employee.nome}? Isto remove o cadastro do banco de dados de verdade (rh.colaboradores) e todo o histórico ligado a ele (ponto, solicitações, férias, documentos) — não pode ser desfeito. O login da pessoa (se já existir) NÃO é removido automaticamente; para isso, use Authentication > Users no painel do Supabase.`,
+        confirmLabel: "Excluir",
+        danger: true,
+      });
+      if (!ok) return;
+      try {
+        const { error } = await sb.from("colaboradores").delete().eq("id", id);
+        if (error) throw error;
+        await carregarColaboradores();
+        closeModal("modal-perfil");
+        state.page = 1;
+        render();
+        wireModalClosers();
+        showToast(`${employee.nome} foi excluído do cadastro.`, "success");
+      } catch (error) {
+        showToast(traduzErroBanco(error), "error");
+      }
+    }
+
+    if (session) {
+      renderShell(session, withBadges(NAV_RH, await rhNavBadges()));
+      renderTopHeader(document.getElementById("top-header"), session, { notifications: [] });
+      try {
+        await carregarColaboradores();
+        render();
+      } catch (error) {
+        document.getElementById("content").innerHTML = emptyStateHtml({
+          icon: ICONS.alertTriangle || ICONS.users,
+          title: "Não foi possível carregar os colaboradores",
+          desc: traduzErroBanco(error),
+        });
+      }
+      wireModalClosers();
+      document.querySelectorAll(".modal-close").forEach((button) => { button.innerHTML = ICONS.x; });
+      document.getElementById("btn-editar-perfil").addEventListener("click", () => { if (perfilEmployeeId) openEditEmployee(perfilEmployeeId); });
+      document.getElementById("btn-excluir-perfil").addEventListener("click", () => { if (perfilEmployeeId) deleteEmployee(perfilEmployeeId); });
+
+      document.getElementById("form-editar").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        try {
+          const { data: updated, error } = await sb
+            .from("colaboradores")
+            .update({
+              nome: document.getElementById("edit-nome").value,
+              email: document.getElementById("edit-email").value,
+              codigo: document.getElementById("edit-codigo").value || null,
+              cargo: document.getElementById("edit-cargo").value,
+              departamento: document.getElementById("edit-departamento").value,
+              admissao: document.getElementById("edit-admissao").value || null,
+              data_nascimento: document.getElementById("edit-data-nascimento").value || null,
+              data_desligamento: document.getElementById("edit-data-desligamento").value || null,
+              horario_entrada: document.getElementById("edit-horario-entrada").value || null,
+              horario_saida: document.getElementById("edit-horario-saida").value || null,
+              intervalo_inicio: document.getElementById("edit-intervalo-inicio").value || null,
+              intervalo_fim: document.getElementById("edit-intervalo-fim").value || null,
+              dias_trabalho: selectedDaysFrom("edit-dias"),
+              horas_semanais: document.getElementById("edit-horas-semanais").value ? Number(document.getElementById("edit-horas-semanais").value) : null,
+              status: document.getElementById("edit-status").value,
+            })
+            .eq("id", editEmployeeId)
+            .select()
+            .single();
+          if (error) throw error;
+          await carregarColaboradores();
+          closeModal("modal-editar");
+          state.page = 1;
+          render();
+          wireModalClosers();
+          document.querySelectorAll(".modal-close").forEach((button) => { button.innerHTML = ICONS.x; });
+          document.getElementById("btn-editar-perfil").addEventListener("click", () => { if (perfilEmployeeId) openEditEmployee(perfilEmployeeId); });
+          document.getElementById("btn-excluir-perfil").addEventListener("click", () => { if (perfilEmployeeId) deleteEmployee(perfilEmployeeId); });
+          showToast(`${updated.nome} atualizado com sucesso.`, "success");
+        } catch (error) {
+          showToast(traduzErroBanco(error), "error");
+        } finally {
+          btn.disabled = false;
+        }
+      });
+
+      const NOTICE_CONVITE = 'Ao cadastrar, a Supabase envia um e-mail real de convite para este endereço, com um link para a pessoa definir a própria senha. O acesso só passa a existir depois que ela concluir esse convite.';
+      const NOTICE_INTERNO = 'O sistema vai gerar automaticamente um e-mail de login e uma senha para esta pessoa — não precisa de caixa de e-mail real. Depois de cadastrar, a senha aparece na tela UMA ÚNICA VEZ para você anotar e passar ao colaborador.';
+
+      function aplicarModoAcesso(modo) {
+        const emailInput = document.getElementById("novo-email");
+        const emailWrap = document.getElementById("novo-email-wrap");
+        const notice = document.getElementById("novo-modo-notice");
+        const submitBtn = document.getElementById("novo-btn-submit");
+        if (modo === "interno") {
+          emailInput.required = false;
+          emailWrap.style.display = "none";
+          notice.textContent = NOTICE_INTERNO;
+          submitBtn.textContent = "Gerar login e cadastrar";
+        } else {
+          emailInput.required = true;
+          emailWrap.style.display = "";
+          notice.textContent = NOTICE_CONVITE;
+          submitBtn.textContent = "Convidar colaborador";
+        }
+      }
+
+      document.querySelectorAll('input[name="novo-modo-acesso"]').forEach((radio) => {
+        radio.addEventListener("change", (e) => aplicarModoAcesso(e.target.value));
+      });
+
+      document.getElementById("btn-novo").addEventListener("click", () => {
+        renderDayChecks("novo-dias", ["SEG","TER","QUA","QUI","SEX"]);
+        document.querySelector('input[name="novo-modo-acesso"][value="convite"]').checked = true;
+        aplicarModoAcesso("convite");
+      });
+
+      document.getElementById("form-novo").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        const modo = document.querySelector('input[name="novo-modo-acesso"]:checked').value;
+        btn.disabled = true;
+        btn.textContent = modo === "interno" ? "Gerando login..." : "Enviando convite...";
+        try {
+          const dadosBase = {
+            nome: document.getElementById("novo-nome").value,
+            cargo: document.getElementById("novo-cargo").value,
+            departamento: document.getElementById("novo-departamento").value,
+            admissao: document.getElementById("novo-admissao").value || null,
+            role: "COLABORADOR",
+          };
+          const resultado = modo === "interno"
+            ? await rhCriarLoginColaborador(dadosBase)
+            : await rhConvidarColaborador({ ...dadosBase, email: document.getElementById("novo-email").value });
+          // A Edge Function cria o registro básico; os campos de jornada
+          // (não recebidos por ela) são gravados aqui, numa segunda chamada
+          // real ao banco — ainda dentro do mesmo fluxo de cadastro.
+          const jornada = {
+            data_nascimento: document.getElementById("novo-data-nascimento").value || null,
+            horario_entrada: document.getElementById("novo-horario-entrada").value || null,
+            horario_saida: document.getElementById("novo-horario-saida").value || null,
+            intervalo_inicio: document.getElementById("novo-intervalo-inicio").value || null,
+            intervalo_fim: document.getElementById("novo-intervalo-fim").value || null,
+            dias_trabalho: selectedDaysFrom("novo-dias"),
+            horas_semanais: document.getElementById("novo-horas-semanais").value ? Number(document.getElementById("novo-horas-semanais").value) : null,
+          };
+          if (Object.values(jornada).some((v) => v != null && (!Array.isArray(v) || v.length))) {
+            const { error: jornadaErr } = await sb.from("colaboradores").update(jornada).eq("id", resultado.colaborador.id);
+            if (jornadaErr) showToast("Colaborador cadastrado, mas houve um erro ao salvar a jornada: " + jornadaErr.message, "error");
+          }
+          await carregarColaboradores();
+          closeModal("modal-novo");
+          e.target.reset();
+          render();
+          wireModalClosers();
+          document.getElementById("btn-novo").addEventListener("click", () => {
+            renderDayChecks("novo-dias", ["SEG","TER","QUA","QUI","SEX"]);
+            document.querySelector('input[name="novo-modo-acesso"][value="convite"]').checked = true;
+            aplicarModoAcesso("convite");
+          });
+          if (modo === "interno") {
+            mostrarCredenciaisGeradas(resultado);
+            showToast(`Colaborador ${resultado.colaborador.nome} cadastrado com login automático.`, "success");
+          } else {
+            showToast(resultado.mensagem || `Convite enviado para ${resultado.colaborador.email}.`, "success");
+          }
+        } catch (error) {
+          showToast(traduzErroBanco(error), "error");
+        } finally {
+          btn.disabled = false;
+          aplicarModoAcesso(modo);
+        }
+      });
+    }
+
+})();
+</script>
+  <script src="../js/ui-effects.js"></script>
+</body>
+</html>

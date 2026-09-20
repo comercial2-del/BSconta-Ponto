@@ -1,0 +1,16 @@
+BSconta+ Sistema Sólides — base completa
+
+Módulos preservados: RH, Colaborador, Jornada/Ponto, Férias, Documentos, Solicitações, Comunicados, Relatórios, Configurações.
+
+Atualizações deste pacote:
+- fluxo de documentos para assinatura (RH -> Colaborador -> assinatura -> retorno);
+- visualização de PDF dentro do sistema;
+- download do documento original e do documento assinado;
+- assinatura via portal oficial GOV.BR (abertura do Assinador) + importação do arquivo assinado;
+- importação de documento já preparado para assinatura;
+- acompanhamento de status no RH;
+- armazenamento local do protótipo via IndexedDB/localStorage;
+- schema Supabase e SQLite preparados para o fluxo de assinatura;
+- documentação de integração GOV.BR.
+
+IMPORTANTE: os documentos, nomes, e-mails e demais dados desta demonstração podem conter dados fictícios/provisórios. Não usar o banco de demonstração em produção sem revisar os dados e regras de segurança.

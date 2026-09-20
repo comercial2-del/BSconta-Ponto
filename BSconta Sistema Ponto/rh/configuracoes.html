@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Configurações — BSconta+ RH</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+  <link rel="stylesheet" href="../css/theme-v2.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div id="app-header"></div>
+    <div class="app-content">
+      <main class="main">
+        <div id="top-header" class="top-header"></div>
+        <div id="content"><div class="loading-wrap"><div class="spinner"></div></div></div>
+      </main>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-usuario">
+    <div class="modal">
+      <div class="modal-header"><h3>Convidar usuário</h3><button class="modal-close" data-close-modal></button></div>
+      <form id="form-usuario">
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="field full"><label>Nome completo</label><input type="text" id="novo-usuario-nome" required /></div>
+            <div class="field full"><label>E-mail</label><input type="email" id="novo-usuario-email" required /></div>
+            <div class="field full"><label>Papel</label>
+              <select id="novo-usuario-papel" required>
+                <option value="RH_ADMIN">RH — Administrador</option>
+                <option value="RH">RH — Analista</option>
+                <option value="COLABORADOR">Colaborador</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-ghost" data-close-modal>Cancelar</button>
+          <button type="submit" class="btn-primary auto">Enviar convite</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-editar-usuario">
+    <div class="modal">
+      <div class="modal-header"><h3>Editar usuário</h3><button class="modal-close" data-close-modal></button></div>
+      <form id="form-editar-usuario">
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="field full"><label>Nome completo</label><input type="text" id="edit-usuario-nome" required /></div>
+            <div class="field full"><label>E-mail</label><input type="email" id="edit-usuario-email" required /></div>
+            <div class="field full"><label>Papel</label>
+              <select id="edit-usuario-papel" required>
+                <option value="RH_ADMIN">RH — Administrador</option>
+                <option value="RH">RH — Analista</option>
+                <option value="COLABORADOR">Colaborador</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-ghost" data-close-modal>Cancelar</button>
+          <button type="submit" class="btn-primary auto">Salvar alterações</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-senha">
+    <div class="modal modal-sm">
+      <div class="modal-header"><h3>Alterar senha</h3><button class="modal-close" data-close-modal></button></div>
+      <form id="form-senha">
+        <div class="modal-body">
+          <div class="field full"><label>Nova senha</label><input type="password" id="nova-senha" required minlength="6" placeholder="Pelo menos 6 caracteres" /></div>
+          <div class="field full"><label>Confirmar nova senha</label><input type="password" id="confirma-senha" required minlength="6" /></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-ghost" data-close-modal>Cancelar</button>
+          <button type="submit" class="btn-primary auto">Salvar nova senha</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-editar-conta">
+    <div class="modal">
+      <div class="modal-header"><h3>Editar dados pessoais</h3><button class="modal-close" data-close-modal></button></div>
+      <form id="form-editar-conta">
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="field"><label>CPF</label><input type="text" id="conta-cpf" /></div>
+            <div class="field"><label>Data de nascimento</label><input type="date" id="conta-nascimento" /></div>
+            <div class="field"><label>Telefone</label><input type="text" id="conta-telefone" /></div>
+            <div class="field full"><label>Endereço</label><input type="text" id="conta-endereco" /></div>
+            <div class="field"><label>CEP</label><input type="text" id="conta-cep" /></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-ghost" data-close-modal>Cancelar</button>
+          <button type="submit" class="btn-primary auto">Salvar alterações</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>window.BASE_PATH = "../";</script>
+  <script src="../js/demo-data.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/supabase-client.js"></script>
+  <script src="../js/rh-supabase-auth.js"></script>
+  <script src="../js/rh-perfil-data.js"></script>
+  <script src="../js/rh-usuarios-data.js"></script>
+  <script src="../js/rh-push-data.js"></script>
+  <script>
+(async function () {
+    const session = await requireRoleReal("RH");
+    if (!session) return;
+    document.querySelector("#modal-usuario .modal-close").innerHTML = ICONS.x;
+    document.querySelector("#modal-editar-usuario .modal-close").innerHTML = ICONS.x;
+    document.querySelector("#modal-senha .modal-close").innerHTML = ICONS.x;
+    document.querySelector("#modal-editar-conta .modal-close").innerHTML = ICONS.x;
+    const souAdmin = session.roleReal === "RH_ADMIN";
+    let usuarioEditandoId = null;
+    let cacheUsuarios = [];
+    let meuPerfilCompleto = null;
+    const NOTIF_PREFS = [
+      { key: "solicitacoes", label: "Novas solicitações e atualizações de status", padrao: true },
+      { key: "ferias", label: "Aprovação/recusa de pedidos de férias", padrao: true },
+      { key: "documentos", label: "Novos documentos enviados pelo RH", padrao: true },
+      { key: "comunicados", label: "Novos comunicados publicados", padrao: true },
+      { key: "ponto", label: "Lembretes de ponto e ajustes pendentes", padrao: false },
+    ];
+
+    async function refrescarUsuarios() {
+      if (!souAdmin) return;
+      cacheUsuarios = await rhListarUsuarios();
+    }
+
+    function papelBadge(papel) {
+      const map = { RH_ADMIN: ["badge-admin", "RH · Administrador"], RH: ["badge-viewer", "RH · Analista"], COLABORADOR: ["badge-neutral", "Colaborador"] };
+      const [cls, label] = map[papel] || ["badge-neutral", papel];
+      return `<span class="badge ${cls}">${label}</span>`;
+    }
+
+    function render() {
+      document.getElementById("content").innerHTML = `
+        <div class="space-y">
+          <div class="row-between">
+            <div>
+              <h1 class="page-title">Configurações</h1>
+              <p class="page-sub">Gerencie sua conta, usuários do sistema e preferências de notificação.</p>
+            </div>
+          </div>
+
+          <div class="card card-p">
+            <div class="tabs">
+              <button type="button" class="tab-btn active" data-tab="tab-conta">Minha conta</button>
+              <button type="button" class="tab-btn" data-tab="tab-usuarios">Usuários e permissões</button>
+              <button type="button" class="tab-btn" data-tab="tab-notif">Notificações</button>
+            </div>
+
+            <div id="tab-conta" class="tab-panel active">${contaHtml()}</div>
+            <div id="tab-usuarios" class="tab-panel">${usuariosHtml()}</div>
+            <div id="tab-notif" class="tab-panel">${notifHtml()}</div>
+          </div>
+        </div>
+      `;
+
+      initTabs(document.getElementById("content"));
+      wireContaEvents();
+      wireUsuariosEvents();
+      wireNotifEvents();
+    }
+
+    function contaHtml() {
+      const u = session;
+      return `
+        <div class="profile-header" style="margin-bottom:1.2rem">
+          <div class="avatar-lg ${avatarColorClass(u.name)}">${initials(u.name)}</div>
+          <div>
+            <p class="profile-header-name">${esc(u.name)}</p>
+            <p class="profile-header-meta">${esc(u.cargo)}<span class="sep">·</span>${esc(u.departamento)}</p>
+          </div>
+        </div>
+        <div class="info-grid">
+          <div class="info-row"><p class="info-label">E-mail</p><p class="info-value">${esc(u.email)}</p></div>
+          <div class="info-row"><p class="info-label">Cargo</p><p class="info-value">${esc(u.cargo)}</p></div>
+          <div class="info-row"><p class="info-label">Departamento</p><p class="info-value">${esc(u.departamento)}</p></div>
+          <div class="info-row"><p class="info-label">Data de admissão</p><p class="info-value">${fmtDate(u.admissao)}</p></div>
+          ${
+            meuPerfilCompleto
+              ? `${infoRowConta("CPF", meuPerfilCompleto.cpf)}${infoRowConta("Telefone", meuPerfilCompleto.telefone)}${infoRowConta("Endereço", meuPerfilCompleto.endereco)}${infoRowConta("CEP", meuPerfilCompleto.cep)}`
+              : ""
+          }
+        </div>
+        <div style="margin-top:1.3rem;display:flex;gap:0.6rem;flex-wrap:wrap">
+          <button type="button" class="btn-primary auto" id="btn-editar-conta" ${session.employeeId ? "" : "disabled title=\"Este login não tem cadastro de colaborador vinculado.\""}>${ICONS.edit}<span>Editar dados pessoais</span></button>
+          <button type="button" class="btn-ghost" id="btn-senha">${ICONS.shield}<span>Alterar senha</span></button>
+        </div>
+      `;
+    }
+    function infoRowConta(label, value) {
+      return `<div class="info-row"><p class="info-label">${esc(label)}</p><p class="info-value">${esc(value) || '<span class="muted">—</span>'}</p></div>`;
+    }
+
+    function usuariosHtml() {
+      if (!souAdmin) {
+        return emptyStateHtml({ icon: ICONS.shield, title: "Acesso restrito", desc: "Somente um RH_ADMIN pode ver e gerenciar os usuários do sistema. Fale com um administrador de RH se precisar de uma alteração." });
+      }
+      return `
+        <div class="row-between" style="margin-bottom:1rem">
+          <p class="page-sub" style="margin:0">Usuários com acesso ao sistema BSconta+ RH.</p>
+          <button type="button" class="btn-primary auto" id="btn-convidar">${ICONS.plus}<span>Convidar usuário</span></button>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Usuário</th><th>E-mail</th><th>Papel</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+              ${cacheUsuarios
+                .map(
+                  (u) => `<tr>
+                <td><div class="person-cell"><span class="avatar avatar-sm ${avatarColorClass(u.nome)}">${initials(u.nome)}</span>${esc(u.nome)}</div></td>
+                <td>${esc(u.email)}</td>
+                <td>${papelBadge(u.papel)}</td>
+                <td><span class="status-pill ${u.ativo ? "on" : "off"}"><span class="dot"></span>${u.ativo ? "Ativo" : "Inativo"}</span></td>
+                <td style="text-align:right">
+                  <div style="display:inline-flex;gap:0.5rem;align-items:center">
+                    <button type="button" class="btn-ghost" style="width:auto;padding:0.4rem 0.7rem" data-toggle="${u.userId}" ${u.userId === session.userId ? "disabled" : ""}>${u.ativo ? "Desativar" : "Reativar"}</button>
+                    <div class="approve-reject">
+                      <button type="button" class="edit" data-editar-usuario="${u.userId}" aria-label="Editar usuário" title="Editar usuário">${ICONS.edit}</button>
+                      <button type="button" class="delete" data-excluir-usuario="${u.userId}" aria-label="Excluir usuário" title="Excluir usuário" ${u.userId === session.userId ? "disabled" : ""}>${ICONS.trash}</button>
+                    </div>
+                  </div>
+                </td>
+              </tr>`
+                )
+                .join("")}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function notifHtml() {
+      return `
+        <p class="page-sub" style="margin:0 0 1rem">Escolha quais eventos devem gerar notificação para você.</p>
+        <div style="display:flex;flex-direction:column;gap:0.8rem;max-width:520px">
+          ${NOTIF_PREFS.map(
+            (p) => `<label class="check-row"><input type="checkbox" data-pref="${p.key}" ${(session.preferenciasNotificacao?.[p.key] ?? p.padrao) ? "checked" : ""} /> ${esc(p.label)}</label>`
+          ).join("")}
+        </div>
+        <button type="button" class="btn-primary auto" id="btn-salvar-notif" style="margin-top:1.2rem">${ICONS.check}<span>Salvar preferências</span></button>
+
+        <hr style="margin:1.6rem 0;border:none;border-top:1px solid var(--border)" />
+        <h3 style="font-size:0.95rem;margin:0 0 0.3rem">Notificações do navegador (push)</h3>
+        <p class="page-sub" style="margin:0 0 0.9rem">Recebe o aviso mesmo com o sistema fechado (ex.: lembrete de bater ponto). É por dispositivo/navegador — ative em cada um que for usar.</p>
+        <div id="push-status-wrap" style="max-width:520px"><p class="hint">Verificando suporte deste navegador…</p></div>
+      `;
+    }
+
+    function wireContaEvents() {
+      document.getElementById("btn-editar-conta")?.addEventListener("click", () => {
+        if (!session.employeeId) return;
+        document.getElementById("conta-cpf").value = meuPerfilCompleto?.cpf || "";
+        document.getElementById("conta-nascimento").value = meuPerfilCompleto?.nascimento || "";
+        document.getElementById("conta-telefone").value = meuPerfilCompleto?.telefone || "";
+        document.getElementById("conta-endereco").value = meuPerfilCompleto?.endereco || "";
+        document.getElementById("conta-cep").value = meuPerfilCompleto?.cep || "";
+        openModal("modal-editar-conta");
+      });
+      document.getElementById("btn-senha")?.addEventListener("click", () => {
+        document.getElementById("form-senha").reset();
+        openModal("modal-senha");
+      });
+      document.getElementById("form-editar-conta").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (!session.employeeId) return;
+        const btn = e.target.querySelector("button[type=submit]");
+        btn.disabled = true;
+        try {
+          const dados = {
+            cpf: document.getElementById("conta-cpf").value.trim(),
+            nascimento: document.getElementById("conta-nascimento").value || null,
+            telefone: document.getElementById("conta-telefone").value.trim(),
+            endereco: document.getElementById("conta-endereco").value.trim(),
+            cep: document.getElementById("conta-cep").value.trim(),
+          };
+          await rhSalvarDadosPessoaisColaborador(dados);
+          meuPerfilCompleto = await rhCarregarPerfilColaborador(session.employeeId);
+          closeModal("modal-editar-conta");
+          showToast("Dados pessoais atualizados com sucesso.", "success");
+          document.getElementById("tab-conta").innerHTML = contaHtml();
+          wireContaEvents();
+        } catch (err) {
+          showToast(rhMensagemErroSupabase(err), "error");
+        } finally {
+          btn.disabled = false;
+        }
+      });
+      document.getElementById("form-senha").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const btn = e.target.querySelector("button[type=submit]");
+        const nova = document.getElementById("nova-senha").value;
+        const confirma = document.getElementById("confirma-senha").value;
+        if (nova !== confirma) {
+          showToast("As senhas não coincidem.", "error");
+          return;
+        }
+        btn.disabled = true;
+        try {
+          await rhAlterarSenhaPropria(nova);
+          closeModal("modal-senha");
+          showToast("Senha alterada com sucesso.", "success");
+          e.target.reset();
+        } catch (err) {
+          showToast(rhMensagemErroSupabase(err), "error");
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    }
+
+    function wireUsuariosEvents() {
+      if (!souAdmin) return;
+      document.getElementById("btn-convidar")?.addEventListener("click", () => {
+        document.getElementById("form-usuario").reset();
+        openModal("modal-usuario");
+      });
+      document.querySelectorAll("[data-toggle]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          const u = cacheUsuarios.find((x) => x.userId === b.dataset.toggle);
+          if (!u) return;
+          b.disabled = true;
+          try {
+            await rhToggleAtivoUsuario(u.userId, !u.ativo);
+            await refrescarUsuarios();
+            showToast(`${u.nome} ${!u.ativo ? "reativado" : "desativado"}.`, !u.ativo ? "success" : "error");
+            document.getElementById("tab-usuarios").innerHTML = usuariosHtml();
+            wireUsuariosEvents();
+          } catch (err) {
+            showToast(rhMensagemErroSupabase(err), "error");
+            b.disabled = false;
+          }
+        })
+      );
+      document.querySelectorAll("[data-editar-usuario]").forEach((b) =>
+        b.addEventListener("click", () => {
+          usuarioEditandoId = b.dataset.editarUsuario;
+          const u = cacheUsuarios.find((x) => x.userId === usuarioEditandoId);
+          if (!u) return;
+          document.getElementById("edit-usuario-nome").value = u.nome;
+          document.getElementById("edit-usuario-email").value = u.email;
+          document.getElementById("edit-usuario-papel").value = u.papel;
+          openModal("modal-editar-usuario");
+        })
+      );
+      document.querySelectorAll("[data-excluir-usuario]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          const u = cacheUsuarios.find((x) => x.userId === b.dataset.excluirUsuario);
+          if (!u) return;
+          const ok = await confirmDialog({
+            title: "Excluir usuário",
+            message: `Excluir o acesso de ${u.nome}? Isto remove o acesso dele ao sistema (não apaga o login em si — se quiser bloquear também outros sistemas que usem o mesmo login, remova em Authentication > Users no painel do Supabase).`,
+            confirmLabel: "Excluir",
+            danger: true,
+          });
+          if (!ok) return;
+          try {
+            await rhExcluirUsuario(u.userId);
+            await refrescarUsuarios();
+            showToast(`${u.nome} removido.`, "success");
+            document.getElementById("tab-usuarios").innerHTML = usuariosHtml();
+            wireUsuariosEvents();
+          } catch (err) {
+            showToast(rhMensagemErroSupabase(err), "error");
+          }
+        })
+      );
+    }
+
+    function wireNotifEvents() {
+      document.getElementById("btn-salvar-notif")?.addEventListener("click", async (e) => {
+        const btn = e.target.closest("button");
+        const prefs = {};
+        document.querySelectorAll("[data-pref]").forEach((el) => (prefs[el.dataset.pref] = el.checked));
+        btn.disabled = true;
+        try {
+          await rhSalvarPreferenciasNotificacao(prefs);
+          session.preferenciasNotificacao = prefs;
+          showToast("Preferências de notificação salvas.", "success");
+        } catch (err) {
+          showToast(rhMensagemErroSupabase(err), "error");
+        } finally {
+          btn.disabled = false;
+        }
+      });
+      renderPushStatus();
+    }
+
+    /** Estado real da inscrição de push NESTE navegador — não é um dado do
+     * banco (é por navegador/dispositivo), então é consultado direto na
+     * Web Push API do próprio navegador, não em rh.push_subscriptions. */
+    async function renderPushStatus() {
+      const wrap = document.getElementById("push-status-wrap");
+      if (!wrap) return;
+      let status;
+      try {
+        status = await rhPushStatusAtual();
+      } catch (err) {
+        wrap.innerHTML = `<p class="hint">Não foi possível verificar o status das notificações: ${esc(err.message || String(err))}</p>`;
+        return;
+      }
+      if (!status.suportado) {
+        wrap.innerHTML = `<p class="hint">Este navegador não tem suporte a notificações push.</p>`;
+        return;
+      }
+      if (status.permissao === "denied") {
+        wrap.innerHTML = `<p class="hint">Notificações bloqueadas neste navegador. Para ativar, permita notificações para este site nas configurações do navegador e recarregue a página.</p>`;
+        return;
+      }
+      wrap.innerHTML = `<button type="button" class="${status.inscrito ? "btn-ghost" : "btn-primary auto"}" id="btn-toggle-push">${status.inscrito ? ICONS.x : ICONS.bell}<span>${status.inscrito ? "Desativar notificações neste navegador" : "Ativar notificações neste navegador"}</span></button>`;
+      document.getElementById("btn-toggle-push").addEventListener("click", async (e) => {
+        const btn = e.target.closest("button");
+        btn.disabled = true;
+        try {
+          if (status.inscrito) {
+            await rhPushDesativar();
+            showToast("Notificações desativadas neste navegador.", "success");
+          } else {
+            await rhPushAtivar();
+            showToast("Notificações ativadas neste navegador.", "success");
+          }
+          await renderPushStatus();
+        } catch (err) {
+          showToast(err.message || String(err), "error");
+          btn.disabled = false;
+        }
+      });
+    }
+
+    if (session) {
+      try {
+        if (souAdmin) await refrescarUsuarios();
+        if (session.employeeId) meuPerfilCompleto = await rhCarregarPerfilColaborador(session.employeeId);
+      } catch (err) {
+        rhShowFatalError(rhMensagemErroSupabase(err));
+        return;
+      }
+      renderShell(session, withBadges(NAV_RH, await rhNavBadges()));
+      renderTopHeader(document.getElementById("top-header"), session, { notifications: [] });
+      render();
+      wireModalClosers();
+      document.getElementById("form-usuario").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const btn = e.target.querySelector("button[type=submit]");
+        btn.disabled = true;
+        try {
+          const nome = document.getElementById("novo-usuario-nome").value.trim();
+          const email = document.getElementById("novo-usuario-email").value.trim();
+          const papel = document.getElementById("novo-usuario-papel").value;
+          const resultado = await rhConvidarUsuarioSistema({ nome, email, papel });
+          await refrescarUsuarios();
+          closeModal("modal-usuario");
+          showToast(resultado?.mensagem || "Convite enviado com sucesso.", "success");
+          e.target.reset();
+          document.getElementById("tab-usuarios").innerHTML = usuariosHtml();
+          wireUsuariosEvents();
+        } catch (err) {
+          showToast(rhMensagemErroSupabase(err), "error");
+        } finally {
+          btn.disabled = false;
+        }
+      });
+      document.getElementById("form-editar-usuario").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (usuarioEditandoId === null) return;
+        const btn = e.target.querySelector("button[type=submit]");
+        btn.disabled = true;
+        try {
+          const nome = document.getElementById("edit-usuario-nome").value.trim();
+          const email = document.getElementById("edit-usuario-email").value.trim();
+          const papel = document.getElementById("edit-usuario-papel").value;
+          await rhAtualizarUsuario(usuarioEditandoId, { nome, email, papel });
+          await refrescarUsuarios();
+          closeModal("modal-editar-usuario");
+          showToast("Usuário atualizado com sucesso.", "success");
+          usuarioEditandoId = null;
+          document.getElementById("tab-usuarios").innerHTML = usuariosHtml();
+          wireUsuariosEvents();
+        } catch (err) {
+          showToast(rhMensagemErroSupabase(err), "error");
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    }
+
+})();
+</script>
+  <script src="../js/ui-effects.js"></script>
+</body>
+</html>

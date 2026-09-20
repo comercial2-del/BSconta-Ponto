@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Benefícios — BSconta+ RH</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+  <link rel="stylesheet" href="../css/theme-v2.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div id="app-header"></div>
+    <div class="app-content">
+      <main class="main">
+        <div id="top-header" class="top-header"></div>
+        <div id="content"><div class="loading-wrap"><div class="spinner"></div></div></div>
+      </main>
+    </div>
+  </div>
+
+  <script>window.BASE_PATH = "../";</script>
+  <script src="../js/demo-data.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/supabase-client.js"></script>
+  <script src="../js/rh-supabase-auth.js"></script>
+  <script src="../js/rh-beneficios-data.js"></script>
+  <script>
+(async function () {
+    const session = await requireRoleReal("COLABORADOR");
+    if (!session) return;
+    const TONE_BG = { orange: "var(--orange-50)", red: "var(--red-50)", indigo: "var(--indigo-50)", teal: "var(--teal-50)", violet: "var(--violet-50)", green: "var(--emerald-50)" };
+    const TONE_FG = { orange: "var(--orange-600)", red: "var(--red-600)", indigo: "var(--indigo-600)", teal: "var(--teal-600)", violet: "var(--violet-600)", green: "var(--emerald-600)" };
+
+    function render(meusBeneficios) {
+      document.getElementById("content").innerHTML = `
+        <div class="space-y">
+          <div class="row-between">
+            <div>
+              <h1 class="page-title">Benefícios</h1>
+              <p class="page-sub">Seus benefícios ativos na BSconta+. Precisa alterar algo? Abra uma solicitação para o RH.</p>
+            </div>
+            <a href="solicitacoes.html" class="btn-ghost">${ICONS.messageSquare}<span>Solicitar alteração</span></a>
+          </div>
+
+          ${
+            meusBeneficios.length
+              ? `<div class="benefit-grid">
+            ${meusBeneficios
+              .map(
+                (b, i) => `
+              <div class="card benefit-card">
+                <div class="benefit-icon" style="background:${TONE_BG[b.tone]};color:${TONE_FG[b.tone]}">${ICONS[b.icon] || ICONS.heart}</div>
+                <div style="flex:1">
+                  <div class="row-between" style="margin-bottom:0.1rem">
+                    <p class="title">${esc(b.nome)}</p>
+                    ${statusBadgeHtml(b.status, STATUS_LABELS)}
+                  </div>
+                  <p class="desc">${esc(b.desc)}</p>
+                </div>
+              </div>`
+              )
+              .join("")}
+          </div>`
+              : emptyStateHtml({ icon: ICONS.heart, title: "Nenhum benefício por aqui", desc: "Ainda não há benefícios atribuídos a você. Fale com o RH se acha que algo está faltando." })
+          }
+        </div>
+      `;
+    }
+
+    if (session) {
+      renderShell(session, NAV_COLABORADOR);
+      renderTopHeader(document.getElementById("top-header"), session, { notifications: [] });
+      try {
+        const meusBeneficios = await rhCarregarBeneficiosColaborador();
+        render(meusBeneficios);
+      } catch (err) {
+        rhShowFatalError(rhMensagemErroSupabase(err));
+      }
+    }
+
+})();
+</script>
+  <script src="../js/ui-effects.js"></script>
+</body>
+</html>

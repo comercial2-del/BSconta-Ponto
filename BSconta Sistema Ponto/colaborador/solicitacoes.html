@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Solicitações — BSconta+ RH</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+  <link rel="stylesheet" href="../css/theme-v2.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div id="app-header"></div>
+    <div class="app-content">
+      <main class="main">
+        <div id="top-header" class="top-header"></div>
+        <div id="content"><div class="loading-wrap"><div class="spinner"></div></div></div>
+      </main>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-nova">
+    <div class="modal">
+      <div class="modal-header"><h3>Nova solicitação</h3><button class="modal-close" data-close-modal>${''}</button></div>
+      <form id="form-nova">
+        <div class="modal-body">
+          <div class="field">
+            <label>Categoria</label>
+            <select id="nova-categoria" required>
+              <option value="">Selecione</option>
+              <option>Dúvidas</option><option>Atualização cadastral</option><option>Documentos</option>
+              <option>Solicitação de férias</option><option>Benefícios</option><option>Ajuste de ponto</option><option>Outros</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Descrição</label>
+            <textarea id="nova-descricao" required placeholder="Descreva sua solicitação..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-ghost" data-close-modal>Cancelar</button>
+          <button type="submit" class="btn-primary auto" id="btn-enviar-solicitacao"><span>Enviar</span></button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>window.BASE_PATH = "../";</script>
+  <script src="../js/demo-data.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/supabase-client.js"></script>
+  <script src="../js/rh-supabase-auth.js"></script>
+  <script src="../js/rh-solicitacoes-data.js"></script>
+  <script>
+(async function () {
+    const session = await requireRoleReal("COLABORADOR");
+    if (!session) return;
+    if (!session.employeeId) {
+      rhShowFatalError("Este login não está vinculado a um cadastro de colaborador (rh.colaboradores). Peça ao RH para vincular seu usuário.");
+      return;
+    }
+    document.querySelector("#modal-nova .modal-close").innerHTML = ICONS.x;
+    document.getElementById("btn-enviar-solicitacao").innerHTML = `${ICONS.send}<span>Enviar</span>`;
+    let lista = [];
+    let filtro = "TODAS";
+
+    async function refrescarLista() {
+      lista = await rhCarregarSolicitacoesColaborador(session.employeeId);
+    }
+
+    function render() {
+      document.getElementById("content").innerHTML = `
+        <div class="space-y">
+          <div class="row-between">
+            <div>
+              <h1 class="page-title">Solicitações</h1>
+              <p class="page-sub">Acompanhe suas solicitações abertas com o RH.</p>
+            </div>
+            <button type="button" class="btn-primary auto" id="btn-nova">${ICONS.plus}<span>Nova solicitação</span></button>
+          </div>
+
+          <div class="card card-p">
+            <div class="period-buttons" style="margin-bottom:1rem">
+              <button type="button" data-f="TODAS" class="active">Todas</button>
+              <button type="button" data-f="EM_ANALISE">Em análise</button>
+              <button type="button" data-f="RESOLVIDA">Resolvidas</button>
+            </div>
+            <div id="list-wrap"></div>
+          </div>
+        </div>
+      `;
+
+      document.querySelectorAll("[data-f]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          document.querySelectorAll("[data-f]").forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+          filtro = btn.dataset.f;
+          renderList();
+        });
+      });
+      document.getElementById("btn-nova").addEventListener("click", () => openModal("modal-nova"));
+      renderList();
+    }
+
+    function renderList() {
+      const rows = filtro === "TODAS" ? lista : lista.filter((s) => (filtro === "EM_ANALISE" ? s.status !== "RESOLVIDA" : s.status === "RESOLVIDA"));
+      document.getElementById("list-wrap").innerHTML = rows.length
+        ? rows
+            .map(
+              (s) => `
+        <div class="request-card">
+          <div class="request-card-top">
+            <div>
+              <p class="protocolo">${s.protocolo} · ${esc(s.categoria)}</p>
+              <p class="titulo">${esc(s.descricao)}</p>
+            </div>
+            ${statusBadgeHtml(s.status, STATUS_LABELS)}
+          </div>
+          <div class="meta-row"><span>${ICONS.calendar}${fmtDate(s.data)}</span></div>
+          ${s.respostas.length ? s.respostas.map((r) => `<div style="margin-top:0.7rem;padding:0.6rem 0.75rem;background:var(--surface-2);border-radius:9px;font-size:0.83rem"><strong>${esc(r.autor)}</strong> · ${fmtDate(r.data)}<p style="margin:0.2rem 0 0;color:var(--text-soft)">${esc(r.texto)}</p></div>`).join("") : ""}
+        </div>`
+            )
+            .join("")
+        : emptyStateHtml({ icon: ICONS.messageSquare, title: "Nenhuma solicitação por aqui", desc: "Quando precisar, abra uma nova solicitação para o RH." });
+    }
+
+    document.getElementById("form-nova").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const categoria = document.getElementById("nova-categoria").value;
+      const descricao = document.getElementById("nova-descricao").value;
+      const btn = document.getElementById("btn-enviar-solicitacao");
+      btn.disabled = true;
+      try {
+        await rhCriarSolicitacaoGeral({ colaboradorId: session.employeeId, categoria, descricao });
+        await refrescarLista();
+        closeModal("modal-nova");
+        e.target.reset();
+        filtro = "TODAS";
+        document.querySelectorAll("[data-f]").forEach((b) => b.classList.toggle("active", b.dataset.f === "TODAS"));
+        renderList();
+        showToast("Solicitação enviada ao RH.", "success");
+      } catch (err) {
+        showToast(rhMensagemErroSupabase(err), "error");
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    if (session) {
+      renderShell(session, NAV_COLABORADOR);
+      renderTopHeader(document.getElementById("top-header"), session, { notifications: [] });
+      try {
+        await refrescarLista();
+        render();
+        wireModalClosers();
+      } catch (err) {
+        rhShowFatalError(rhMensagemErroSupabase(err));
+      }
+    }
+
+})();
+</script>
+  <script src="../js/ui-effects.js"></script>
+</body>
+</html>

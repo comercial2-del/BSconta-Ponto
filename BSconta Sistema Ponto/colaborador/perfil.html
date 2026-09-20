@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Meu Perfil — BSconta+ RH</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+  <link rel="stylesheet" href="../css/theme-v2.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div id="app-header"></div>
+    <div class="app-content">
+      <main class="main">
+        <div id="top-header" class="top-header"></div>
+        <div id="content"><div class="loading-wrap"><div class="spinner"></div></div></div>
+      </main>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-senha">
+    <div class="modal modal-sm">
+      <div class="modal-header"><h3>Alterar senha</h3><button class="modal-close" data-close-modal></button></div>
+      <form id="form-senha">
+        <div class="modal-body">
+          <div class="field full"><label>Nova senha</label><input type="password" id="nova-senha" required minlength="6" placeholder="Pelo menos 6 caracteres" /></div>
+          <div class="field full"><label>Confirmar nova senha</label><input type="password" id="confirma-senha" required minlength="6" /></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-ghost" data-close-modal>Cancelar</button>
+          <button type="submit" class="btn-primary auto">Salvar nova senha</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>window.BASE_PATH = "../";</script>
+  <script src="../js/demo-data.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/supabase-client.js"></script>
+  <script src="../js/rh-supabase-auth.js"></script>
+  <script src="../js/rh-perfil-data.js"></script>
+  <script src="../js/rh-usuarios-data.js"></script>
+  <script src="../js/rh-push-data.js"></script>
+  <script>
+(async function () {
+    const session = await requireRoleReal("COLABORADOR");
+    if (!session) return;
+    if (!session.employeeId) {
+      rhShowFatalError("Este login não está vinculado a um cadastro de colaborador (rh.colaboradores). Peça ao RH para vincular seu usuário.");
+      return;
+    }
+    document.querySelector("#modal-senha .modal-close").innerHTML = ICONS.x;
+
+    const NOTIF_PREFS_COLABORADOR = [
+      { key: "solicitacoes", label: "Atualizações das minhas solicitações", padrao: true },
+      { key: "ferias", label: "Aprovação/recusa dos meus pedidos de férias", padrao: true },
+      { key: "documentos", label: "Novos documentos enviados pelo RH", padrao: true },
+      { key: "comunicados", label: "Novos comunicados publicados", padrao: true },
+      { key: "ponto", label: "Lembretes de ponto e ajustes pendentes", padrao: true },
+    ];
+
+    let perfil = null;
+
+    async function carregarPerfil() {
+      perfil = await rhCarregarPerfilColaborador(session.employeeId);
+    }
+
+    function fmt(iso) {
+      if (!iso) return "—";
+      const [y, m, d] = iso.split("-");
+      return `${d}/${m}/${y}`;
+    }
+
+    function render() {
+      document.getElementById("content").innerHTML = `
+        <div class="space-y">
+          <div class="row-between">
+            <div>
+              <h1 class="page-title">Meu Perfil</h1>
+              <p class="page-sub">Visualize seus dados cadastrais. Alterações de dados pessoais podem ser editadas por você; dados profissionais são mantidos pelo RH.</p>
+            </div>
+            <button type="button" class="btn-small" id="btn-edit">${ICONS.edit}<span>Editar dados pessoais</span></button>
+          </div>
+
+          <div class="card card-p">
+            <div class="profile-header">
+              <div class="avatar-lg ${avatarColorClass(perfil.name)}">
+                ${perfil.photo ? `<img src="${esc(perfil.photo)}" alt="" />` : initials(perfil.name)}
+                <button type="button" class="avatar-edit-btn" id="btn-avatar" aria-label="Alterar foto">${ICONS.edit}</button>
+                <input type="file" id="avatar-file" accept="image/*" hidden />
+              </div>
+              <div>
+                <p class="profile-header-name">${esc(perfil.name)}</p>
+                <p class="profile-header-meta">
+                  <span>${esc(perfil.cargo)}</span><span class="sep">·</span><span>${esc(perfil.departamento)}</span><span class="sep">·</span>
+                  <span>Admissão em ${fmt(perfil.admissao)}</span>
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="card card-p">
+            <div class="tabs" id="tabs">
+              <button type="button" class="tab-btn active" data-tab="tab-pessoal">Informações Pessoais</button>
+              <button type="button" class="tab-btn" data-tab="tab-profissional">Informações Profissionais</button>
+              <button type="button" class="tab-btn" data-tab="tab-seguranca">Segurança e notificações</button>
+            </div>
+
+            <div class="tab-panel active" id="tab-pessoal">
+              <div class="info-grid" id="info-pessoal-view">
+                ${infoRow("Nome completo", perfil.name)}
+                ${infoRow("E-mail", perfil.email)}
+                ${infoRow("CPF", perfil.cpf)}
+                ${infoRow("Data de nascimento", fmt(perfil.nascimento))}
+                ${infoRow("Telefone", perfil.telefone)}
+                ${infoRow("Endereço", perfil.endereco, true)}
+                ${infoRow("CEP", perfil.cep)}
+              </div>
+              <form id="info-pessoal-edit" class="form-grid" style="display:none">
+                ${editField("CPF", "cpf", perfil.cpf)}
+                ${editField("Data de nascimento", "nascimento", perfil.nascimento, "date")}
+                ${editField("Telefone", "telefone", perfil.telefone)}
+                ${editField("Endereço", "endereco", perfil.endereco, "text", true)}
+                ${editField("CEP", "cep", perfil.cep)}
+                <p class="hint full">Nome e e-mail estão vinculados ao seu login — para alterar, abra uma solicitação para o RH.</p>
+                <div class="field full" style="display:flex;gap:0.6rem;margin-top:0.5rem">
+                  <button type="submit" class="btn-primary auto">Salvar alterações</button>
+                  <button type="button" class="btn-ghost" id="btn-cancel-edit">Cancelar</button>
+                </div>
+              </form>
+            </div>
+
+            <div class="tab-panel" id="tab-profissional">
+              <div class="info-grid">
+                ${infoRow("Cargo", perfil.cargo)}
+                ${infoRow("Departamento", perfil.departamento)}
+                ${infoRow("Data de admissão", fmt(perfil.admissao))}
+                ${infoRow("Gestor responsável", perfil.gestor)}
+                ${infoRow("Regime", perfil.horasSemanais ? `CLT — Jornada ${perfil.horasSemanais}h semanais` : "—")}
+                ${infoRow("Matrícula", perfil.codigo)}
+              </div>
+              <p class="hint" style="margin-top:1rem">Precisa corrigir alguma informação profissional? Abra uma <a href="solicitacoes.html" class="login-link">solicitação de atualização cadastral</a> para o RH.</p>
+            </div>
+
+            <div class="tab-panel" id="tab-seguranca">
+              <h3 style="font-size:0.95rem;margin:0 0 0.4rem">Senha de acesso</h3>
+              <p class="page-sub" style="margin:0 0 0.8rem">Troque sua senha de login sempre que quiser.</p>
+              <button type="button" class="btn-ghost" id="btn-senha">${ICONS.shield}<span>Alterar senha</span></button>
+
+              <hr style="margin:1.6rem 0;border:none;border-top:1px solid var(--border)" />
+              <h3 style="font-size:0.95rem;margin:0 0 0.4rem">Preferências de notificação</h3>
+              <p class="page-sub" style="margin:0 0 0.8rem">Escolha quais eventos devem gerar notificação para você.</p>
+              <div style="display:flex;flex-direction:column;gap:0.8rem;max-width:520px">
+                ${NOTIF_PREFS_COLABORADOR.map(
+                  (p) => `<label class="check-row"><input type="checkbox" data-pref="${p.key}" ${(session.preferenciasNotificacao?.[p.key] ?? p.padrao) ? "checked" : ""} /> ${esc(p.label)}</label>`
+                ).join("")}
+              </div>
+              <button type="button" class="btn-primary auto" id="btn-salvar-notif" style="margin-top:1.2rem">${ICONS.check}<span>Salvar preferências</span></button>
+
+              <hr style="margin:1.6rem 0;border:none;border-top:1px solid var(--border)" />
+              <h3 style="font-size:0.95rem;margin:0 0 0.3rem">Notificações do navegador (push)</h3>
+              <p class="page-sub" style="margin:0 0 0.9rem">Recebe o aviso mesmo com o sistema fechado — é o que faz o lembrete de bater ponto funcionar sem precisar deixar a aba aberta. É por dispositivo/navegador — ative em cada um que for usar.</p>
+              <div id="push-status-wrap" style="max-width:520px"><p class="hint">Verificando suporte deste navegador…</p></div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      initTabs(document.getElementById("tabs").parentElement);
+
+      document.getElementById("btn-edit").addEventListener("click", () => {
+        document.getElementById("info-pessoal-view").style.display = "none";
+        document.getElementById("info-pessoal-edit").style.display = "grid";
+      });
+      document.getElementById("btn-cancel-edit").addEventListener("click", () => {
+        document.getElementById("info-pessoal-edit").style.display = "none";
+        document.getElementById("info-pessoal-view").style.display = "grid";
+      });
+      document.getElementById("info-pessoal-edit").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        try {
+          await rhSalvarDadosPessoaisColaborador({
+            cpf: document.getElementById("edit-cpf").value.trim(),
+            nascimento: document.getElementById("edit-nascimento").value,
+            telefone: document.getElementById("edit-telefone").value.trim(),
+            endereco: document.getElementById("edit-endereco").value.trim(),
+            cep: document.getElementById("edit-cep").value.trim(),
+          });
+          await carregarPerfil();
+          render();
+          showToast("Dados pessoais atualizados.", "success");
+        } catch (err) {
+          showToast(rhMensagemErroSupabase(err), "error");
+        } finally {
+          btn.disabled = false;
+        }
+      });
+      document.getElementById("btn-avatar").addEventListener("click", () => document.getElementById("avatar-file").click());
+      document.getElementById("avatar-file").addEventListener("change", async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+          const novaUrl = await rhAtualizarFotoPerfilColaborador(session.employeeId, file);
+          session.photo = novaUrl;
+          await carregarPerfil();
+          renderShell(session, NAV_COLABORADOR);
+          render();
+          showToast("Foto atualizada.", "success");
+        } catch (err) {
+          showToast(rhMensagemErroSupabase(err), "error");
+        }
+      });
+
+      document.getElementById("btn-senha").addEventListener("click", () => {
+        document.getElementById("form-senha").reset();
+        openModal("modal-senha");
+      });
+      document.getElementById("btn-salvar-notif").addEventListener("click", async (e) => {
+        const btn = e.target.closest("button");
+        const prefs = {};
+        document.querySelectorAll("#tab-seguranca [data-pref]").forEach((el) => (prefs[el.dataset.pref] = el.checked));
+        btn.disabled = true;
+        try {
+          await rhSalvarPreferenciasNotificacao(prefs);
+          session.preferenciasNotificacao = prefs;
+          showToast("Preferências de notificação salvas.", "success");
+        } catch (err) {
+          showToast(rhMensagemErroSupabase(err), "error");
+        } finally {
+          btn.disabled = false;
+        }
+      });
+      renderPushStatus();
+    }
+
+    /** Estado real da inscrição de push NESTE navegador — consultado direto
+     * na Web Push API do próprio navegador (não é um dado do banco por
+     * pessoa, é por dispositivo/navegador). */
+    async function renderPushStatus() {
+      const wrap = document.getElementById("push-status-wrap");
+      if (!wrap) return;
+      let status;
+      try {
+        status = await rhPushStatusAtual();
+      } catch (err) {
+        wrap.innerHTML = `<p class="hint">Não foi possível verificar o status das notificações: ${esc(err.message || String(err))}</p>`;
+        return;
+      }
+      if (!status.suportado) {
+        wrap.innerHTML = `<p class="hint">Este navegador não tem suporte a notificações push.</p>`;
+        return;
+      }
+      if (status.permissao === "denied") {
+        wrap.innerHTML = `<p class="hint">Notificações bloqueadas neste navegador. Para ativar, permita notificações para este site nas configurações do navegador e recarregue a página.</p>`;
+        return;
+      }
+      wrap.innerHTML = `<button type="button" class="${status.inscrito ? "btn-ghost" : "btn-primary auto"}" id="btn-toggle-push">${status.inscrito ? ICONS.x : ICONS.bell}<span>${status.inscrito ? "Desativar notificações neste navegador" : "Ativar notificações neste navegador"}</span></button>`;
+      document.getElementById("btn-toggle-push").addEventListener("click", async (e) => {
+        const btn = e.target.closest("button");
+        btn.disabled = true;
+        try {
+          if (status.inscrito) {
+            await rhPushDesativar();
+            showToast("Notificações desativadas neste navegador.", "success");
+          } else {
+            await rhPushAtivar();
+            showToast("Notificações ativadas neste navegador.", "success");
+          }
+          await renderPushStatus();
+        } catch (err) {
+          showToast(err.message || String(err), "error");
+          btn.disabled = false;
+        }
+      });
+    }
+
+    function infoRow(label, value, full) {
+      return `<div class="info-row${full ? " full" : ""}"><p class="info-label">${esc(label)}</p><p class="info-value">${esc(value) || '<span class="muted">—</span>'}</p></div>`;
+    }
+    function editField(label, id, value, type = "text", full) {
+      return `<div class="field${full ? " full" : ""}"><label>${esc(label)}</label><input type="${type}" id="edit-${id}" value="${esc(value || "")}" /></div>`;
+    }
+
+    if (session) {
+      try {
+        await carregarPerfil();
+        renderShell(session, NAV_COLABORADOR);
+        renderTopHeader(document.getElementById("top-header"), session, { notifications: [] });
+        render();
+        wireModalClosers();
+        document.getElementById("form-senha").addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const btn = e.target.querySelector("button[type=submit]");
+          const nova = document.getElementById("nova-senha").value;
+          const confirma = document.getElementById("confirma-senha").value;
+          if (nova !== confirma) {
+            showToast("As senhas não coincidem.", "error");
+            return;
+          }
+          btn.disabled = true;
+          try {
+            await rhAlterarSenhaPropria(nova);
+            closeModal("modal-senha");
+            showToast("Senha alterada com sucesso.", "success");
+            e.target.reset();
+          } catch (err) {
+            showToast(rhMensagemErroSupabase(err), "error");
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      } catch (err) {
+        rhShowFatalError(rhMensagemErroSupabase(err));
+      }
+    }
+
+})();
+</script>
+  <script src="../js/ui-effects.js"></script>
+</body>
+</html>

@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Comunicados — BSconta+ RH</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+  <link rel="stylesheet" href="../css/theme-v2.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div id="app-header"></div>
+    <div class="app-content">
+      <main class="main">
+        <div id="top-header" class="top-header"></div>
+        <div id="content"><div class="loading-wrap"><div class="spinner"></div></div></div>
+      </main>
+    </div>
+  </div>
+
+  <script>window.BASE_PATH = "../";</script>
+  <script src="../js/demo-data.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/supabase-client.js"></script>
+  <script src="../js/rh-supabase-auth.js"></script>
+  <script src="../js/rh-comunicados-data.js"></script>
+  <script>
+(async function () {
+    const session = await requireRoleReal("COLABORADOR");
+    if (!session) return;
+    if (!session.employeeId) {
+      rhShowFatalError("Este login não está vinculado a um cadastro de colaborador (rh.colaboradores). Peça ao RH para vincular seu usuário.");
+      return;
+    }
+    let filtro = "TODOS";
+    let cacheComunicados = [];
+
+    async function refrescarComunicados() {
+      cacheComunicados = await rhCarregarComunicadosColaborador(session.employeeId);
+    }
+
+    function render() {
+      document.getElementById("content").innerHTML = `
+        <div class="space-y">
+          <div class="row-between">
+            <div>
+              <h1 class="page-title">Comunicados</h1>
+              <p class="page-sub">Avisos e novidades publicados pelo RH.</p>
+            </div>
+          </div>
+          <div class="card card-p">
+            <div class="period-buttons" style="margin-bottom:1rem">
+              <button type="button" data-f="TODOS" class="active">Todos</button>
+              <button type="button" data-f="NAO_LIDOS">Não lidos</button>
+              <button type="button" data-f="URGENTES">Urgentes</button>
+            </div>
+            <div id="list-wrap"></div>
+          </div>
+        </div>
+      `;
+      document.querySelectorAll("[data-f]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          document.querySelectorAll("[data-f]").forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+          filtro = btn.dataset.f;
+          renderList();
+        });
+      });
+      renderList();
+    }
+
+    function renderList() {
+      const rows = cacheComunicados.filter((c) => (filtro === "NAO_LIDOS" ? !c.lido : filtro === "URGENTES" ? c.urgente : true));
+      document.getElementById("list-wrap").innerHTML = rows.length
+        ? rows
+            .map(
+              (c) => `
+        <div class="card announcement-card ${c.urgente ? "urgent" : ""}" style="margin-bottom:0.75rem">
+          <div class="announcement-top">
+            <div style="display:flex;gap:0.6rem;align-items:flex-start">
+              ${!c.lido ? '<span class="announcement-unread-dot"></span>' : '<span style="width:8px;flex-shrink:0"></span>'}
+              <div>
+                <p class="title">${c.urgente ? `<span class="badge badge-urgent" style="margin-right:0.4rem">Urgente</span>` : ""}${esc(c.titulo)}</p>
+              </div>
+            </div>
+            <span class="announcement-date">${fmtDate(c.data)}</span>
+          </div>
+          <p class="announcement-body">${esc(c.conteudo)}</p>
+          ${!c.lido ? `<button type="button" class="btn-ghost" style="width:auto;margin-top:0.75rem" data-marcar="${c.id}">${ICONS.check}<span>Marcar como lido</span></button>` : `<span class="hint" style="display:flex;align-items:center;gap:0.35rem;margin-top:0.6rem">${ICONS.check}Lido</span>`}
+        </div>`
+            )
+            .join("")
+        : emptyStateHtml({ icon: ICONS.megaphone, title: "Nada por aqui", desc: "Nenhum comunicado corresponde a este filtro." });
+
+      document.querySelectorAll("[data-marcar]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          b.disabled = true;
+          try {
+            await rhMarcarComunicadoLido(b.dataset.marcar, session.employeeId);
+            const c = cacheComunicados.find((x) => x.id === b.dataset.marcar);
+            if (c) c.lido = true;
+            renderList();
+            showToast("Comunicado marcado como lido.", "success");
+          } catch (err) {
+            showToast(rhMensagemErroSupabase(err), "error");
+            b.disabled = false;
+          }
+        })
+      );
+    }
+
+    if (session) {
+      renderShell(session, NAV_COLABORADOR);
+      renderTopHeader(document.getElementById("top-header"), session, { notifications: [] });
+      try {
+        await refrescarComunicados();
+        render();
+      } catch (err) {
+        rhShowFatalError(rhMensagemErroSupabase(err));
+      }
+    }
+
+})();
+</script>
+  <script src="../js/ui-effects.js"></script>
+</body>
+</html>

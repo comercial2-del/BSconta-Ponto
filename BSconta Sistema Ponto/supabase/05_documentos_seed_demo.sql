@@ -1,0 +1,6 @@
+-- Registros de demonstração do fluxo de assinatura.
+-- Não são documentos reais. Remova este arquivo antes da produção.
+-- Os UUIDs de colaborador devem ser substituídos pelos IDs reais do profiles.
+-- Exemplo conceitual:
+-- insert into documentos (colaborador_id, tipo, titulo, competencia, status, workflow, origem, arquivo_nome, data, enviado_em)
+-- values ('UUID_DO_COLABORADOR', 'Termo de ciência', 'Termo de Ciência e Responsabilidade', 'Setembro/2026', 'PENDENTE', 'ASSINATURA', 'ENVIADO_RH', 'termo-ciencia-responsabilidade.pdf', current_date, now());

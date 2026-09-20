@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BSconta+ RH</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/theme-v2.css" />
+</head>
+<body>
+  <div class="loading-wrap"><div class="spinner"></div></div>
+  <script>window.BASE_PATH = "";</script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-client.js"></script>
+  <script src="js/rh-supabase-auth.js"></script>
+  <script>
+    (async function () {
+      const foiRedirecionado = await rhRedirecionarSeJaLogado();
+      if (!foiRedirecionado) window.location.replace("login.html");
+    })();
+  </script>
+  <script src="js/ui-effects.js"></script>
+</body>
+</html>

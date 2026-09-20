@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Benefícios — BSconta+ RH</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+  <link rel="stylesheet" href="../css/theme-v2.css" />
+
+  <style>
+    .benefit-card-rh { display: flex; flex-direction: column; gap: 0; padding: 0; overflow: hidden; }
+    .benefit-card-rh .benefit-card-top { display: flex; align-items: flex-start; gap: 0.85rem; padding: 1.05rem 1.05rem 0.9rem; }
+    .benefit-card-rh .benefit-card-foot {
+      display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
+      padding: 0.65rem 1.05rem; border-top: 1px solid var(--border); background: var(--surface-2);
+    }
+    .benefit-assign-chip { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.76rem; font-weight: 600; color: var(--text-soft); min-width: 0; }
+    .benefit-assign-chip svg { width: 14px; height: 14px; flex-shrink: 0; color: var(--text-faint); }
+    .benefit-assign-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .assign-radio-group { display: flex; flex-direction: column; gap: 0.55rem; }
+    .assign-checklist {
+      margin-top: 0.6rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2);
+      max-height: 12rem; overflow-y: auto; padding: 0.55rem 0.7rem; display: flex; flex-direction: column; gap: 0.45rem;
+    }
+    .assign-checklist[hidden] { display: none; }
+    .icon-swatch-grid { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+    .icon-swatch {
+      width: 38px; height: 38px; border-radius: 10px; border: 1.5px solid var(--border); background: var(--surface);
+      display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-soft);
+      transition: border-color 0.12s, background 0.12s, color 0.12s;
+    }
+    .icon-swatch svg { width: 18px; height: 18px; }
+    .icon-swatch.is-active { border-color: var(--indigo-600); background: var(--indigo-50); color: var(--indigo-600); }
+    .tone-swatch-grid { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .tone-swatch { width: 30px; height: 30px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; box-shadow: inset 0 0 0 1px rgba(15,23,42,0.06); }
+    .tone-swatch.is-active { border-color: var(--text); }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <div id="app-header"></div>
+    <div class="app-content">
+      <main class="main">
+        <div id="top-header" class="top-header"></div>
+        <div id="content"><div class="loading-wrap"><div class="spinner"></div></div></div>
+      </main>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-beneficio">
+    <div class="modal">
+      <div class="modal-header"><h3 id="modal-beneficio-titulo">Novo benefício</h3><button class="modal-close" data-close-modal></button></div>
+      <form id="form-beneficio">
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="field full"><label>Nome do benefício</label><input type="text" id="beneficio-nome" required placeholder="Ex.: Vale Cultura" /></div>
+            <div class="field full"><label>Descrição</label><input type="text" id="beneficio-desc" required placeholder="Ex.: R$ 50,00/mês, crédito no cartão." /></div>
+            <div class="field full">
+              <label>Ícone</label>
+              <div class="icon-swatch-grid" id="beneficio-icon-grid"></div>
+              <input type="hidden" id="beneficio-icon" value="heart" />
+            </div>
+            <div class="field full">
+              <label>Cor</label>
+              <div class="tone-swatch-grid" id="beneficio-tone-grid"></div>
+              <input type="hidden" id="beneficio-tone" value="indigo" />
+            </div>
+            <div class="field full"><label>Status</label>
+              <select id="beneficio-status" required>
+                <option value="ATIVO">Ativo</option>
+                <option value="PENDENTE">Pendente</option>
+              </select>
+            </div>
+            <div class="field full">
+              <label>Quem recebe este benefício?</label>
+              <div class="assign-radio-group">
+                <label class="check-row"><input type="radio" name="beneficio-atribuicao" value="TODOS" id="beneficio-atrib-todos" checked /> Todos os colaboradores</label>
+                <label class="check-row"><input type="radio" name="beneficio-atribuicao" value="ESPECIFICO" id="beneficio-atrib-especifico" /> Colaboradores específicos</label>
+              </div>
+              <div class="assign-checklist" id="beneficio-checklist" hidden></div>
+              <span class="field-hint">Escolha "Colaboradores específicos" pra marcar só quem deve receber esse benefício.</span>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-ghost" data-close-modal>Cancelar</button>
+          <button type="submit" class="btn-primary auto" id="beneficio-submit-label">Criar benefício</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>window.BASE_PATH = "../";</script>
+  <script src="../js/demo-data.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/supabase-client.js"></script>
+  <script src="../js/rh-supabase-auth.js"></script>
+  <script src="../js/rh-beneficios-data.js"></script>
+  <script>
+(async function () {
+    const session = await requireRoleReal("RH");
+    if (!session) return;
+    document.querySelector("#modal-beneficio .modal-close").innerHTML = ICONS.x;
+
+    const TONE_BG = { orange: "var(--orange-50)", red: "var(--red-50)", indigo: "var(--indigo-50)", teal: "var(--teal-50)", violet: "var(--violet-50)", green: "var(--emerald-50)" };
+    const TONE_FG = { orange: "var(--orange-600)", red: "var(--red-600)", indigo: "var(--indigo-600)", teal: "var(--teal-600)", violet: "var(--violet-600)", green: "var(--emerald-600)" };
+    const TONE_DOT = { orange: "var(--orange-500)", red: "var(--red-500)", indigo: "var(--indigo-500)", teal: "var(--teal-500)", violet: "var(--violet-500)", green: "var(--emerald-500)" };
+    const ICON_OPTIONS = ["heart", "utensils", "car", "shield", "checkCircle", "gift", "dollarSign", "briefcase", "home"];
+    const TONE_OPTIONS = Object.keys(TONE_BG);
+
+    let cacheBeneficios = [];
+    let cacheColaboradores = [];
+    let beneficioEditandoId = null;
+
+    async function refrescarBeneficios() {
+      [cacheBeneficios, cacheColaboradores] = await Promise.all([rhCarregarBeneficiosRH(), rhListarColaboradoresParaAtribuicao()]);
+    }
+
+    function descricaoAtribuicao(b) {
+      if (!b.atribuicao || b.atribuicao.tipo === "TODOS") return "Todos os colaboradores";
+      const nomes = b.atribuicao.nomes || [];
+      if (!nomes.length) return "Nenhum colaborador selecionado";
+      if (nomes.length === 1) return nomes[0];
+      return `${nomes.length} colaboradores: ${nomes.join(", ")}`;
+    }
+
+    function render() {
+      const total = cacheBeneficios.length;
+      const ativos = cacheBeneficios.filter((b) => b.status === "ATIVO").length;
+      const pendentes = cacheBeneficios.filter((b) => b.status === "PENDENTE").length;
+      const especificos = cacheBeneficios.filter((b) => b.atribuicao?.tipo === "ESPECIFICO").length;
+
+      document.getElementById("content").innerHTML = `
+        <div class="space-y">
+          <div class="row-between">
+            <div>
+              <h1 class="page-title">Benefícios</h1>
+              <p class="page-sub">Cadastre os benefícios da empresa e escolha se valem para todos ou só para colaboradores específicos.</p>
+            </div>
+            <button type="button" class="btn-primary auto" id="btn-novo-beneficio">${ICONS.plus}<span>Novo benefício</span></button>
+          </div>
+
+          <div id="kpi-grid"></div>
+
+          <div class="benefit-grid" id="beneficios-grid"></div>
+        </div>
+      `;
+
+      renderKpiGrid(document.getElementById("kpi-grid"), [
+        { label: "Benefícios cadastrados", value: total, tone: "indigo", icon: ICONS.heart },
+        { label: "Ativos", value: ativos, tone: "green", icon: ICONS.checkCircle },
+        { label: "Pendentes", value: pendentes, tone: "orange", icon: ICONS.hourglass },
+        { label: "Com atribuição específica", value: especificos, tone: "violet", icon: ICONS.users },
+      ]);
+
+      renderBeneficiosGrid();
+      document.getElementById("btn-novo-beneficio").addEventListener("click", () => abrirModalNovo());
+    }
+
+    function renderBeneficiosGrid() {
+      const grid = document.getElementById("beneficios-grid");
+      if (!cacheBeneficios.length) {
+        grid.outerHTML = `<div id="beneficios-grid">${emptyStateHtml({ icon: ICONS.heart, title: "Nenhum benefício cadastrado", desc: "Clique em “Novo benefício” para começar." })}</div>`;
+        return;
+      }
+      grid.innerHTML = cacheBeneficios.map((b) => beneficioCardHtml(b)).join("");
+      wireBeneficiosGridEvents();
+    }
+
+    function beneficioCardHtml(b) {
+      return `
+        <div class="card benefit-card-rh">
+          <div class="benefit-card-top">
+            <div class="benefit-icon" style="background:${TONE_BG[b.tone] || TONE_BG.indigo};color:${TONE_FG[b.tone] || TONE_FG.indigo}">${ICONS[b.icon] || ICONS.heart}</div>
+            <div style="flex:1;min-width:0">
+              <div class="row-between" style="margin-bottom:0.1rem">
+                <p class="title">${esc(b.nome)}</p>
+                ${statusBadgeHtml(b.status, STATUS_LABELS)}
+              </div>
+              <p class="desc">${esc(b.desc)}</p>
+            </div>
+          </div>
+          <div class="benefit-card-foot">
+            <span class="benefit-assign-chip" title="${esc(descricaoAtribuicao(b))}">${b.atribuicao?.tipo === "ESPECIFICO" ? ICONS.user : ICONS.users}<span>${esc(descricaoAtribuicao(b))}</span></span>
+            <div class="approve-reject">
+              <button type="button" class="edit" data-editar-beneficio="${b.id}" aria-label="Editar benefício" title="Editar benefício">${ICONS.edit}</button>
+              <button type="button" class="delete" data-excluir-beneficio="${b.id}" aria-label="Excluir benefício" title="Excluir benefício">${ICONS.trash}</button>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function wireBeneficiosGridEvents() {
+      document.querySelectorAll("[data-editar-beneficio]").forEach((btn) =>
+        btn.addEventListener("click", () => abrirModalEditar(btn.dataset.editarBeneficio))
+      );
+      document.querySelectorAll("[data-excluir-beneficio]").forEach((btn) =>
+        btn.addEventListener("click", async () => {
+          const id = btn.dataset.excluirBeneficio;
+          const b = cacheBeneficios.find((x) => x.id === id);
+          if (!b) return;
+          const ok = await confirmDialog({
+            title: "Excluir benefício",
+            message: `Excluir “${b.nome}”? Ele deixará de aparecer para os colaboradores que o recebiam.`,
+            confirmLabel: "Excluir",
+            danger: true,
+          });
+          if (!ok) return;
+          btn.disabled = true;
+          try {
+            await rhExcluirBeneficio(id);
+            await refrescarBeneficios();
+            showToast(`${b.nome} excluído.`, "success");
+            render();
+          } catch (err) {
+            showToast(rhMensagemErroSupabase(err), "error");
+            btn.disabled = false;
+          }
+        })
+      );
+    }
+
+    // ------------------------------------------------------------------
+    // Modal criar/editar
+    // ------------------------------------------------------------------
+    function renderIconSwatchGrid(selected) {
+      document.getElementById("beneficio-icon-grid").innerHTML = ICON_OPTIONS
+        .map((key) => `<button type="button" class="icon-swatch ${key === selected ? "is-active" : ""}" data-icon-choice="${key}" aria-label="${key}">${ICONS[key]}</button>`)
+        .join("");
+      document.getElementById("beneficio-icon").value = selected;
+      document.querySelectorAll("[data-icon-choice]").forEach((btn) =>
+        btn.addEventListener("click", () => {
+          document.getElementById("beneficio-icon").value = btn.dataset.iconChoice;
+          document.querySelectorAll("[data-icon-choice]").forEach((b) => b.classList.toggle("is-active", b === btn));
+        })
+      );
+    }
+
+    function renderToneSwatchGrid(selected) {
+      document.getElementById("beneficio-tone-grid").innerHTML = TONE_OPTIONS
+        .map((key) => `<button type="button" class="tone-swatch ${key === selected ? "is-active" : ""}" data-tone-choice="${key}" style="background:${TONE_DOT[key]}" aria-label="${key}"></button>`)
+        .join("");
+      document.getElementById("beneficio-tone").value = selected;
+      document.querySelectorAll("[data-tone-choice]").forEach((btn) =>
+        btn.addEventListener("click", () => {
+          document.getElementById("beneficio-tone").value = btn.dataset.toneChoice;
+          document.querySelectorAll("[data-tone-choice]").forEach((b) => b.classList.toggle("is-active", b === btn));
+        })
+      );
+    }
+
+    function renderChecklist(idsMarcados) {
+      const checklist = document.getElementById("beneficio-checklist");
+      checklist.innerHTML = cacheColaboradores
+        .map(
+          (c) => `<label class="check-row"><input type="checkbox" value="${c.id}" ${idsMarcados.includes(c.id) ? "checked" : ""} /> ${esc(c.nome)}</label>`
+        )
+        .join("");
+    }
+
+    function atualizarVisibilidadeChecklist() {
+      const especifico = document.getElementById("beneficio-atrib-especifico").checked;
+      document.getElementById("beneficio-checklist").hidden = !especifico;
+    }
+
+    function abrirModalNovo() {
+      beneficioEditandoId = null;
+      document.getElementById("modal-beneficio-titulo").textContent = "Novo benefício";
+      document.getElementById("beneficio-submit-label").textContent = "Criar benefício";
+      document.getElementById("form-beneficio").reset();
+      document.getElementById("beneficio-status").value = "ATIVO";
+      document.getElementById("beneficio-atrib-todos").checked = true;
+      renderIconSwatchGrid("heart");
+      renderToneSwatchGrid("indigo");
+      renderChecklist([]);
+      atualizarVisibilidadeChecklist();
+      openModal("modal-beneficio");
+    }
+
+    function abrirModalEditar(id) {
+      const b = cacheBeneficios.find((x) => x.id === id);
+      if (!b) return;
+      beneficioEditandoId = id;
+      document.getElementById("modal-beneficio-titulo").textContent = "Editar benefício";
+      document.getElementById("beneficio-submit-label").textContent = "Salvar alterações";
+      document.getElementById("beneficio-nome").value = b.nome;
+      document.getElementById("beneficio-desc").value = b.desc;
+      document.getElementById("beneficio-status").value = b.status;
+      const especifico = b.atribuicao?.tipo === "ESPECIFICO";
+      document.getElementById("beneficio-atrib-todos").checked = !especifico;
+      document.getElementById("beneficio-atrib-especifico").checked = especifico;
+      renderIconSwatchGrid(b.icon);
+      renderToneSwatchGrid(b.tone);
+      renderChecklist(especifico ? b.atribuicao.colaboradorIds || [] : []);
+      atualizarVisibilidadeChecklist();
+      openModal("modal-beneficio");
+    }
+
+    document.getElementById("beneficio-atrib-todos").addEventListener("change", atualizarVisibilidadeChecklist);
+    document.getElementById("beneficio-atrib-especifico").addEventListener("change", atualizarVisibilidadeChecklist);
+
+    document.getElementById("form-beneficio").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const nome = document.getElementById("beneficio-nome").value.trim();
+      const descricao = document.getElementById("beneficio-desc").value.trim();
+      const icon = document.getElementById("beneficio-icon").value;
+      const tone = document.getElementById("beneficio-tone").value;
+      const status = document.getElementById("beneficio-status").value;
+      const especifico = document.getElementById("beneficio-atrib-especifico").checked;
+      let colaboradorIds = [];
+      if (especifico) {
+        colaboradorIds = [...document.querySelectorAll("#beneficio-checklist input:checked")].map((el) => el.value);
+        if (!colaboradorIds.length) {
+          showToast("Selecione ao menos um colaborador ou escolha “Todos os colaboradores”.", "error");
+          return;
+        }
+      }
+
+      const btn = document.getElementById("beneficio-submit-label");
+      const textoOriginal = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "Salvando...";
+      try {
+        await rhSalvarBeneficio({
+          id: beneficioEditandoId,
+          nome,
+          descricao,
+          icon,
+          tone,
+          status,
+          atribuicaoTipo: especifico ? "ESPECIFICO" : "TODOS",
+          colaboradorIds,
+        });
+        await refrescarBeneficios();
+        showToast(beneficioEditandoId ? `${nome} atualizado.` : `${nome} cadastrado com sucesso.`, "success");
+        closeModal("modal-beneficio");
+        render();
+      } catch (err) {
+        showToast(rhMensagemErroSupabase(err), "error");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = textoOriginal;
+      }
+    });
+
+    if (session) {
+      renderShell(session, withBadges(NAV_RH, await rhNavBadges()));
+      renderTopHeader(document.getElementById("top-header"), session, { notifications: [] });
+      document.getElementById("content").innerHTML = `<div class="loading-wrap"><div class="spinner"></div></div>`;
+      try {
+        await refrescarBeneficios();
+        render();
+        wireModalClosers();
+      } catch (err) {
+        rhShowFatalError(rhMensagemErroSupabase(err));
+      }
+    }
+  
+})();
+</script>
+  <script src="../js/ui-effects.js"></script>
+</body>
+</html>

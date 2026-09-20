@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Férias — BSconta+ RH</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+  <link rel="stylesheet" href="../css/theme-v2.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div id="app-header"></div>
+    <div class="app-content">
+      <main class="main">
+        <div id="top-header" class="top-header"></div>
+        <div id="content"><div class="loading-wrap"><div class="spinner"></div></div></div>
+      </main>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-solicitar">
+    <div class="modal">
+      <div class="modal-header"><h3>Solicitar férias</h3><button class="modal-close" data-close-modal>${''}</button></div>
+      <form id="form-ferias">
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="field"><label>Data de início</label><input type="date" required id="fer-inicio" /></div>
+            <div class="field"><label>Data de fim</label><input type="date" required id="fer-fim" /></div>
+            <div class="field full"><label>Observações (opcional)</label><textarea id="fer-obs" placeholder="Alguma informação para o RH?"></textarea></div>
+          </div>
+          <p class="field-hint">Você tem <strong>${'' /*filled by js*/}</strong> dias disponíveis neste período aquisitivo.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-ghost" data-close-modal>Cancelar</button>
+          <button type="submit" class="btn-primary auto">Enviar solicitação</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>window.BASE_PATH = "../";</script>
+  <script src="../js/demo-data.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/supabase-client.js"></script>
+  <script src="../js/rh-supabase-auth.js"></script>
+  <script src="../js/rh-ferias-data.js"></script>
+  <script>
+(async function () {
+    const session = await requireRoleReal("COLABORADOR");
+    if (!session) return;
+    if (!session.employeeId) {
+      rhShowFatalError("Este login não está vinculado a um cadastro de colaborador (rh.colaboradores). Peça ao RH para vincular seu usuário antes de solicitar férias.");
+      return;
+    }
+    document.querySelector("#modal-solicitar .modal-close").innerHTML = ICONS.x;
+
+    let feriasState = null;
+
+    async function carregarFerias() {
+      feriasState = await rhCarregarFeriasColaborador(session.employeeId);
+      document.querySelector("#modal-solicitar .field-hint strong").textContent = feriasState.saldo.saldoDias;
+    }
+
+    function fmt(iso) { if (!iso) return "—"; const [y, m, d] = iso.split("-"); return `${d}/${m}/${y}`; }
+
+    function periodoLabel(s) { return `${fmt(s.inicio)} a ${fmt(s.fim)}`; }
+
+    function render() {
+      const f = feriasState.saldo;
+      const total = f.diasUsados + f.saldoDias;
+      const pct = total > 0 ? (f.diasUsados / total) * 100 : 0;
+      const proximas = feriasState.proximas;
+      const solicitacoes = feriasState.historico;
+
+      document.getElementById("content").innerHTML = `
+        <div class="space-y">
+          <div class="row-between">
+            <div>
+              <h1 class="page-title">Férias</h1>
+              <p class="page-sub">${f.periodoAquisitivoInicio ? `Período aquisitivo atual: ${fmt(f.periodoAquisitivoInicio)} a ${fmt(f.periodoAquisitivoFim)}.` : "O RH ainda não cadastrou seu período aquisitivo de férias — fale com o RH."}</p>
+            </div>
+            <button type="button" class="btn-primary auto" id="btn-solicitar">${ICONS.plus}<span>Solicitar férias</span></button>
+          </div>
+
+          <div class="grid-3 reverse">
+            <div class="card card-p" style="display:flex;align-items:center;gap:1.3rem">
+              <div class="vacation-ring-wrap">${progressRingSvg({ size: 108, stroke: 10, pct, colorVar: "--emerald-500" })}
+                <div class="vacation-ring-center"><strong>${f.saldoDias}</strong><span>dias disponíveis</span></div>
+              </div>
+              <div>
+                <p class="info-value">${f.diasUsados} dias já utilizados</p>
+                <p class="hint" style="margin-top:0.3rem">de um total de ${f.diasUsados + f.saldoDias} dias neste período aquisitivo.</p>
+              </div>
+            </div>
+            <div class="card card-p">
+              <h2>Próximas férias</h2>
+              ${proximas
+                .map(
+                  (v) => `
+                <div style="display:flex;align-items:center;gap:0.9rem">
+                  <div class="benefit-icon" style="background:var(--emerald-50);color:var(--emerald-600)">${ICONS.palmTree}</div>
+                  <div>
+                    <p style="margin:0;font-weight:700">${fmt(v.inicio)} a ${fmt(v.fim)}</p>
+                    <p style="margin:0.2rem 0 0;font-size:0.82rem;color:var(--text-faint)">${v.dias} dias · ${statusBadgeHtml(v.status, STATUS_LABELS)}</p>
+                  </div>
+                </div>`
+                )
+                .join("") || emptyStateHtml({ icon: ICONS.palmTree, title: "Nenhuma férias agendada" })}
+            </div>
+          </div>
+
+          <div class="card card-p">
+            <h2>Histórico de solicitações</h2>
+            ${solicitacoes.length
+              ? solicitacoes
+                  .map((s) => {
+                    const steps = pipelineSteps(s.status);
+                    return `
+              <div class="request-card">
+                <div class="request-card-top">
+                  <div>
+                    <p class="protocolo">${s.protocolo}</p>
+                    <p class="titulo">${periodoLabel(s)}</p>
+                  </div>
+                  ${statusBadgeHtml(s.status, STATUS_LABELS)}
+                </div>
+                <p class="desc">${s.dias} dias solicitados</p>
+                <div class="status-pipeline">${steps.map((st) => `<span class="p-step ${st}"></span>`).join("")}</div>
+                <div class="meta-row"><span>${ICONS.calendar}Solicitado em ${fmt(s.solicitadoEm)}</span></div>
+              </div>`;
+                  })
+                  .join("")
+              : emptyStateHtml({ icon: ICONS.calendar, title: "Nenhuma solicitação ainda" })}
+          </div>
+        </div>
+      `;
+
+      document.getElementById("btn-solicitar").addEventListener("click", () => openModal("modal-solicitar"));
+    }
+
+    function pipelineSteps(status) {
+      if (status === "APROVADA") return ["filled approve", "filled approve", "filled approve"];
+      if (status === "RECUSADA") return ["filled reject", "filled reject", ""];
+      if (status === "EM_ANALISE") return ["filled", "filled", ""];
+      return ["filled", "", ""];
+    }
+
+    document.getElementById("form-ferias").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btn = e.target.querySelector('button[type="submit"]');
+      const inicio = document.getElementById("fer-inicio").value;
+      const fim = document.getElementById("fer-fim").value;
+      const observacoes = document.getElementById("fer-obs").value.trim();
+      btn.disabled = true;
+      btn.textContent = "Enviando...";
+      try {
+        await rhCriarSolicitacaoFerias({
+          colaboradorId: session.employeeId,
+          inicio,
+          fim,
+          saldoDisponivel: feriasState.saldo.saldoDias,
+          observacoes,
+        });
+        await carregarFerias();
+        closeModal("modal-solicitar");
+        document.getElementById("form-ferias").reset();
+        showToast("Solicitação de férias enviada ao RH.", "success");
+        render();
+      } catch (err) {
+        showToast(rhMensagemErroSupabase(err), "error");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Enviar solicitação";
+      }
+    });
+
+    if (session) {
+      try {
+        await carregarFerias();
+        renderShell(session, NAV_COLABORADOR);
+        renderTopHeader(document.getElementById("top-header"), session, { notifications: [] });
+        render();
+        wireModalClosers();
+      } catch (err) {
+        rhShowFatalError(rhMensagemErroSupabase(err));
+      }
+    }
+
+})();
+</script>
+  <script src="../js/ui-effects.js"></script>
+</body>
+</html>

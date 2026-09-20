@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Documentos — BSconta+ RH</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+  <link rel="stylesheet" href="../css/theme-v2.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div id="app-header"></div>
+    <div class="app-content">
+      <main class="main">
+        <div id="top-header" class="top-header"></div>
+        <div id="content"><div class="loading-wrap"><div class="spinner"></div></div></div>
+      </main>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-document" aria-hidden="true">
+    <div class="modal modal-doc-manager">
+      <div class="modal-header"><div><h3 id="doc-modal-title">Enviar documento para assinatura</h3><p class="modal-subtitle" id="doc-modal-subtitle">Selecione o colaborador e anexe o PDF.</p></div><button class="modal-close" data-close-modal aria-label="Fechar"></button></div>
+      <form id="form-document">
+        <div class="modal-body">
+          <div class="doc-mode-tabs" role="tablist" aria-label="Tipo de envio">
+            <button type="button" class="doc-mode active" data-doc-mode="SEND">Enviar para assinatura</button>
+            <button type="button" class="doc-mode" data-doc-mode="IMPORT_READY">Importar preparado</button>
+          </div>
+          <input type="hidden" id="doc-mode" value="SEND" />
+          <div class="field full">
+            <label>Destinatário</label>
+            <div class="doc-mode-tabs" role="tablist" aria-label="Destinatário do documento">
+              <button type="button" class="doc-mode active" data-doc-dest="UM">Colaborador</button>
+              <button type="button" class="doc-mode" data-doc-dest="TODOS">Enviar para todos</button>
+            </div>
+          </div>
+          <input type="hidden" id="doc-dest" value="UM" />
+          <div class="form-grid">
+            <div class="field full">
+              <label for="up-colaborador" id="label-up-colaborador">Colaborador</label>
+              <select id="up-colaborador" required><option value="">Selecione</option></select>
+              <p class="field-hint" id="hint-doc-dest-todos" hidden>O documento será enviado para todos os colaboradores ativos.</p>
+            </div>
+            <div class="field"><label for="up-titulo">Título do documento</label><input type="text" id="up-titulo" required placeholder="Ex.: Contrato de trabalho" /></div>
+            <div class="field"><label for="up-tipo">Tipo</label><select id="up-tipo" required><option value="">Selecione</option><option>Contrato de trabalho</option><option>Termo de ciência</option><option>Política interna</option><option>Termo administrativo</option><option>Holerite</option><option>Outro</option></select></div>
+            <div class="field"><label for="up-competencia">Competência / referência</label><input type="text" id="up-competencia" placeholder="Ex.: Setembro/2026" /></div>
+            <div class="field"><label for="up-prazo">Prazo para assinatura</label><input type="date" id="up-prazo" /></div>
+            <div class="field full">
+              <label>Arquivo do documento</label>
+              <div class="dropzone dropzone-doc" id="dropzone">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v12"/></svg>
+                <p><strong>Arraste o arquivo aqui</strong> ou clique para selecionar</p>
+                <span class="hint">PDF — até 100 MB</span>
+                <input type="file" id="doc-file" accept="application/pdf,.pdf" hidden />
+                <div class="selected-file" id="selected-file" hidden></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn-ghost" data-close-modal>Cancelar</button><button type="submit" class="btn-primary auto">Enviar documento</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-doc-preview" aria-hidden="true">
+    <div class="modal modal-doc-preview">
+      <div class="modal-header"><div><h3 id="preview-title">Visualização do documento</h3><p class="modal-subtitle" id="preview-subtitle"></p></div><button class="modal-close" data-close-modal aria-label="Fechar"></button></div>
+      <div class="modal-body modal-preview-body"><div class="pdf-frame-wrap"><iframe id="pdf-frame" title="Pré-visualização do PDF"></iframe></div></div>
+      <div class="modal-footer"><button type="button" class="btn-ghost" data-close-modal>Fechar</button><button type="button" class="btn-primary auto" id="preview-download">Baixar PDF</button></div>
+    </div>
+  </div>
+
+  <script>window.BASE_PATH = "../";</script>
+  <script src="../js/demo-data.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/supabase-client.js"></script>
+  <script src="../js/rh-supabase-auth.js"></script>
+  <script src="../js/rh-documentos-data.js"></script>
+  <script>
+(async function () {
+    const session = await requireRoleReal("RH");
+    if (!session) return;
+    let employeeDirectory = [];
+    const statusLabels = { ...STATUS_LABELS, PENDENTE: "Pendente de assinatura", ASSINADO: "Assinado", AGUARDANDO_IMPORTACAO: "Aguardando importação" };
+    let state = { colaborador: "", tipo: "", status: "", workflow: "" };
+    let selectedFile = null;
+    let previewUrl = null;
+    let cacheDocs = [];
+
+    async function refrescarDocumentos() {
+      [cacheDocs, employeeDirectory] = await Promise.all([rhListarDocumentosRH(), rhListarColaboradoresDocumento()]);
+    }
+
+    function docStatusClass(status) { return `status-badge status-${status}`; }
+    function docStatus(status) { return `<span class="${docStatusClass(status)}">${statusLabels[status] || status}</span>`; }
+    function origemLabel(origem) { return ({ ENVIADO_RH: "Enviado pelo RH", IMPORTADO_PREPARADO: "Importado preparado", GOVBR: "GOV.BR", EXTERNA: "Importado assinado", LEGADO: "Publicado" })[origem] || origem || "—"; }
+    function safeDocs() {
+      return cacheDocs.filter((d) => {
+        if (state.colaborador && d.colaborador !== state.colaborador) return false;
+        if (state.tipo && d.tipo !== state.tipo) return false;
+        if (state.status && d.status !== state.status) return false;
+        if (state.workflow && d.workflow !== state.workflow) return false;
+        return true;
+      });
+    }
+
+    function render() {
+      const docs = cacheDocs;
+      const assinatura = docs.filter((d) => d.workflow === "ASSINATURA");
+      const pendentes = assinatura.filter((d) => d.status === "PENDENTE" || d.status === "AGUARDANDO_IMPORTACAO").length;
+      const assinados = assinatura.filter((d) => d.status === "ASSINADO").length;
+      const publicados = docs.filter((d) => d.workflow === "PUBLICADO").length;
+      const tipos = [...new Set(docs.map((d) => d.tipo).filter(Boolean))].sort();
+      const colaboradores = [...new Set([...employeeDirectory.map((e) => e.nome), ...docs.map((d) => d.colaborador)].filter(Boolean))].sort((a,b) => a.localeCompare(b, 'pt-BR'));
+
+      document.getElementById("content").innerHTML = `
+        <div class="space-y">
+          <div class="row-between">
+            <div><h1 class="page-title">Gestão de Documentos</h1><p class="page-sub">Envie documentos para assinatura, importe arquivos já preparados e acompanhe cada etapa.</p></div>
+            <button type="button" class="btn-primary auto" id="btn-upload">${ICONS.plus}<span>Novo documento</span></button>
+          </div>
+
+          <div class="doc-flow-strip">
+            <div class="doc-flow-step"><span class="doc-flow-icon">${ICONS.upload}</span><div><strong>1. RH envia</strong><small>Documento fica disponível para o colaborador.</small></div></div>
+            <div class="doc-flow-line"></div>
+            <div class="doc-flow-step"><span class="doc-flow-icon">${ICONS.eye}</span><div><strong>2. Colaborador visualiza</strong><small>PDF pode ser aberto e baixado antes da assinatura.</small></div></div>
+            <div class="doc-flow-line"></div>
+            <div class="doc-flow-step"><span class="doc-flow-icon">${ICONS.signature}</span><div><strong>3. Assinatura</strong><small>GOV.BR ou assinatura externa com importação.</small></div></div>
+            <div class="doc-flow-line"></div>
+            <div class="doc-flow-step"><span class="doc-flow-icon">${ICONS.checkCircle}</span><div><strong>4. RH confere</strong><small>Status e arquivo assinado ficam registrados.</small></div></div>
+          </div>
+
+          <div id="kpi-grid"></div>
+
+          <div class="card card-p">
+            <div class="filters-row" style="margin-bottom:1rem">
+              <select id="f-colaborador"><option value="">Todos os colaboradores</option>${colaboradores.map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join("")}</select>
+              <select id="f-tipo"><option value="">Todos os tipos</option>${tipos.map((t) => `<option value="${esc(t)}">${esc(t)}</option>`).join("")}</select>
+              <select id="f-status"><option value="">Todos os status</option><option value="PENDENTE">Pendente</option><option value="ASSINADO">Assinado</option><option value="AGUARDANDO_IMPORTACAO">Aguardando importação</option><option value="PUBLICADO">Publicado</option></select>
+              <select id="f-workflow"><option value="">Todos os fluxos</option><option value="ASSINATURA">Para assinatura</option><option value="PUBLICADO">Publicados</option></select>
+            </div>
+            <div id="table-wrap"></div>
+          </div>
+        </div>
+      `;
+
+      renderKpiGrid(document.getElementById("kpi-grid"), [
+        { label: "Documentos para assinatura", value: assinatura.length, tone: "indigo", icon: ICONS.signature },
+        { label: "Pendentes", value: pendentes, tone: "amber", icon: ICONS.hourglass },
+        { label: "Assinados", value: assinados, tone: "green", icon: ICONS.checkCircle },
+        { label: "Publicados", value: publicados, tone: "teal", icon: ICONS.fileText },
+      ]);
+
+      ["colaborador", "tipo", "status", "workflow"].forEach((key) => {
+        document.getElementById(`f-${key}`).addEventListener("change", (e) => { state[key] = e.target.value; renderTable(); });
+      });
+      document.getElementById("btn-upload").addEventListener("click", () => openDocumentModal("SEND"));
+      renderTable();
+    }
+
+    function renderTable() {
+      const rows = safeDocs().sort((a,b) => String(b.enviadoEm || b.data).localeCompare(String(a.enviadoEm || a.data)));
+      document.getElementById("table-wrap").innerHTML = rows.length ? `
+        <div class="table-scroll no-scrollbar">
+          <table>
+            <thead><tr><th>Colaborador</th><th>Documento</th><th>Fluxo</th><th>Status</th><th>Enviado</th><th>Assinado</th><th style="width:1%">Ações</th></tr></thead>
+            <tbody>${rows.map((d) => `
+              <tr>
+                <td><div class="person-cell"><span class="avatar avatar-sm ${avatarColorClass(d.colaborador)}">${initials(d.colaborador)}</span><div><strong>${esc(d.colaborador)}</strong><div class="text-xs">${esc(d.colaboradorEmail || "")}</div></div></div></td>
+                <td><div class="doc-name-cell"><strong>${esc(d.titulo || d.tipo)}</strong><span>${esc(d.tipo)} • ${esc(d.competencia || "—")}</span></div></td>
+                <td><span class="badge badge-neutral">${esc(origemLabel(d.origem))}</span></td>
+                <td>${docStatus(d.status)}</td>
+                <td>${fmtDate(String(d.enviadoEm || d.data).slice(0,10))}</td>
+                <td>${d.assinadoEm ? fmtDate(String(d.assinadoEm).slice(0,10)) : "—"}</td>
+                <td><div class="doc-actions-row">
+                  <button type="button" class="btn-ghost doc-icon-btn" title="Visualizar documento" data-view="${esc(d.id)}">${ICONS.eye}</button>
+                  ${d.workflow === "ASSINATURA" ? (d.status === "ASSINADO" ? `<button type="button" class="btn-ghost doc-icon-btn" title="Baixar documento assinado" data-download-signed="${esc(d.id)}">${ICONS.download}</button>` : `<button type="button" class="btn-ghost doc-icon-btn" title="Lembrar colaborador" data-remind="${esc(d.id)}">${ICONS.send}</button>`) : ""}
+                  ${d.status === "ASSINADO" ? `<a class="btn-ghost doc-icon-btn" title="Validar assinatura" href="https://validar.iti.gov.br/" target="_blank" rel="noopener">${ICONS.shield}</a>` : ""}
+                  ${d.status !== "ASSINADO" && d.status !== "PUBLICADO" ? `<button type="button" class="btn-ghost doc-icon-btn" title="Excluir documento" data-excluir="${esc(d.id)}">${ICONS.trash}</button>` : ""}
+                </div></td>
+              </tr>`).join("")}</tbody>
+          </table>
+        </div>` : emptyStateHtml({ icon: ICONS.fileText, title: "Nenhum documento encontrado", desc: "Ajuste os filtros ou crie um novo documento para assinatura." });
+
+      document.querySelectorAll("[data-view]").forEach((b) => b.addEventListener("click", () => { const d = cacheDocs.find((x) => x.id === b.dataset.view); openPreview(b.dataset.view, d?.status === "ASSINADO"); }));
+      document.querySelectorAll("[data-download-signed]").forEach((b) => b.addEventListener("click", () => downloadDoc(b.dataset.downloadSigned, true)));
+      document.querySelectorAll("[data-remind]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          const d = cacheDocs.find((x) => x.id === b.dataset.remind);
+          if (!d) return;
+          b.disabled = true;
+          try {
+            const resultado = await rhLembrarColaboradorDocumento(d);
+            if (resultado.enviados > 0) {
+              showToast(`Lembrete enviado para ${d.colaborador} (${resultado.enviados} dispositivo${resultado.enviados > 1 ? "s" : ""}).`, "success");
+            } else {
+              showToast(resultado.mensagem || `${d.colaborador} ainda não ativou as notificações do navegador — nenhum lembrete pôde ser enviado.`, "info");
+            }
+          } catch (err) {
+            showToast(rhMensagemErroSupabase(err), "error");
+          } finally {
+            b.disabled = false;
+          }
+        })
+      );
+      document.querySelectorAll("[data-excluir]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          const d = cacheDocs.find((x) => x.id === b.dataset.excluir);
+          if (!d) return;
+          const ok = await confirmDialog({
+            title: "Excluir documento",
+            message: `Excluir "${d.titulo || d.tipo}" de ${d.colaborador}? O arquivo também será removido do armazenamento. Esta ação não pode ser desfeita.`,
+            confirmLabel: "Excluir",
+            danger: true,
+          });
+          if (!ok) return;
+          try {
+            await rhExcluirDocumentoRH(d);
+            await refrescarDocumentos();
+            showToast("Documento excluído.", "success");
+            render();
+          } catch (err) {
+            showToast(rhMensagemErroSupabase(err), "error");
+          }
+        })
+      );
+    }
+
+    function setDestino(dest) {
+      document.getElementById("doc-dest").value = dest;
+      document.querySelectorAll("[data-doc-dest]").forEach((b) => b.classList.toggle("active", b.dataset.docDest === dest));
+      const todos = dest === "TODOS";
+      const select = document.getElementById("up-colaborador");
+      select.hidden = todos;
+      select.required = !todos;
+      document.getElementById("label-up-colaborador").textContent = todos ? "Colaboradores" : "Colaborador";
+      document.getElementById("hint-doc-dest-todos").hidden = !todos;
+    }
+
+    function openDocumentModal(mode) {
+      document.getElementById("form-document").reset();
+      document.getElementById("up-colaborador").innerHTML = `<option value="">Selecione</option>${employeeDirectory.map((e) => `<option value="${e.id}">${esc(e.nome)}</option>`).join("")}`;
+      selectedFile = null;
+      document.getElementById("selected-file").hidden = true;
+      document.getElementById("doc-mode").value = mode;
+      document.querySelectorAll("[data-doc-mode]").forEach((b) => b.classList.toggle("active", b.dataset.docMode === mode));
+      setDestino("UM");
+      document.querySelector("#modal-document .modal-footer .btn-primary").textContent = mode === "SEND" ? "Enviar para assinatura" : "Importar documento";
+      document.getElementById("doc-modal-title").textContent = mode === "SEND" ? "Enviar documento para assinatura" : "Importar documento preparado";
+      document.getElementById("doc-modal-subtitle").textContent = mode === "SEND" ? "O colaborador receberá o documento como pendente de assinatura." : "Importe um PDF que já esteja pronto para ser assinado pelo colaborador.";
+      openModal("modal-document");
+    }
+
+    function showSelectedFile(file) {
+      const el = document.getElementById("selected-file");
+      if (!file) { el.hidden = true; return; }
+      el.hidden = false;
+      el.innerHTML = `${ICONS.fileText}<div><strong>${esc(file.name)}</strong><span>${(file.size / 1024 / 1024).toFixed(2)} MB</span></div><button type="button" class="btn-ghost doc-file-remove" id="remove-selected-file">${ICONS.x}</button>`;
+      document.getElementById("remove-selected-file").onclick = () => { selectedFile = null; document.getElementById("doc-file").value = ""; showSelectedFile(null); };
+    }
+
+    async function openPreview(id, signed) {
+      const doc = cacheDocs.find((d) => d.id === id);
+      if (!doc) return;
+      const path = signed ? doc.arquivoAssinadoPath : doc.arquivoPath;
+      let blob;
+      try {
+        blob = await rhBaixarArquivoDocumento(path);
+      } catch (err) {
+        showToast(rhMensagemErroSupabase(err), "error");
+        return;
+      }
+      if (!blob) { showToast("O arquivo ainda não está disponível.", "info"); return; }
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      previewUrl = URL.createObjectURL(blob);
+      document.getElementById("pdf-frame").src = previewUrl;
+      document.getElementById("preview-title").textContent = doc.titulo || doc.tipo;
+      document.getElementById("preview-subtitle").textContent = `${doc.colaborador} • ${statusLabels[doc.status] || doc.status}`;
+      document.getElementById("preview-download").onclick = () => downloadBlob(blob, signed ? doc.arquivoAssinadoNome || `assinado-${doc.arquivoNome || "documento.pdf"}` : doc.arquivoNome || "documento.pdf");
+      openModal("modal-doc-preview");
+    }
+
+    async function downloadDoc(id, signed) {
+      const doc = cacheDocs.find((d) => d.id === id);
+      if (!doc) return;
+      let blob;
+      try {
+        blob = await rhBaixarArquivoDocumento(signed ? doc.arquivoAssinadoPath : doc.arquivoPath);
+      } catch (err) {
+        showToast(rhMensagemErroSupabase(err), "error");
+        return;
+      }
+      if (!blob) { showToast("Arquivo não encontrado.", "info"); return; }
+      downloadBlob(blob, signed ? (doc.arquivoAssinadoNome || `assinado-${doc.arquivoNome}`) : (doc.arquivoNome || "documento.pdf"));
+    }
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = filename || "documento.pdf"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 800);
+    }
+
+    async function submitDocument(e) {
+      e.preventDefault();
+      const destino = document.getElementById("doc-dest").value;
+      const paraTodos = destino === "TODOS";
+      const colaboradorId = document.getElementById("up-colaborador").value;
+      const destinatarios = paraTodos ? employeeDirectory.filter((emp) => (emp.status || "ATIVO") === "ATIVO") : [];
+      if (!paraTodos && !colaboradorId) { showToast("Selecione o colaborador.", "error"); return; }
+      if (paraTodos && destinatarios.length === 0) { showToast("Não há colaboradores ativos para receber o documento.", "error"); return; }
+      if (!selectedFile) { showToast("Selecione o arquivo do documento.", "error"); return; }
+      if (!selectedFile.type.includes("pdf") && !selectedFile.name.toLowerCase().endsWith(".pdf")) { showToast("Envie um arquivo PDF para manter a pré-visualização e assinatura no mesmo fluxo.", "error"); return; }
+      if (selectedFile.size > 100 * 1024 * 1024) { showToast("O arquivo excede o limite de 100 MB.", "error"); return; }
+      const btn = document.querySelector("#modal-document .modal-footer .btn-primary");
+      const textoOriginal = btn.textContent;
+      btn.disabled = true;
+      const payloadBase = {
+        titulo: document.getElementById("up-titulo").value.trim(),
+        tipo: document.getElementById("up-tipo").value,
+        competencia: document.getElementById("up-competencia").value.trim(),
+        prazo: document.getElementById("up-prazo").value || null,
+        modo: document.getElementById("doc-mode").value,
+        file: selectedFile,
+      };
+      try {
+        if (paraTodos) {
+          let sucesso = 0;
+          const falhas = [];
+          for (let i = 0; i < destinatarios.length; i++) {
+            const emp = destinatarios[i];
+            btn.textContent = `Enviando... (${i + 1}/${destinatarios.length})`;
+            try {
+              await rhEnviarDocumentoRH({ ...payloadBase, colaboradorId: emp.id });
+              sucesso++;
+            } catch (err) {
+              falhas.push(emp.nome);
+            }
+          }
+          await refrescarDocumentos();
+          closeModal("modal-document");
+          render();
+          if (falhas.length === 0) {
+            showToast(`Documento enviado para todos os ${sucesso} colaboradores.`, "success");
+          } else {
+            showToast(`Enviado para ${sucesso} colaborador(es). Falhou para: ${falhas.join(", ")}.`, "error");
+          }
+        } else {
+          const doc = await rhEnviarDocumentoRH({ ...payloadBase, colaboradorId });
+          await refrescarDocumentos();
+          closeModal("modal-document");
+          showToast(`${doc.titulo} disponibilizado para ${doc.colaborador}.`, "success");
+          render();
+        }
+      } catch (err) {
+        showToast(rhMensagemErroSupabase(err), "error");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = textoOriginal;
+      }
+    }
+
+    if (session) {
+      document.getElementById("content").innerHTML = `<div class="loading-wrap"><div class="spinner"></div></div>`;
+      try {
+        await refrescarDocumentos();
+        const pendingBadge = cacheDocs.filter((d) => d.workflow === "ASSINATURA" && d.status !== "ASSINADO").length;
+        renderShell(session, withBadges(NAV_RH, { ...(await rhNavBadges()), "documentos.html": pendingBadge }));
+        renderTopHeader(document.getElementById("top-header"), session, { notifications: [] });
+        render();
+        wireModalClosers();
+        document.querySelector("#modal-document .modal-close").innerHTML = ICONS.x;
+        document.querySelector("#modal-doc-preview .modal-close").innerHTML = ICONS.x;
+        document.querySelectorAll("[data-doc-mode]").forEach((b) => b.addEventListener("click", () => openDocumentModal(b.dataset.docMode)));
+        document.querySelectorAll("[data-doc-dest]").forEach((b) => b.addEventListener("click", () => setDestino(b.dataset.docDest)));
+        const drop = document.getElementById("dropzone"); const input = document.getElementById("doc-file");
+        drop.addEventListener("click", (e) => { if (e.target.closest("button")) return; input.click(); });
+        input.addEventListener("change", () => { selectedFile = input.files?.[0] || null; showSelectedFile(selectedFile); });
+        ["dragover","dragenter"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("is-dragging"); }));
+        ["dragleave","drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("is-dragging"); }));
+        drop.addEventListener("drop", (e) => { selectedFile = e.dataTransfer.files?.[0] || null; if (selectedFile) { input.value = ""; showSelectedFile(selectedFile); } });
+        document.getElementById("form-document").addEventListener("submit", submitDocument);
+      } catch (err) {
+        rhShowFatalError(rhMensagemErroSupabase(err));
+      }
+    }
+  
+})();
+</script>
+  <script src="../js/ui-effects.js"></script>
+</body>
+</html>

@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard — BSconta+ RH</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+  <link rel="stylesheet" href="../css/theme-v2.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div id="app-header"></div>
+    <div class="app-content">
+      <main class="main">
+        <div id="top-header" class="top-header"></div>
+        <div id="content">
+          <div class="loading-wrap"><div class="spinner"></div></div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script>window.BASE_PATH = "../";</script>
+  <script src="../js/demo-data.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/supabase-client.js"></script>
+  <script src="../js/rh-supabase-auth.js"></script>
+  <script src="../js/rh-ponto-data.js"></script>
+  <script src="../js/rh-ferias-data.js"></script>
+  <script src="../js/rh-solicitacoes-data.js"></script>
+  <script src="../js/rh-comunicados-data.js"></script>
+  <script>
+(async function () {
+    const session = await requireRoleReal("COLABORADOR");
+    if (!session) return;
+
+    function firstName(n) { return (n || "").split(" ")[0]; }
+
+    // Dados reais (rh.ponto_registros, rh.ferias_solicitacoes/ferias_saldos,
+    // rh.solicitacoes, rh.comunicados) — substitui DEMO.ponto / DEMO.ferias /
+    // DEMO.solicitacoesColaborador / DEMO.comunicados, que eram fixos em
+    // memória e nem chegavam a ser carregados nesta tela (js/demo-data.js).
+    let dados = { ponto: null, ferias: null, solicitacoes: [], comunicados: [] };
+
+    async function carregarDados() {
+      if (!session.employeeId) throw new Error("Este login não tem cadastro de colaborador vinculado — fale com o RH.");
+      const [ponto, ferias, solicitacoes, comunicados] = await Promise.all([
+        rhCarregarPonto(session.employeeId),
+        rhCarregarFeriasColaborador(session.employeeId),
+        rhCarregarSolicitacoesColaborador(session.employeeId),
+        rhCarregarComunicadosColaborador(session.employeeId),
+      ]);
+      dados = { ponto, ferias, solicitacoes, comunicados };
+    }
+
+    function horasTrabalhadasSemana() {
+      const hoje = new Date();
+      const dow = (hoje.getDay() + 6) % 7;
+      const inicioSemana = new Date(hoje); inicioSemana.setDate(hoje.getDate() - dow);
+      const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const inicioIso = iso(inicioSemana);
+      const hojeRow = { data: iso(hoje), horasTrabalhadas: dados.ponto.hoje.horasTrabalhadas };
+      return [...dados.ponto.historico, hojeRow]
+        .filter((h) => h.data >= inicioIso && h.data <= iso(hoje) && h.horasTrabalhadas)
+        .reduce((acc, h) => acc + h.horasTrabalhadas, 0);
+    }
+    function fmtHorasCurto(h) {
+      const sinal = h < 0 ? "-" : "";
+      const abs = Math.abs(h);
+      return `${sinal}${Math.floor(abs)}h${Math.round((abs - Math.floor(abs)) * 60).toString().padStart(2, "0")}`;
+    }
+    function proximoHorarioPonto() {
+      const p = dados.ponto.hoje;
+      const hp = session.horarioPrevisto;
+      if (!p.entrada) return { label: "Entrada", hora: hp?.entrada || "—" };
+      if (!p.intervaloSaida) return { label: "Intervalo", hora: "—" };
+      if (!p.intervaloVolta) return { label: "Retorno", hora: "—" };
+      if (!p.saida) return { label: "Saída", hora: hp?.saida || "—" };
+      return null;
+    }
+    function statusPontoHoje() {
+      const p = dados.ponto.hoje;
+      if (p.saida) return { label: "Jornada concluída", tone: "green" };
+      if (p.entrada) return { label: "Em andamento", tone: "indigo" };
+      return { label: "Ainda não iniciado", tone: "amber" };
+    }
+
+    function render() {
+      const p = dados.ponto;
+      const f = dados.ferias;
+      const pendentesSolic = dados.solicitacoes.filter((s) => s.status !== "RESOLVIDA").length;
+      const naoLidos = dados.comunicados.filter((c) => !c.lido).length;
+      const proximo = proximoHorarioPonto();
+      const statusHoje = statusPontoHoje();
+      // Enquanto o dia não termina (sem horário de saída), rh.ponto_registros
+      // ainda não tem horas_trabalhadas calculado (só é gravado ao bater a
+      // saída) — mostra uma estimativa em tempo real a partir da entrada,
+      // deixada explícita como "estimado" no rótulo abaixo.
+      const horasHojeEstimado = !p.hoje.saida && p.hoje.entrada
+        ? Math.max(0, (Date.now() - new Date().setHours(...p.hoje.entrada.split(":").map(Number), 0, 0)) / 3600000)
+        : p.hoje.horasTrabalhadas;
+      const horasSemana = horasTrabalhadasSemana();
+
+      document.getElementById("content").innerHTML = `
+        <div class="space-y">
+          <div class="row-between">
+            <div>
+              <h1 class="page-title">Olá, ${esc(firstName(session.name))} 👋</h1>
+              <p class="page-sub">${esc(session.cargo)} · ${esc(session.departamento)} — aqui está um resumo do seu dia.</p>
+            </div>
+          </div>
+
+          <div id="kpi-grid"></div>
+
+          <div class="grid-3">
+            <div class="card card-p">
+              <div class="row-between" style="margin-bottom:0.2rem">
+                <h2 style="margin:0;display:flex;align-items:center;gap:0.55rem"><span class="kpi-icon tone-indigo section-icon-sm">${ICONS.clock}</span>Jornada de hoje</h2>
+                ${p.hoje.local ? localBadgeHtml(p.hoje.local) : ""}
+              </div>
+              <div class="punch-track" id="punch-track" style="margin-top:0.8rem"></div>
+              <div class="summary-strip" style="margin-top:1.1rem">
+                <div class="summary-left">
+                  <span class="summary-icon">${ICONS.clock}</span>
+                  <span>Banco de horas: <strong>${p.saldoBancoHoras >= 0 ? "+" : ""}${p.saldoBancoHoras.toFixed(1).replace(".", ",")}h</strong></span>
+                </div>
+                <a href="ponto.html" class="card-link">Ver jornada completa →</a>
+              </div>
+            </div>
+
+            <div class="card card-p">
+              <div style="display:flex;align-items:flex-start;gap:1rem">
+                <div style="flex:1;min-width:0">
+                  <h2>Próximas férias</h2>
+                  ${
+                    f.proximas.length
+                      ? f.proximas
+                          .map(
+                            (v) => `
+                    <div style="display:flex;align-items:center;gap:0.9rem">
+                      <div class="benefit-icon" style="background:var(--emerald-50);color:var(--emerald-600)">${ICONS.palmTree}</div>
+                      <div>
+                        <p style="margin:0;font-weight:700;font-size:0.93rem">${formatDateRange(v.inicio, v.fim)}</p>
+                        <p style="margin:0.15rem 0 0;font-size:0.82rem;color:var(--text-faint)">${v.dias} dias · ${statusBadgeHtml(v.status, { APROVADA: "Aprovada", PENDENTE: "Pendente", EM_ANALISE: "Em análise" })}</p>
+                      </div>
+                    </div>`
+                          )
+                          .join("")
+                      : emptyStateHtml({ icon: ICONS.palmTree, title: "Nenhuma férias agendada", desc: "Solicite suas próximas férias quando quiser." })
+                  }
+                  <a href="ferias.html" class="card-link" style="display:block;margin-top:1rem">Ver saldo e solicitar →</a>
+                </div>
+                <div class="card-illustration" style="background:var(--blue-50);color:var(--indigo-300)">${ICONS.palmTree}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div class="card card-p">
+              <div class="row-between" style="margin-bottom:0.7rem">
+                <h2 style="margin:0;display:flex;align-items:center;gap:0.55rem"><span class="kpi-icon tone-amber section-icon-sm">${ICONS.fileText}</span>Solicitações recentes</h2>
+                <a href="solicitacoes.html" class="card-link">Ver todas</a>
+              </div>
+              ${dados.solicitacoes.length === 0
+                ? emptyStateHtml({ icon: ICONS.fileText, title: "Nenhuma solicitação ainda", desc: "Suas solicitações ao RH aparecem aqui." })
+                : dados.solicitacoes
+                .slice(0, 3)
+                .map(
+                  (s) => `
+                <div class="request-card" style="border:none;border-bottom:1px solid var(--surface-2);border-radius:0;padding:0.65rem 0">
+                  <div class="request-card-top">
+                    <div>
+                      <p class="protocolo">${s.protocolo} · ${esc(s.categoria)}</p>
+                      <p class="titulo" style="font-size:0.87rem">${esc(s.descricao)}</p>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:0.5rem">
+                      ${statusBadgeHtml(s.status, { EM_ANALISE: "Em análise", RESOLVIDA: "Resolvida", PENDENTE: "Pendente" })}
+                      <span class="row-chevron" style="margin-left:0">${ICONS.chevronRight}</span>
+                    </div>
+                  </div>
+                </div>`
+                )
+                .join("")}
+            </div>
+
+            <div class="card card-p">
+              <div class="row-between" style="margin-bottom:0.7rem">
+                <h2 style="margin:0;display:flex;align-items:center;gap:0.55rem"><span class="kpi-icon tone-violet section-icon-sm">${ICONS.megaphone}</span>Comunicados do RH</h2>
+                <a href="comunicados.html" class="card-link">Ver todos</a>
+              </div>
+              ${dados.comunicados.length === 0
+                ? emptyStateHtml({ icon: ICONS.megaphone, title: "Nenhum comunicado ainda", desc: "Comunicados publicados pelo RH aparecem aqui." })
+                : dados.comunicados
+                .slice(0, 3)
+                .map(
+                  (c) => `
+                <div style="display:flex;align-items:center;gap:0.6rem;padding:0.6rem 0;border-bottom:1px solid var(--surface-2)">
+                  ${!c.lido ? '<span class="announcement-unread-dot"></span>' : '<span style="width:8px;flex-shrink:0"></span>'}
+                  <div style="flex:1;min-width:0">
+                    <p style="margin:0;font-weight:700;font-size:0.87rem">${c.urgente ? `<span class="badge badge-urgent" style="margin-right:0.4rem">Urgente</span>` : ""}${esc(c.titulo)}</p>
+                    <p style="margin:0.2rem 0 0;font-size:0.8rem;color:var(--text-faint)">${formatDate(c.data)}</p>
+                  </div>
+                  <span class="row-chevron">${ICONS.chevronRight}</span>
+                </div>`
+                )
+                .join("")}
+            </div>
+          </div>
+
+          <div class="card card-p">
+            <h2 style="display:flex;align-items:center;gap:0.55rem"><span class="kpi-icon tone-amber section-icon-sm">${ICONS.zap}</span>Atalhos</h2>
+            <div style="display:flex;flex-wrap:wrap;gap:0.7rem">
+              ${shortcutHtml("ponto.html", ICONS.clock, "Bater ponto")}
+              ${shortcutHtml("ferias.html", ICONS.palmTree, "Solicitar férias")}
+              ${shortcutHtml("documentos.html", ICONS.fileText, "Meus holerites")}
+              ${shortcutHtml("beneficios.html", ICONS.heart, "Meus benefícios")}
+              ${shortcutHtml("solicitacoes.html", ICONS.messageSquare, "Nova solicitação")}
+            </div>
+          </div>
+        </div>
+      `;
+
+      renderKpiGrid(document.getElementById("kpi-grid"), [
+        { label: "Próximo horário", value: proximo ? `${proximo.label} · ${proximo.hora}` : "Concluído", format: "text", tone: "indigo", icon: ICONS.clock, sub: proximo ? "hoje" : "jornada de hoje encerrada", chevron: true },
+        { label: "Status do ponto", value: statusHoje.label, format: "text", tone: statusHoje.tone, icon: ICONS.checkCircle, sub: p.hoje.local ? LOCAL_PONTO_LABELS[p.hoje.local] : "local ainda não informado", chevron: true },
+        { label: "Horas trabalhadas hoje", value: horasHojeEstimado != null ? fmtHorasCurto(horasHojeEstimado) : "—", format: "text", tone: "teal", icon: ICONS.clock, sub: p.hoje.saida ? "encerrado hoje" : "estimado, atualiza ao recarregar", chevron: true },
+        { label: "Horas na semana", value: fmtHorasCurto(horasSemana), format: "text", tone: "green", icon: ICONS.calendar, sub: "segunda até hoje", chevron: true },
+        { label: "Banco de horas", value: `${p.saldoBancoHoras >= 0 ? "+" : ""}${p.saldoBancoHoras.toFixed(1).replace(".", ",")}h`, format: "text", tone: "indigo", icon: ICONS.hourglass, sub: "acumulado no mês", chevron: true },
+        { label: "Dias de férias disponíveis", value: f.saldo.saldoDias, tone: "green", icon: ICONS.palmTree, sub: `${f.saldo.diasUsados} dias já usados`, chevron: true },
+        { label: "Solicitações em aberto", value: pendentesSolic, tone: "amber", icon: ICONS.fileText, sub: "aguardando o RH", chevron: true },
+        { label: "Comunicados não lidos", value: naoLidos, tone: "violet", icon: ICONS.megaphone, sub: "do RH", chevron: true },
+      ], true);
+
+      const steps = [
+        { label: "Entrada", hora: p.hoje.entrada },
+        { label: "Intervalo", hora: p.hoje.intervaloSaida },
+        { label: "Retorno", hora: p.hoje.intervaloVolta },
+        { label: "Saída", hora: p.hoje.saida },
+      ];
+      let currentSet = false;
+      document.getElementById("punch-track").innerHTML = steps
+        .map((s, i) => {
+          const done = !!s.hora;
+          const isCurrent = !done && !currentSet;
+          if (isCurrent) currentSet = true;
+          const nextDone = !!steps[i + 1]?.hora;
+          const lineClass = done ? (nextDone ? "is-done" : "is-half") : "";
+          return `
+          <div class="punch-step ${done ? "done" : isCurrent ? "current" : ""}">
+            <div class="punch-dot">${done ? ICONS.check : i + 1}<span class="punch-line ${lineClass}"></span></div>
+            <p class="punch-label">${s.label}</p>
+            <p class="punch-time">${s.hora || (isCurrent ? "Aguardando" : "—")}</p>
+          </div>`;
+        })
+        .join("");
+    }
+
+    function shortcutHtml(href, icon, label) {
+      return `<a href="${href}" class="btn-ghost" style="width:auto">${icon}<span>${label}</span></a>`;
+    }
+    function formatDate(iso) {
+      if (!iso) return "—";
+      const [y, m, d] = iso.split("-");
+      return `${d}/${m}/${y}`;
+    }
+    function formatDateRange(iso1, iso2) {
+      return `${formatDate(iso1)} a ${formatDate(iso2)}`;
+    }
+
+    if (session) {
+      renderShell(session, NAV_COLABORADOR);
+      try {
+        await carregarDados();
+      } catch (err) {
+        rhShowFatalError(rhMensagemErroSupabase(err));
+        return;
+      }
+      const notificacoes = [];
+      const respondidaRecente = dados.solicitacoes.find((s) => s.status === "RESOLVIDA");
+      if (respondidaRecente) {
+        notificacoes.push({ text: `Sua solicitação <strong>${respondidaRecente.protocolo}</strong> foi respondida.`, time: formatDate(respondidaRecente.data), unread: true, icon: ICONS.messageSquare });
+      }
+      const comunicadoNaoLido = dados.comunicados.find((c) => !c.lido);
+      if (comunicadoNaoLido) {
+        notificacoes.push({ text: `Novo comunicado: ${esc(comunicadoNaoLido.titulo)}.`, time: formatDate(comunicadoNaoLido.data), unread: true, icon: ICONS.megaphone });
+      }
+      if (dados.ferias.proximas.length) {
+        const v = dados.ferias.proximas[0];
+        notificacoes.push({ text: `Férias aprovadas para ${formatDateRange(v.inicio, v.fim)}.`, time: "", unread: false, icon: ICONS.palmTree });
+      }
+      renderTopHeader(document.getElementById("top-header"), session, { notifications: notificacoes });
+      render();
+      initLembretePonto(session.horarioPrevisto, dados.ponto.hoje);
+    }
+  
+})();
+</script>
+  <script src="../js/ui-effects.js"></script>
+</body>
+</html>

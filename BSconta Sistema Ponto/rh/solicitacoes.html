@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Solicitações — BSconta+ RH</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+  <link rel="stylesheet" href="../css/theme-v2.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div id="app-header"></div>
+    <div class="app-content">
+      <main class="main">
+        <div id="top-header" class="top-header"></div>
+        <div id="content"><div class="loading-wrap"><div class="spinner"></div></div></div>
+      </main>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-responder">
+    <div class="modal">
+      <div class="modal-header"><h3>Responder solicitação</h3><button class="modal-close" data-close-modal></button></div>
+      <form id="form-responder">
+        <div class="modal-body">
+          <div id="responder-resumo" class="request-card" style="margin-bottom:1rem"></div>
+          <div class="field full">
+            <label>Resposta</label>
+            <textarea id="responder-texto" rows="4" required placeholder="Descreva o retorno para o colaborador..."></textarea>
+          </div>
+          <div class="field full" style="margin-top:0.6rem">
+            <label class="check-row"><input type="checkbox" id="responder-resolver" checked /> Marcar solicitação como resolvida</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-ghost" data-close-modal>Cancelar</button>
+          <button type="submit" class="btn-primary auto">Enviar resposta</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>window.BASE_PATH = "../";</script>
+  <script src="../js/demo-data.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/supabase-client.js"></script>
+  <script src="../js/rh-supabase-auth.js"></script>
+  <script src="../js/rh-ponto-data.js"></script>
+  <script src="../js/rh-ferias-data.js"></script>
+  <script src="../js/rh-solicitacoes-data.js"></script>
+  <script>
+(async function () {
+    const session = await requireRoleReal("RH");
+    if (!session) return;
+    document.querySelector("#modal-responder .modal-close").innerHTML = ICONS.x;
+
+    let cacheSolicitacoes = [];
+    let state = { categoria: "", status: "", prioridade: "" };
+    let respondendoId = null;
+
+    async function refrescarSolicitacoes() {
+      cacheSolicitacoes = await rhCarregarSolicitacoesRH();
+    }
+
+    function statusFiltro(s) {
+      return s.statusExibicao || s.status;
+    }
+
+    function filtered() {
+      return cacheSolicitacoes.filter((s) => {
+        if (state.categoria && s.categoria !== state.categoria) return false;
+        if (state.status && statusFiltro(s) !== state.status) return false;
+        if (state.prioridade && s.prioridade !== state.prioridade) return false;
+        return true;
+      });
+    }
+
+    function prioridadeBadge(p) {
+      const map = { alta: ["badge-red", "Alta"], normal: ["badge-neutral", "Normal"], baixa: ["badge-teal", "Baixa"] };
+      const [cls, label] = map[p] || ["badge-neutral", p];
+      return `<span class="badge ${cls}">${label}</span>`;
+    }
+
+    function render() {
+      const abertas = cacheSolicitacoes.filter((s) => statusFiltro(s) !== "RESOLVIDA").length;
+      const emAnalise = cacheSolicitacoes.filter((s) => statusFiltro(s) === "EM_ANALISE").length;
+      const altaPrioridade = cacheSolicitacoes.filter((s) => s.prioridade === "alta" && statusFiltro(s) !== "RESOLVIDA").length;
+      const resolvidas = cacheSolicitacoes.filter((s) => statusFiltro(s) === "RESOLVIDA").length;
+      const categorias = [...new Set(cacheSolicitacoes.map((s) => s.categoria))];
+
+      document.getElementById("content").innerHTML = `
+        <div class="space-y">
+          <div class="row-between">
+            <div>
+              <h1 class="page-title">Gestão de Solicitações</h1>
+              <p class="page-sub">Solicitações abertas pelos colaboradores ao RH, de todas as categorias.</p>
+            </div>
+          </div>
+
+          <div id="kpi-grid"></div>
+
+          <div class="card card-p">
+            <div class="filters-row" style="margin-bottom:1rem">
+              <select id="f-categoria"><option value="">Todas as categorias</option>${categorias.map((c) => `<option>${esc(c)}</option>`).join("")}</select>
+              <select id="f-status"><option value="">Todos os status</option><option value="PENDENTE">Pendente</option><option value="EM_ANALISE">Em análise</option><option value="RESOLVIDA">Resolvida</option></select>
+              <select id="f-prioridade"><option value="">Toda prioridade</option><option value="alta">Alta</option><option value="normal">Normal</option><option value="baixa">Baixa</option></select>
+            </div>
+            <div id="list-wrap" class="space-y"></div>
+          </div>
+        </div>
+      `;
+
+      renderKpiGrid(document.getElementById("kpi-grid"), [
+        { label: "Solicitações abertas", value: abertas, tone: "amber", icon: ICONS.messageSquare },
+        { label: "Em análise", value: emAnalise, tone: "indigo", icon: ICONS.clock },
+        { label: "Alta prioridade em aberto", value: altaPrioridade, tone: "red", icon: ICONS.alertCircle },
+        { label: "Resolvidas", value: resolvidas, tone: "green", icon: ICONS.checkCircle },
+      ]);
+
+      document.getElementById("f-categoria").addEventListener("change", (e) => { state.categoria = e.target.value; renderList(); });
+      document.getElementById("f-status").addEventListener("change", (e) => { state.status = e.target.value; renderList(); });
+      document.getElementById("f-prioridade").addEventListener("change", (e) => { state.prioridade = e.target.value; renderList(); });
+
+      renderList();
+    }
+
+    function renderList() {
+      const rows = filtered();
+      document.getElementById("list-wrap").innerHTML = rows.length
+        ? rows
+            .map(
+              (s) => `
+          <div class="request-card">
+            <div class="row-between">
+              <div style="display:flex;align-items:center;gap:0.6rem">
+                <span class="avatar avatar-sm ${avatarColorClass(s.colaborador)}">${initials(s.colaborador)}</span>
+                <div>
+                  <p style="margin:0;font-weight:600;font-size:0.9rem">${esc(s.colaborador)} <span style="color:var(--text-faint);font-weight:400">— ${esc(s.protocolo)}</span></p>
+                  <p style="margin:0.1rem 0 0;font-size:0.78rem;color:var(--text-faint)">${esc(s.categoria)} · ${fmtDate(s.data)}</p>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:0.5rem">
+                ${prioridadeBadge(s.prioridade)}
+                ${statusBadgeHtml(s.status, STATUS_LABELS)}
+              </div>
+            </div>
+            <p style="margin:0.6rem 0 0;font-size:0.85rem;color:var(--text-muted)">${esc(s.descricao)}</p>
+            ${
+              s.respostas.length
+                ? `<div style="margin-top:0.6rem;padding-top:0.6rem;border-top:1px solid var(--surface-2)">
+                ${s.respostas.map((r) => `<p style="margin:0;font-size:0.8rem"><strong>${esc(r.autor)}</strong> — ${esc(r.texto)} <span style="color:var(--text-faint)">(${fmtDate(r.data)})</span></p>`).join("")}
+              </div>`
+                : ""
+            }
+            ${
+              s.origem === "ferias"
+                ? s.status === "PENDENTE" || s.status === "EM_ANALISE"
+                  ? `<div style="margin-top:0.7rem;display:flex;justify-content:flex-end;gap:0.5rem">
+                  <div class="approve-reject">
+                    <button type="button" class="approve" data-aprovar-ferias="${s.id}" aria-label="Aprovar">${ICONS.check}</button>
+                    <button type="button" class="reject" data-recusar-ferias="${s.id}" aria-label="Recusar">${ICONS.x}</button>
+                  </div>
+                </div>`
+                  : ""
+                : s.status !== "RESOLVIDA" && s.status !== "RECUSADA"
+                ? `<div style="margin-top:0.7rem;display:flex;justify-content:flex-end">
+                <button type="button" class="btn-primary auto" data-responder="${s.id}">${ICONS.send}<span>Responder</span></button>
+              </div>`
+                : ""
+            }
+          </div>`
+            )
+            .join("")
+        : emptyStateHtml({ icon: ICONS.messageSquare, title: "Nenhuma solicitação encontrada", desc: "Tente ajustar os filtros selecionados." });
+
+      document.querySelectorAll("[data-aprovar-ferias]").forEach((b) => b.addEventListener("click", () => resolverFeriasNaFila(b.dataset.aprovarFerias, true, b)));
+      document.querySelectorAll("[data-recusar-ferias]").forEach((b) => b.addEventListener("click", () => resolverFeriasNaFila(b.dataset.recusarFerias, false, b)));
+
+      document.querySelectorAll("[data-responder]").forEach((b) =>
+        b.addEventListener("click", () => {
+          respondendoId = b.dataset.responder;
+          const s = cacheSolicitacoes.find((x) => x.id === respondendoId);
+          document.getElementById("responder-resumo").innerHTML = `
+            <p style="margin:0;font-weight:600;font-size:0.87rem">${esc(s.colaborador)} — ${esc(s.categoria)}</p>
+            <p style="margin:0.3rem 0 0;font-size:0.83rem;color:var(--text-muted)">${esc(s.descricao)}</p>
+          `;
+          document.getElementById("responder-texto").value = "";
+          document.getElementById("responder-resolver").checked = true;
+          openModal("modal-responder");
+        })
+      );
+    }
+
+    /** Férias na fila consolidada: aprova/recusa de verdade via
+     * rhResolverFerias (js/rh-ferias-data.js) — a mesma função usada em
+     * rh/ferias.html, inclusive o débito real de saldo quando aprovada. */
+    async function resolverFeriasNaFila(id, aprovado, botao) {
+      const botoesLinha = botao.closest(".approve-reject")?.querySelectorAll("button");
+      if (botoesLinha) botoesLinha.forEach((b) => (b.disabled = true));
+      try {
+        await rhResolverFerias(id, aprovado);
+        await refrescarSolicitacoes();
+        showToast(aprovado ? "Férias aprovadas." : "Férias recusadas.", aprovado ? "success" : "error");
+        render();
+      } catch (err) {
+        showToast(rhMensagemErroSupabase(err), "error");
+        if (botoesLinha) botoesLinha.forEach((b) => (b.disabled = false));
+      }
+    }
+
+    if (session) {
+      renderShell(session, withBadges(NAV_RH, await rhNavBadges()));
+      renderTopHeader(document.getElementById("top-header"), session, { notifications: [] });
+      document.getElementById("content").innerHTML = `<div class="loading-wrap"><div class="spinner"></div></div>`;
+      try {
+        await refrescarSolicitacoes();
+        render();
+        wireModalClosers();
+      } catch (err) {
+        rhShowFatalError(rhMensagemErroSupabase(err));
+        return;
+      }
+      document.getElementById("form-responder").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const s = cacheSolicitacoes.find((x) => x.id === respondendoId);
+        const texto = document.getElementById("responder-texto").value.trim();
+        const resolvendo = document.getElementById("responder-resolver").checked;
+        if (!s || !texto) {
+          closeModal("modal-responder");
+          return;
+        }
+        const btn = e.target.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        try {
+          const autor = `${session.name} (RH)`;
+          // "Ajuste de ponto" tem um fluxo real próprio (aplica a correção
+          // de verdade em rh.ponto_registros e já grava o status) — quando
+          // resolvendo, é ele que decide o status final; senão, é um
+          // status genérico (EM_ANALISE) só com a resposta.
+          if (resolvendo && s.categoria === "Ajuste de ponto" && s.ajustePonto) {
+            await rhResponderSolicitacaoGeral(s.id, { texto, autor, novoStatus: s.status });
+            await rhResolverAjustePonto(s.id, true, autor);
+          } else {
+            const novoStatus = resolvendo ? "RESOLVIDA" : s.status === "PENDENTE" ? "EM_ANALISE" : s.status;
+            await rhResponderSolicitacaoGeral(s.id, { texto, autor, novoStatus });
+          }
+          await refrescarSolicitacoes();
+          closeModal("modal-responder");
+          showToast("Resposta enviada ao colaborador.", "success");
+          render();
+        } catch (err) {
+          showToast(rhMensagemErroSupabase(err), "error");
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    }
+  
+})();
+</script>
+  <script src="../js/ui-effects.js"></script>
+</body>
+</html>

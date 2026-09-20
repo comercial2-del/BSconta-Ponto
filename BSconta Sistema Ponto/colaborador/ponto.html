@@ -1,0 +1,1009 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ponto / Jornada — BSconta+ RH</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+  <link rel="stylesheet" href="../css/theme-v2.css" />
+
+<style id="colaborador-ponto-history-polish">
+/* Jornada / Histórico do colaborador — visual compacto e alinhado à referência */
+.history-period-card{padding:0!important;overflow:hidden;border:1px solid #e7ecf3!important}
+.history-filter-bar{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1rem 1.1rem;border-bottom:1px solid #eef1f5;background:#fff}
+.history-period-tabs{display:inline-flex;align-items:center;gap:.18rem;padding:.18rem;background:#f5f7fa;border:1px solid #e6eaf0;border-radius:10px}
+.history-period-tabs button{border:0;background:transparent;color:#667085;font-weight:700;font-size:.82rem;padding:.48rem .8rem;border-radius:8px;cursor:pointer;transition:.15s ease}
+.history-period-tabs button:hover{color:#1d2939;background:#eef2f6}
+.history-period-tabs button.active{background:#2f5bea;color:#fff;box-shadow:0 2px 5px rgba(47,91,234,.2)}
+.history-period-control{display:flex;align-items:center;gap:.55rem}
+.history-period-label{font-size:.82rem;font-weight:800;color:#1d2939;min-width:10rem;text-align:center}
+.history-stepper{display:inline-flex;align-items:center;gap:.1rem;padding:.2rem;border:1px solid #e2e7ef;border-radius:10px;background:#fff}
+.history-stepper .step-btn{width:30px;height:30px;border:0;background:transparent;border-radius:7px;color:#98a2b3;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.history-stepper .step-btn:hover{background:#f3f5f8;color:#344054}
+.history-stepper .step-btn svg{width:15px;height:15px}
+.history-calendar-button{width:30px;height:30px;border:0;background:transparent;border-radius:7px;color:#98a2b3;display:flex;align-items:center;justify-content:center;position:relative;cursor:pointer}
+.history-calendar-button:hover{background:#f3f5f8;color:#344054}
+.history-calendar-button svg{width:15px;height:15px}
+.history-calendar-button input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.history-range{display:flex;align-items:center;gap:.55rem;padding:.18rem;border:1px solid #e2e7ef;border-radius:10px;background:#fff}
+.history-range input[type=date]{width:120px;border:0!important;box-shadow:none!important;padding:.45rem .55rem!important;font-size:.78rem!important;font-weight:700!important;background:#fff!important}
+.history-range .range-sep{font-size:.76rem;font-weight:700;color:#98a2b3}
+.history-range .range-count{display:inline-flex;align-items:center;height:30px;padding:0 .65rem;border-radius:7px;background:#f5f7fa;color:#667085;font-size:.72rem;font-weight:800;white-space:nowrap}
+.history-body{padding:1rem 1.1rem 1.05rem}
+.history-section-head{display:flex;align-items:center;justify-content:space-between;gap:.8rem;margin-bottom:.75rem}
+.history-context{font-size:.75rem;color:#98a2b3;font-weight:600}
+.history-week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:.55rem}
+.history-day-card{position:relative;min-height:98px;padding:.72rem .68rem;border:1px solid #e7ecf2;border-radius:12px;background:#fff;display:flex;flex-direction:column;gap:.18rem;cursor:pointer;transition:transform .14s ease,box-shadow .14s ease,border-color .14s ease,background .14s ease}
+.history-day-card:hover{transform:translateY(-1px);box-shadow:0 5px 14px rgba(16,24,40,.07)}
+.history-day-card .dow{font-size:.61rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#98a2b3}
+.history-day-card .num{font-size:1.2rem;line-height:1.05;font-weight:800;color:#1d2939}
+.history-day-card .status-label{margin-top:auto;font-size:.72rem;font-weight:800}
+.history-day-card .status-time{font-size:.64rem;color:#98a2b3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.history-day-card .status-meta{font-size:.64rem;color:#475467;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-top:.28rem;border-top:1px solid rgba(16,24,40,.06)}
+.history-day-card .hoje-chip{position:absolute;top:.55rem;right:.5rem;font-size:.52rem;font-weight:900;letter-spacing:.02em;text-transform:uppercase;color:#fff;background:#2f5bea;padding:.13rem .36rem;border-radius:999px}
+.history-day-card.trabalhado{background:#effbf5;border-color:#d6f3e4}.history-day-card.trabalhado .status-label{color:#059669}
+.history-day-card.homeoffice{background:#f1f5ff;border-color:#dde7ff}.history-day-card.homeoffice .status-label{color:#3558c8}
+.history-day-card.atraso{background:#fff9e8;border-color:#f8edc8}.history-day-card.atraso .status-label{color:#b96a00}
+.history-day-card.falta{background:#fff1f1;border-color:#ffd9d9}.history-day-card.falta .status-label{color:#d92d20}
+.history-day-card.previsto{background:#fff;border-style:dashed}.history-day-card.previsto .status-label{color:#98a2b3}
+.history-day-card.fimdesemana{background:#f8fafc;border-color:#eef2f6}.history-day-card.fimdesemana .status-label{color:#98a2b3;font-weight:700}
+.history-day-card.semregistro{background:#fff;border-style:dashed}.history-day-card.semregistro .status-label{color:#98a2b3}
+.history-day-card.pendente{background:#f8f5ff;border-color:#ded2fb;border-style:dashed}.history-day-card.pendente .status-label{color:#7c3aed}.history-day-card.pendente .status-meta{color:#7c3aed;border-top-color:rgba(124,58,237,.14)}
+.history-day-card.is-today,.history-day-card.is-selected{border-color:#2f5bea;box-shadow:0 0 0 2px rgba(47,91,234,.12)}
+.history-day-card.corrigido::after{content:"";position:absolute;right:.55rem;bottom:.55rem;width:7px;height:7px;border-radius:50%;background:#2f5bea}
+.history-single{display:grid;grid-template-columns:minmax(0,300px)}
+.history-month-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:.38rem}
+.history-month-head{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:.38rem;margin-bottom:.35rem}
+.history-month-head span{text-align:center;font-size:.61rem;font-weight:800;letter-spacing:.04em;color:#98a2b3;text-transform:uppercase;padding:.1rem 0}
+.history-month-cell{min-height:46px;border:1px solid #e7ecf2;border-radius:9px;background:#fff;display:flex;align-items:center;justify-content:center;position:relative;font-size:.76rem;font-weight:800;color:#1d2939;cursor:pointer;transition:.14s ease}
+.history-month-cell:hover{transform:translateY(-1px);box-shadow:0 4px 10px rgba(16,24,40,.06)}
+.history-month-cell.blank{visibility:hidden}
+.history-month-cell .dot{position:absolute;bottom:6px;width:5px;height:5px;border-radius:50%}
+.history-month-cell.completo{background:#effbf5;color:#047857;border-color:#d6f3e4}.history-month-cell.completo .dot{background:#10b981}
+.history-month-cell.atraso{background:#fff9e8;color:#b96a00;border-color:#f8edc8}.history-month-cell.atraso .dot{background:#f59e0b}
+.history-month-cell.falta{background:#fff1f1;color:#d92d20;border-color:#ffd9d9}.history-month-cell.falta .dot{background:#ef4444}
+.history-month-cell.extra{background:#f5f3ff;color:#6d42c7;border-color:#e9e2ff}.history-month-cell.extra .dot{background:#8b5cf6}
+.history-month-cell.futuro{color:#98a2b3;border-style:dashed}
+.history-month-cell.pendente{background:#f8f5ff;color:#7c3aed;border-color:#ded2fb;border-style:dashed}.history-month-cell.pendente .dot{background:#8b5cf6}
+.history-month-cell.hoje{box-shadow:0 0 0 2px #2f5bea}
+.history-month-cell.selected{border-color:#2f5bea;box-shadow:0 0 0 2px rgba(47,91,234,.1)}
+.history-custom-summary{display:flex;align-items:center;gap:.65rem;flex-wrap:wrap;margin-bottom:.8rem}
+.history-summary-chip{display:inline-flex;align-items:center;gap:.4rem;padding:.38rem .6rem;border-radius:8px;background:#f7f9fc;border:1px solid #e9edf3;font-size:.72rem;font-weight:800;color:#667085}
+.history-summary-chip strong{color:#344054}
+.history-empty-range{padding:1.2rem;border:1px dashed #dfe5ec;border-radius:12px;background:#fafbfc;color:#98a2b3;text-align:center;font-size:.78rem;font-weight:600}
+.history-legend{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin-top:.8rem;padding-top:.75rem;border-top:1px solid #eef1f5}
+.history-legend .item{display:inline-flex;align-items:center;gap:.38rem;font-size:.72rem;font-weight:700;color:#667085}
+.history-legend .dot{width:8px;height:8px;border-radius:50%}
+@media(max-width:900px){.history-filter-bar{align-items:stretch;flex-direction:column}.history-period-control{justify-content:flex-start}.history-week{grid-template-columns:repeat(4,1fr)}}
+@media(max-width:640px){.history-week{grid-template-columns:repeat(2,1fr)}.history-filter-bar{padding:.8rem}.history-body{padding:.8rem}.history-period-tabs{width:100%}.history-period-tabs button{flex:1}.history-period-control{width:100%}.history-stepper,.history-range{width:100%;justify-content:space-between}.history-period-label{flex:1}.history-range input[type=date]{width:auto;min-width:0;flex:1}.history-month-grid,.history-month-head{gap:.25rem}.history-month-cell{min-height:40px}}
+</style>
+
+</head>
+<body>
+  <div class="app-shell">
+    <div id="app-header"></div>
+    <div class="app-content">
+      <main class="main">
+        <div id="top-header" class="top-header"></div>
+        <div id="content"><div class="loading-wrap"><div class="spinner"></div></div></div>
+      </main>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-ajuste-ponto">
+    <div class="modal">
+      <div class="modal-header"><h3>Solicitar ajuste de ponto</h3><button class="modal-close" data-close-modal></button></div>
+      <form id="form-ajuste-ponto">
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="field full">
+              <label>O que você precisa?</label>
+              <div style="display:flex;flex-direction:column;gap:0.55rem">
+                <label class="check-row"><input type="radio" name="ajuste-tipo" value="CORRIGIR" id="ajuste-tipo-corrigir" checked /> Corrigir um horário já registrado</label>
+                <label class="check-row"><input type="radio" name="ajuste-tipo" value="ATRASADO" id="ajuste-tipo-atrasado" /> Lançar um ponto que não foi registrado (atrasado)</label>
+              </div>
+            </div>
+            <div class="field"><label>Data de referência</label><input type="date" id="ajuste-data" required /></div>
+            <div class="field"><label>Registro</label>
+              <select id="ajuste-registro" required>
+                <option value="entrada">Entrada</option>
+                <option value="intervaloSaida">Saída intervalo</option>
+                <option value="intervaloVolta">Retorno intervalo</option>
+                <option value="saida">Saída</option>
+              </select>
+            </div>
+            <div class="field full"><label>Horário correto</label><input type="time" id="ajuste-horario" required /></div>
+            <div class="field full"><label>Justificativa</label><textarea id="ajuste-justificativa" required placeholder="Explique rapidamente o que aconteceu..."></textarea></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-ghost" data-close-modal>Cancelar</button>
+          <button type="submit" class="btn-primary auto" id="btn-enviar-ajuste-ponto"><span>Enviar ao RH</span></button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>window.BASE_PATH = "../";</script>
+  <script src="../js/demo-data.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/supabase-client.js"></script>
+  <script src="../js/rh-supabase-auth.js"></script>
+  <script src="../js/rh-ponto-data.js"></script>
+  <script>
+(async function () {
+    const session = await requireRoleReal("COLABORADOR");
+    if (!session) return;
+    if (!session.employeeId) {
+      document.getElementById("content").innerHTML = emptyStateHtml({
+        icon: ICONS.alertCircle || ICONS.clock,
+        title: "Sem cadastro de colaborador vinculado",
+        desc: "Seu login não está ligado a um colaborador em rh.colaboradores, então não há um registro de ponto para mostrar. Fale com o RH.",
+      });
+      return;
+    }
+    // DEMO.ponto agora é carregado DE VERDADE do Supabase (rh.ponto_registros)
+    // — antes era um objeto de exemplo único, igual para qualquer pessoa;
+    // depois passou a ser localStorage por colaborador; agora é o banco.
+    let pendentesMap = {};
+    async function carregarTudo() {
+      DEMO.ponto = await rhCarregarPonto(session.employeeId);
+      pendentesMap = await rhDiasComAjustePendente(session.employeeId);
+      aplicarPendentes();
+    }
+    function aplicarPendentes() {
+      const p = DEMO.ponto;
+      Object.keys(pendentesMap).forEach((data) => {
+        if (data === p.hoje.data) { p.hoje.pendenteAjuste = pendentesMap[data]; return; }
+        let rec = p.historico.find((h) => h.data === data);
+        if (!rec) { rec = { data, status: "completo", entrada: null, intervaloSaida: null, intervaloVolta: null, saida: null, horasTrabalhadas: null, horasExtras: 0, atrasoMin: 0, local: null, geo: null, alteradoPeloRH: null }; p.historico.push(rec); p.historico.sort((a, b) => a.data.localeCompare(b.data)); }
+        rec.pendenteAjuste = pendentesMap[data];
+      });
+    }
+    async function persistirPonto() {
+      const salvo = await rhSalvarPontoHoje(session.employeeId, DEMO.ponto.hoje);
+      Object.assign(DEMO.ponto.hoje, salvo);
+    }
+    try {
+      await carregarTudo();
+    } catch (erro) {
+      document.getElementById("content").innerHTML = emptyStateHtml({
+        icon: ICONS.alertCircle || ICONS.clock,
+        title: "Não foi possível carregar seu ponto",
+        desc: erro?.message || String(erro),
+      });
+      return;
+    }
+    document.querySelector("#modal-ajuste-ponto .modal-close").innerHTML = ICONS.x;
+    document.getElementById("btn-enviar-ajuste-ponto").innerHTML = `${ICONS.send}<span>Enviar ao RH</span>`;
+    const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+    let abaAtiva = "hoje";
+    let periodoTipo = "semana";
+    let mesRef = { ano: 2026, mes: 8 }; // Setembro (0-indexed)
+    let diaSelecionado = todayIso();
+    let rangeInicio = null, rangeFim = null;
+    let _clockInterval = null;
+
+    function todayIso() {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+    function porData(iso) { return DEMO.ponto.historico.find((h) => h.data === iso); }
+    function fmtHoras(h) {
+      if (h === null || h === undefined) return "—";
+      const sinal = h < 0 ? "-" : "";
+      const abs = Math.abs(h);
+      const hh = Math.floor(abs);
+      const mm = Math.round((abs - hh) * 60);
+      return `${sinal}${hh}h${mm.toString().padStart(2, "0")}`;
+    }
+
+    function passosDeHoje() {
+      const p = DEMO.ponto;
+      return [
+        { key: "entrada", label: "Entrada", ctaLabel: "Registrar entrada", hora: p.hoje.entrada },
+        { key: "intervaloSaida", label: "Saída intervalo", ctaLabel: "Registrar saída para intervalo", hora: p.hoje.intervaloSaida },
+        { key: "intervaloVolta", label: "Retorno intervalo", ctaLabel: "Registrar retorno do intervalo", hora: p.hoje.intervaloVolta },
+        { key: "saida", label: "Saída", ctaLabel: "Registrar saída", hora: p.hoje.saida },
+      ];
+    }
+
+    function render() {
+      clearInterval(_clockInterval);
+      const steps = passosDeHoje();
+      const nextStep = steps.find((s) => !s.hora);
+
+      document.getElementById("content").innerHTML = `
+        <div class="space-y ponto-page-narrow">
+          <div class="row-between">
+            <div>
+              <h1 class="page-title">Ponto / Jornada</h1>
+              <p class="page-sub">Registre seu ponto e acompanhe sua jornada de trabalho.</p>
+            </div>
+          </div>
+
+          <div class="card card-p" style="padding:0.4rem">
+            <div class="tabs" style="border-bottom:none">
+              <button type="button" class="tab-btn ${abaAtiva === "hoje" ? "active" : ""}" data-aba="hoje">${ICONS.clock}<span style="margin-left:0.4rem">Hoje</span></button>
+              <button type="button" class="tab-btn ${abaAtiva === "historico" ? "active" : ""}" data-aba="historico">${ICONS.calendar}<span style="margin-left:0.4rem">Histórico</span></button>
+            </div>
+          </div>
+
+          <div id="aba-conteudo"></div>
+        </div>
+      `;
+
+      document.querySelectorAll("[data-aba]").forEach((btn) =>
+        btn.addEventListener("click", () => {
+          abaAtiva = btn.dataset.aba;
+          render();
+        })
+      );
+
+      if (abaAtiva === "hoje") renderHoje(steps, nextStep);
+      else renderHistorico();
+    }
+
+    // ------------------------------------------------------------------
+    // Aba "Hoje" — tela principal de bater ponto
+    // ------------------------------------------------------------------
+    function saudacaoPorHora() {
+      const h = new Date().getHours();
+      if (h < 12) return "Bom dia";
+      if (h < 18) return "Boa tarde";
+      return "Boa noite";
+    }
+
+    function jornadaStatusInfo(p) {
+      if (!navigator.onLine) return { tone: "offline", label: "Sem conexão" };
+      if (!p.hoje.entrada) return { tone: "wait", label: "Aguardando entrada" };
+      if (p.hoje.entrada && !p.hoje.intervaloSaida) return { tone: "active", label: "Jornada em andamento" };
+      if (p.hoje.intervaloSaida && !p.hoje.intervaloVolta) return { tone: "pause", label: "Em intervalo" };
+      if (p.hoje.intervaloVolta && !p.hoje.saida) return { tone: "active", label: "Jornada em andamento" };
+      return { tone: "done", label: "Jornada encerrada" };
+    }
+
+    /** Estimativa simples do horário de saída/retorno de intervalo a partir da
+     * entrada (+4h / +5h) — só para dar contexto em "Próximos registros" antes
+     * de o colaborador bater esses pontos de verdade; nunca é a fonte real. */
+    function previstoIntervalo(entradaStr) {
+      if (!entradaStr) return { saida: null, volta: null };
+      const [h, m] = entradaStr.split(":").map(Number);
+      const add = (mins) => {
+        const total = h * 60 + m + mins;
+        const hh = Math.floor(total / 60) % 24;
+        const mm = total % 60;
+        return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+      };
+      return { saida: add(240), volta: add(300) };
+    }
+
+    function calcularHorasHoje(p) {
+      const parse = (hhmm) => {
+        if (!hhmm) return null;
+        const [h, m] = hhmm.split(":").map(Number);
+        return h * 60 + m;
+      };
+      const ent = parse(p.hoje.entrada);
+      if (ent === null) return null;
+      const saidaInt = parse(p.hoje.intervaloSaida);
+      const voltaInt = parse(p.hoje.intervaloVolta);
+      const saida = parse(p.hoje.saida);
+      const agoraMin = (() => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); })();
+      let minutos = 0;
+      if (saidaInt !== null) {
+        minutos += Math.max(0, saidaInt - ent);
+        if (voltaInt !== null) {
+          const fim = saida !== null ? saida : agoraMin;
+          minutos += Math.max(0, fim - voltaInt);
+        }
+      } else {
+        const fim = saida !== null ? saida : agoraMin;
+        minutos += Math.max(0, fim - ent);
+      }
+      return minutos / 60;
+    }
+
+    function iconePasso(key) {
+      return { entrada: ICONS.clock, intervaloSaida: ICONS.utensils, intervaloVolta: ICONS.refresh, saida: ICONS.logout }[key] || ICONS.clock;
+    }
+
+    function renderHoje(steps, nextStep) {
+      const p = DEMO.ponto;
+      const primeiroNome = (session.name || "").split(" ")[0];
+      const agora = new Date();
+      const dataFmt = agora.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+      const diaSemana = agora.toLocaleDateString("pt-BR", { weekday: "long" });
+      const status = jornadaStatusInfo(p);
+      const offline = !navigator.onLine;
+      const horasHoje = calcularHorasHoje(p);
+      const previsto = previstoIntervalo(p.hoje.entrada);
+      const ultimoFeito = steps.filter((s) => s.hora).slice(-1)[0];
+      const proximos = nextStep ? steps.slice(steps.findIndex((s) => s.key === nextStep.key)) : [];
+      const horasDevendo = p.historico.reduce((acc, r) => acc + (Number(r.atrasoMin) || 0) / 60, 0);
+      const horasAcumuladas = p.historico.reduce((acc, r) => acc + (Number(r.horasExtras) || 0), 0);
+
+      let ctaHtml;
+      if (offline) {
+        ctaHtml = `
+          <button type="button" class="ponto-cta-btn" disabled>${ICONS.clock}<span>Registrar ponto</span></button>
+          <div class="offline-banner">${ICONS.alertCircle}<span>Sem conexão. Verifique sua internet para registrar o ponto.</span></div>`;
+      } else if (!nextStep) {
+        ctaHtml = `
+          <button type="button" class="ponto-cta-btn done-variant" disabled>${ICONS.checkCircle}<span>Jornada encerrada hoje</span></button>
+          <p class="ponto-cta-hint" id="cta-hint">Jornada de hoje concluída. Bom descanso!</p>`;
+      } else {
+        const variant = nextStep.key === "intervaloSaida" ? "pause-variant" : "";
+        ctaHtml = `
+          <button type="button" class="ponto-cta-btn ${variant}" id="btn-bater">${ICONS.clock}<span>${nextStep.ctaLabel}</span>${ICONS.chevronRight.replace("<svg ", '<svg class="arrow" ')}</button>
+          <p class="ponto-cta-hint" id="cta-hint">Clique no botão para registrar seu ponto no horário atual.</p>`;
+      }
+
+      document.getElementById("aba-conteudo").innerHTML = `
+        <div class="ponto-hoje-grid">
+          <div class="ponto-hoje-main">
+            <div class="card card-p ponto-greet-card">
+              <div class="ponto-greet-top">
+                <div class="ponto-greet-person">
+                  <span class="avatar avatar-md ${avatarColorClass(session.name)}">${session.photo ? `<img src="${session.photo}" alt="" />` : initials(session.name)}</span>
+                  <div>
+                    <h2>${esc(saudacaoPorHora())}, ${esc(primeiroNome)}!</h2>
+                    <p>Que seu dia seja produtivo!</p>
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.4rem">
+                  <span class="jornada-status-badge tone-${status.tone}"><span class="dot"></span>${status.label}</span>
+                  ${p.hoje.local ? localBadgeHtml(p.hoje.local) + (p.hoje.geo ? geoLinkHtml(p.hoje.geo) : "") : ""}
+                </div>
+              </div>
+              <div class="ponto-clock-row">
+                <div class="ponto-clock-big" id="ponto-clock">${horaAgora()}</div>
+                <div class="ponto-clock-meta">
+                  <span class="ponto-clock-date">${ICONS.calendar}${dataFmt}</span>
+                  <span class="ponto-dow-chip">${diaSemana}</span>
+                </div>
+              </div>
+              ${ctaHtml}
+            </div>
+
+            <div class="card card-p">
+              <h2>Registros de hoje</h2>
+              <div class="punch-track" id="punch-track" style="margin-top:0.8rem"></div>
+              <div class="ponto-summary-row">
+                <div class="ponto-summary-item">
+                  <span class="label">${ICONS.clock}Horas trabalhadas hoje</span>
+                  <strong>${horasHoje === null ? "—" : fmtHoras(horasHoje)}</strong>
+                </div>
+                <div class="ponto-summary-item">
+                  <span class="label">${ICONS.calendar}Jornada prevista</span>
+                  <strong>${fmtHoras(p.metaDiaria)}</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <aside class="ponto-hoje-side">
+            <div class="card card-p ponto-side-card">
+              <h2>${ICONS.clock}Último registro</h2>
+              ${
+                ultimoFeito
+                  ? `<div class="ponto-last-record">
+                      <div class="dot-line"><span class="dot"></span></div>
+                      <div>
+                        <p class="label">${ultimoFeito.label}</p>
+                        <p class="time">${ultimoFeito.hora} · ${dataFmt}</p>
+                      </div>
+                    </div>`
+                  : `<p class="empty">Nenhum registro ainda hoje.</p>`
+              }
+            </div>
+
+            <div class="card card-p ponto-side-card">
+              <h2>${ICONS.calendar}Próximos registros</h2>
+              ${
+                proximos.length
+                  ? `<ul class="ponto-next-list">
+                      ${proximos
+                        .map((s, i) => {
+                          const previstoHora = s.key === "intervaloSaida" ? previsto.saida : s.key === "intervaloVolta" ? previsto.volta : null;
+                          return `<li class="${i === 0 ? "is-next" : ""}">
+                            <span class="ico">${iconePasso(s.key)}</span>
+                            <div>
+                              <p class="label">${s.label}</p>
+                              <p class="time">${previstoHora ? previstoHora : "Ainda não registrado"}</p>
+                            </div>
+                          </li>`;
+                        })
+                        .join("")}
+                    </ul>`
+                  : `<p class="empty">Nenhum registro pendente — jornada concluída.</p>`
+              }
+            </div>
+
+            <div class="ponto-tip-card">
+              <h3>Sua jornada</h3>
+              <p>Fique atento aos seus horários e registre seu ponto corretamente.</p>
+              <span class="tip-icon">${ICONS.clock}</span>
+            </div>
+
+            <div class="card card-p ponto-side-card ponto-bank-mini">
+              <div class="bank-hours-ring-wrap">${progressRingSvg({ size: 62, stroke: 7, pct: Math.min((p.saldoBancoHoras / 10) * 100, 100), colorVar: "--indigo-500" })}
+                <div class="bank-hours-center"><strong>${p.saldoBancoHoras >= 0 ? "+" : ""}${p.saldoBancoHoras.toFixed(1).replace(".", ",")}h</strong><span>Banco</span></div>
+              </div>
+              <div class="bank-meta">
+                <p class="label">Meta diária</p>
+                <p class="value">${p.metaDiaria}h por dia útil</p>
+              </div>
+            </div>
+
+            <div class="card card-p ponto-side-card">
+              <h2>${ICONS.calendar}Detalhe do banco de horas</h2>
+              <div class="ponto-summary-row" style="margin-top:0.6rem">
+                <div class="ponto-summary-item">
+                  <span class="label">Horas devendo</span>
+                  <strong>${horasDevendo > 0 ? fmtHoras(horasDevendo) : "—"}</strong>
+                </div>
+                <div class="ponto-summary-item">
+                  <span class="label">Horas acumuladas</span>
+                  <strong>${horasAcumuladas > 0 ? "+" + fmtHoras(horasAcumuladas) : "—"}</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="card card-p ponto-side-card">
+              <h2>${ICONS.edit}Ajustar ponto</h2>
+              <p class="empty" style="margin:0 0 0.85rem">Esqueceu de bater ou registrou um horário errado? Solicite a correção ou o lançamento atrasado — o RH analisa e confirma.</p>
+              <button type="button" class="btn-ghost" id="btn-ajustar-ponto" style="width:100%;justify-content:center">${ICONS.edit}<span>Solicitar ajuste de ponto</span></button>
+            </div>
+          </aside>
+        </div>
+      `;
+
+      document.getElementById("punch-track").innerHTML = renderPunchTrack(steps);
+      iniciarRelogioAoVivo();
+
+      document.getElementById("btn-ajustar-ponto")?.addEventListener("click", abrirModalAjustePonto);
+
+      document.getElementById("btn-bater")?.addEventListener("click", () => {
+        if (!navigator.onLine) { showToast("Sem conexão. Não foi possível registrar o ponto.", "error"); render(); return; }
+        if (!p.hoje.entrada) {
+          abrirModalLocalPonto(async (local, geo) => {
+            const antes = { local: p.hoje.local, geo: p.hoje.geo, entrada: p.hoje.entrada };
+            try {
+              p.hoje.local = local;
+              p.hoje.geo = geo;
+              p.hoje.entrada = horaAgora();
+              await persistirPonto();
+              showToast(`✓ Ponto registrado com sucesso — horário registrado: ${p.hoje.entrada}.`, "success");
+              render();
+              requestAnimationFrame(piscarSucesso);
+            } catch (erro) {
+              Object.assign(p.hoje, antes);
+              showToast("Não foi possível registrar o ponto: " + (erro?.message || erro), "error");
+              render();
+            }
+          });
+        } else {
+          registrarProximoPontoUI(nextStep);
+        }
+      });
+    }
+
+    function piscarSucesso() {
+      const btn = document.getElementById("btn-bater");
+      if (!btn) return;
+      btn.classList.add("just-saved");
+      setTimeout(() => btn.classList.remove("just-saved"), 750);
+    }
+
+    function registrarProximoPontoUI(nextStep) {
+      const btn = document.getElementById("btn-bater");
+      const hint = document.getElementById("cta-hint");
+      if (btn) {
+        btn.disabled = true;
+        btn.classList.add("is-saving");
+        btn.innerHTML = `<span class="spinner spinner-sm"></span><span>Registrando...</span>`;
+      }
+      setTimeout(async () => {
+        const p = DEMO.ponto;
+        const antes = { geo: p.hoje.geo, intervaloSaida: p.hoje.intervaloSaida, intervaloVolta: p.hoje.intervaloVolta, saida: p.hoje.saida };
+        try {
+          let geo = null;
+          if (typeof capturarLocalizacao === "function") {
+            const res = await capturarLocalizacao(5000);
+            if (res.ok) geo = { lat: res.lat, lng: res.lng, precisao: res.precisao };
+          }
+          const hora = horaAgora();
+          if (geo) p.hoje.geo = geo;
+          if (nextStep.key === "intervaloSaida") p.hoje.intervaloSaida = hora;
+          else if (nextStep.key === "intervaloVolta") p.hoje.intervaloVolta = hora;
+          else if (nextStep.key === "saida") p.hoje.saida = hora;
+          else throw new Error("Etapa de ponto desconhecida.");
+          await persistirPonto();
+          showToast(`✓ Ponto registrado com sucesso — horário registrado: ${hora}.`, "success");
+          render();
+          requestAnimationFrame(piscarSucesso);
+        } catch (err) {
+          Object.assign(p.hoje, antes);
+          if (btn) { btn.disabled = false; btn.classList.remove("is-saving"); }
+          if (hint) { hint.textContent = "Não foi possível registrar o ponto. Tente novamente."; hint.classList.add("is-error"); }
+          showToast("Não foi possível registrar o ponto: " + (err?.message || err), "error");
+        }
+      }, 450);
+    }
+
+    function horaAgora() {
+      return new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    }
+
+    // ------------------------------------------------------------------
+    // Ajustar ponto — o colaborador não edita o próprio registro
+    // diretamente (só o RH pode alterar oficialmente, ver "alteradoPeloRH"
+    // no histórico); em vez disso essa ação abre uma solicitação que entra
+    // na fila do RH (mesma fila de "Solicitações"), pra manter uma trilha
+    // de aprovação de quem mudou o quê.
+    // ------------------------------------------------------------------
+    let _seqAjustePonto = 201;
+    const REGISTRO_LABELS = { entrada: "Entrada", intervaloSaida: "Saída intervalo", intervaloVolta: "Retorno intervalo", saida: "Saída" };
+
+    function abrirModalAjustePonto() {
+      document.getElementById("form-ajuste-ponto").reset();
+      document.getElementById("ajuste-tipo-corrigir").checked = true;
+      const dataInput = document.getElementById("ajuste-data");
+      dataInput.value = todayIso();
+      dataInput.max = todayIso();
+      openModal("modal-ajuste-ponto");
+    }
+
+    document.getElementById("form-ajuste-ponto").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btnEnviar = document.getElementById("btn-enviar-ajuste-ponto");
+      const atrasado = document.getElementById("ajuste-tipo-atrasado").checked;
+      const data = document.getElementById("ajuste-data").value;
+      const campo = document.getElementById("ajuste-registro").value;
+      const registroLabel = REGISTRO_LABELS[campo] || campo;
+      const horario = document.getElementById("ajuste-horario").value;
+      const justificativa = document.getElementById("ajuste-justificativa").value.trim();
+
+      btnEnviar.disabled = true;
+      try {
+        // Pedido de verdade: uma linha real em rh.solicitacoes (RLS só deixa
+        // o colaborador criar a própria, sempre PENDENTE — só o RH pode
+        // aprovar/recusar). Visível pelo RH em qualquer aba/dispositivo,
+        // não depende mais do navegador de quem pediu.
+        const solicitacao = await rhCriarAjustePonto({
+          colaboradorId: session.employeeId, colaboradorNome: session.name, data,
+          campo, campoLabel: registroLabel, horario,
+          tipo: atrasado ? "ATRASADO" : "CORRIGIR", justificativa,
+        });
+        pendentesMap = await rhDiasComAjustePendente(session.employeeId);
+        aplicarPendentes();
+        closeModal("modal-ajuste-ponto");
+        showToast(`Solicitação ${solicitacao.protocolo} enviada ao RH.`, "success");
+        if (abaAtiva === "historico") renderHistorico();
+      } catch (erro) {
+        showToast("Não foi possível enviar a solicitação: " + (erro?.message || erro), "error");
+      } finally {
+        btnEnviar.disabled = false;
+      }
+    });
+
+    function iniciarRelogioAoVivo() {
+      clearInterval(_clockInterval);
+      _clockInterval = setInterval(() => {
+        const el = document.getElementById("ponto-clock");
+        if (!el) { clearInterval(_clockInterval); return; }
+        el.textContent = horaAgora();
+      }, 1000);
+    }
+
+    function renderPunchTrack(steps) {
+      let currentSet = false;
+      return steps
+        .map((s, i) => {
+          const done = !!s.hora;
+          const isCurrent = !done && !currentSet;
+          if (isCurrent) currentSet = true;
+          const nextDone = !!steps[i + 1]?.hora;
+          const lineClass = done ? (nextDone ? "is-done" : "is-half") : "";
+          return `
+          <div class="punch-step ${done ? "done" : isCurrent ? "current" : ""}">
+            <div class="punch-dot">${done ? ICONS.check : i + 1}<span class="punch-line ${lineClass}"></span></div>
+            <p class="punch-label">${s.label}</p>
+            <p class="punch-time">${s.hora || (isCurrent ? "Aguardando" : "—")}</p>
+          </div>`;
+        })
+        .join("");
+    }
+
+    // ------------------------------------------------------------------
+    // Aba "Histórico"
+    // ------------------------------------------------------------------
+    function renderHistorico() {
+      document.getElementById("aba-conteudo").innerHTML = `
+        <div class="space-y">
+          <div class="card card-p history-period-card">
+            <div class="history-filter-bar">
+              <div class="history-period-tabs">
+                <button type="button" data-periodo="dia" class="${periodoTipo === "dia" ? "active" : ""}">Dia</button>
+                <button type="button" data-periodo="semana" class="${periodoTipo === "semana" ? "active" : ""}">Semana</button>
+                <button type="button" data-periodo="mes" class="${periodoTipo === "mes" ? "active" : ""}">Mês</button>
+                <button type="button" data-periodo="personalizado" class="${periodoTipo === "personalizado" ? "active" : ""}">Personalizado</button>
+              </div>
+              <div id="periodo-controles" class="history-period-control"></div>
+            </div>
+            <div class="history-body">
+              <div class="history-section-head">
+                <div>
+                  <strong style="font-size:.86rem;color:#1d2939">Histórico de jornada</strong>
+                  <span id="history-context" class="history-context"></span>
+                </div>
+                <span id="history-count" class="history-context"></span>
+              </div>
+              <div id="calendario-wrap"></div>
+              <div class="history-legend">
+                <span class="item"><span class="dot" style="background:var(--emerald-500)"></span>Trabalhado</span>
+                <span class="item"><span class="dot" style="background:var(--indigo-500)"></span>Home office</span>
+                <span class="item"><span class="dot" style="background:var(--amber-500)"></span>Atraso</span>
+                <span class="item"><span class="dot" style="background:var(--red-500)"></span>Falta</span>
+                <span class="item"><span class="dot" style="background:var(--violet-500)"></span>Ajuste pendente</span>
+                <span class="item"><span class="dot" style="background:var(--indigo-600)"></span>Alterado pelo RH</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card card-p table-scroll">
+            <div class="row-between" style="align-items:center;gap:.75rem"><h2 style="margin:0">Registros detalhados</h2><span style="font-size:.72rem;color:#98a2b3;font-weight:600;display:inline-flex;align-items:center;gap:.3rem">${ICONS.mapPin} Abrir localização no mapa</span></div>
+            <div id="tabela-historico"></div>
+          </div>
+        </div>
+      `;
+
+      renderControlesPeriodo();
+      renderCalendario();
+      renderTabelaHistorico();
+
+      document.querySelectorAll("[data-periodo]").forEach((btn) =>
+        btn.addEventListener("click", () => {
+          periodoTipo = btn.dataset.periodo;
+          if (periodoTipo === "dia" || periodoTipo === "semana") {
+            diaSelecionado = diaSelecionado || todayIso();
+          }
+          if (periodoTipo === "mes") {
+            const [y, m] = (diaSelecionado || todayIso()).split("-").map(Number);
+            mesRef = { ano: y, mes: m - 1 };
+          }
+          renderHistorico();
+        })
+      );
+    }
+
+    function fmtDateBR(iso) {
+      if (!iso) return "—";
+      const [y, m, d] = iso.split("-");
+      return `${d}/${m}/${y}`;
+    }
+
+    function mudarDia(deltaDias) {
+      const d = new Date(diaSelecionado + "T00:00:00");
+      d.setDate(d.getDate() + deltaDias);
+      diaSelecionado = isoOf(d);
+      renderControlesPeriodo();
+      renderCalendario();
+      renderTabelaHistorico();
+    }
+
+    function semanaInicioFim(iso) {
+      const d = new Date(iso + "T00:00:00");
+      const dow = (d.getDay() + 6) % 7;
+      const ini = new Date(d); ini.setDate(d.getDate() - dow);
+      const fim = new Date(ini); fim.setDate(ini.getDate() + 6);
+      return { inicio: isoOf(ini), fim: isoOf(fim) };
+    }
+
+    function renderControlesPeriodo() {
+      const el = document.getElementById("periodo-controles");
+      const ctx = document.getElementById("history-context");
+      if (!el) return;
+
+      if (periodoTipo === "mes") {
+        const nome = `${MESES[mesRef.mes]}/${mesRef.ano}`;
+        el.innerHTML = `
+          <div class="history-stepper">
+            <button type="button" class="step-btn" id="mes-prev" aria-label="Mês anterior">${ICONS.chevronLeft}</button>
+            <span class="history-period-label">${nome}</span>
+            <button type="button" class="history-calendar-button" title="Escolher mês">${ICONS.calendar}<input type="month" id="mes-input" value="${mesRef.ano}-${String(mesRef.mes + 1).padStart(2,"0")}" aria-label="Selecionar mês"></button>
+            <button type="button" class="step-btn" id="mes-next" aria-label="Próximo mês">${ICONS.chevronRight}</button>
+          </div>`;
+        document.getElementById("mes-prev").addEventListener("click", () => mudarMes(-1));
+        document.getElementById("mes-next").addEventListener("click", () => mudarMes(1));
+        document.getElementById("mes-input").addEventListener("change", (e) => {
+          if (!e.target.value) return;
+          const [y,m] = e.target.value.split("-").map(Number);
+          mesRef = { ano:y, mes:m-1 };
+          renderControlesPeriodo(); renderCalendario(); renderTabelaHistorico();
+        });
+        if (ctx) ctx.textContent = "Visão mensal";
+      } else if (periodoTipo === "dia" || periodoTipo === "semana") {
+        const isSemana = periodoTipo === "semana";
+        const faixa = semanaInicioFim(diaSelecionado);
+        const label = isSemana ? `${fmtDateBR(faixa.inicio).slice(0,5)}–${fmtDateBR(faixa.fim).slice(0,5)}/${faixa.fim.slice(0,4)}` : fmtDateBR(diaSelecionado);
+        const passo = isSemana ? 7 : 1;
+        el.innerHTML = `
+          <div class="history-stepper">
+            <button type="button" class="step-btn" id="dia-prev" aria-label="Anterior">${ICONS.chevronLeft}</button>
+            <span class="history-period-label">${label}</span>
+            <button type="button" class="history-calendar-button" title="Escolher data">${ICONS.calendar}<input type="date" id="dia-input" value="${diaSelecionado}" aria-label="Selecionar data" /></button>
+            <button type="button" class="step-btn" id="dia-next" aria-label="Próximo">${ICONS.chevronRight}</button>
+          </div>`;
+        document.getElementById("dia-prev").addEventListener("click", () => mudarDia(-passo));
+        document.getElementById("dia-next").addEventListener("click", () => mudarDia(passo));
+        document.getElementById("dia-input").addEventListener("change", (e) => {
+          diaSelecionado = e.target.value || todayIso();
+          renderControlesPeriodo(); renderCalendario(); renderTabelaHistorico();
+        });
+        if (ctx) ctx.textContent = isSemana ? `Semana de ${fmtDateBR(faixa.inicio)} a ${fmtDateBR(faixa.fim)}` : `Dia ${fmtDateBR(diaSelecionado)}`;
+      } else {
+        if (!rangeInicio) rangeInicio = "2026-09-01";
+        if (!rangeFim) rangeFim = todayIso();
+        el.innerHTML = `
+          <div class="history-range">
+            <input type="date" id="range-inicio" value="${rangeInicio}" aria-label="Data inicial" />
+            <span class="range-sep">até</span>
+            <input type="date" id="range-fim" value="${rangeFim}" aria-label="Data final" />
+            <span class="range-count">${intervaloValido() ? `${registrosDoPeriodo().length} registros` : "Ajuste o período"}</span>
+          </div>`;
+        document.getElementById("range-inicio").addEventListener("change", (e) => { rangeInicio = e.target.value; renderControlesPeriodo(); renderCalendario(); renderTabelaHistorico(); });
+        document.getElementById("range-fim").addEventListener("change", (e) => { rangeFim = e.target.value; renderControlesPeriodo(); renderCalendario(); renderTabelaHistorico(); });
+        if (ctx) ctx.textContent = intervaloValido() ? `De ${fmtDateBR(rangeInicio)} a ${fmtDateBR(rangeFim)}` : "Período inválido";
+      }
+    }
+
+    function intervaloValido() {
+      return !!rangeInicio && !!rangeFim && rangeInicio <= rangeFim;
+    }
+
+    function mudarMes(delta) {
+      mesRef.mes += delta;
+      if (mesRef.mes < 0) { mesRef.mes = 11; mesRef.ano--; }
+      if (mesRef.mes > 11) { mesRef.mes = 0; mesRef.ano++; }
+      renderControlesPeriodo();
+      renderCalendario();
+      renderTabelaHistorico();
+    }
+
+    function diaClasse(rec, isToday) {
+      let base = "futuro";
+      if (rec) {
+        if (rec.pendenteAjuste) base = "pendente";
+        else if (rec.status === "falta") base = "falta";
+        else if (rec.status === "atraso") base = "atraso";
+        else if (rec.horasExtras > 0) base = "extra";
+        else if (rec.status === "completo" || rec.status === "hoje") base = "completo";
+      }
+      return `${base}${isToday ? " hoje" : ""}${rec?.alteradoPeloRH ? " corrigido" : ""}`;
+    }
+
+    function renderCalendario() {
+      if (periodoTipo === "dia" || periodoTipo === "semana") renderCalendarioSemanaOuDia();
+      else if (periodoTipo === "mes") renderCalendarioMes();
+      else renderCalendarioPersonalizado();
+    }
+
+    function renderCalendarioPersonalizado() {
+      const wrap = document.getElementById("calendario-wrap");
+      if (!intervaloValido()) {
+        wrap.innerHTML = `<div class="history-empty-range">Selecione uma data inicial anterior ou igual à data final para consultar o período.</div>`;
+        return;
+      }
+      const rows = registrosDoPeriodo().slice().sort((a,b) => a.data.localeCompare(b.data));
+      const totalHoras = rows.reduce((acc, r) => acc + (Number(r.horasTrabalhadas) || 0), 0);
+      const atrasos = rows.reduce((acc, r) => acc + (Number(r.atrasoMin) || 0), 0);
+      wrap.innerHTML = `
+        <div class="history-custom-summary">
+          <span class="history-summary-chip">Período <strong>${fmtDateBR(rangeInicio)}–${fmtDateBR(rangeFim)}</strong></span>
+          <span class="history-summary-chip">Registros <strong>${rows.length}</strong></span>
+          <span class="history-summary-chip">Horas <strong>${fmtHoras(totalHoras)}</strong></span>
+          <span class="history-summary-chip">Atrasos <strong>${atrasos ? `${atrasos} min` : "0 min"}</strong></span>
+        </div>
+        ${rows.length ? `<div class="history-week">${rows.map((r) => weekDayCardHtml(r.data, {selected:false})).join("")}</div>` : `<div class="history-empty-range">Nenhum registro encontrado no período selecionado.</div>`}`;
+      wrap.querySelectorAll("[data-dia]").forEach((cell) =>
+        cell.addEventListener("click", () => {
+          diaSelecionado = cell.dataset.dia;
+          renderControlesPeriodo(); renderCalendario(); renderTabelaHistorico();
+        })
+      );
+    }
+
+    // Cartões de dia (visões "Dia" e "Semana") — mostram status e horário
+    // diretamente no card, no espírito de uma agenda semanal.
+    function weekDayCardHtml(iso, { selected }) {
+      const rec = porData(iso);
+      const d = new Date(iso + "T00:00:00");
+      const dowShort = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"][d.getDay()];
+      const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+      const isToday = iso === todayIso();
+
+      let bucket = "semregistro", statusLabel = "Sem registro", timeLabel = "", metaLabel = "";
+      if (rec?.pendenteAjuste) {
+        // Enquanto o RH não resolve a solicitação de ajuste, o dia fica
+        // marcado como "pendente" — assim que for aprovado, o registro
+        // ganha alteradoPeloRH e volta ao fluxo normal (com o selo "corrigido").
+        bucket = "pendente";
+        statusLabel = "Ajuste pendente";
+        metaLabel = rec.pendenteAjuste.tipo === "ATRASADO" ? "Lançamento aguardando RH" : "Correção aguardando RH";
+      } else if (rec) {
+        if (rec.status === "falta") {
+          bucket = "falta"; statusLabel = "Falta";
+        } else if (rec.status === "atraso") {
+          bucket = "atraso"; statusLabel = "Atraso";
+          timeLabel = rec.entrada ? (rec.saida ? `${rec.entrada} – ${rec.saida}` : `${rec.entrada} – em andamento`) : "";
+          metaLabel = rec.atrasoMin ? `${rec.atrasoMin} min de atraso` : "";
+        } else if (rec.status === "completo" || rec.status === "hoje") {
+          const isHome = rec.local === "HOME_OFFICE";
+          const emAndamento = rec.status === "hoje" && !rec.saida;
+          bucket = isHome ? "homeoffice" : "trabalhado";
+          statusLabel = emAndamento ? "Em andamento" : "Trabalhado";
+          timeLabel = rec.entrada ? (rec.saida ? `${rec.entrada} – ${rec.saida}` : `${rec.entrada} – em andamento`) : "";
+          if (rec.horasExtras) timeLabel += ` · +${fmtHoras(rec.horasExtras)} extra`;
+          // Rodapé: total de horas (quando já apurado) + local do registro —
+          // mesma informação que a visão mensal já mostra na tabela detalhada.
+          metaLabel = [rec.horasTrabalhadas != null ? fmtHoras(rec.horasTrabalhadas) : "", isHome ? "Home office" : "Presencial"].filter(Boolean).join(" · ");
+        } else if (rec.status === "futuro") {
+          bucket = isWeekend ? "fimdesemana" : "previsto";
+          statusLabel = isWeekend ? "Fim de semana" : "Previsto";
+        }
+      } else if (isWeekend) {
+        bucket = "fimdesemana"; statusLabel = "Fim de semana";
+      }
+
+      const classes = ["history-day-card", bucket];
+      if (rec?.alteradoPeloRH) classes.push("corrigido");
+      if (isToday) classes.push("is-today");
+      else if (selected) classes.push("is-selected");
+
+      const tituloCard = rec?.pendenteAjuste
+        ? `Ajuste pendente — ${esc(rec.pendenteAjuste.campoLabel)} solicitado para ${esc(rec.pendenteAjuste.horario)}, aguardando aprovação do RH`
+        : rec?.alteradoPeloRH
+        ? esc(`Alterado pelo RH — ${rec.alteradoPeloRH.motivo}`)
+        : "";
+
+      return `
+        <div class="${classes.join(" ")}" data-dia="${iso}" title="${tituloCard}">
+          ${isToday ? `<span class="hoje-chip">Hoje</span>` : ""}
+          <span class="dow">${dowShort}</span>
+          <span class="num">${d.getDate()}</span>
+          <span class="status-label">${statusLabel}</span>
+          ${timeLabel ? `<span class="status-time">${timeLabel}</span>` : ""}
+          ${metaLabel ? `<span class="status-meta">${metaLabel}${rec?.alteradoPeloRH ? " · Alterado pelo RH" : ""}</span>` : ""}
+        </div>`;
+    }
+
+    function renderCalendarioSemanaOuDia() {
+      const wrap = document.getElementById("calendario-wrap");
+      let html;
+      if (periodoTipo === "dia") {
+        html = `<div class="history-single">${weekDayCardHtml(diaSelecionado, { selected: true })}</div>`;
+      } else {
+        const d = new Date(diaSelecionado + "T00:00:00");
+        const dow = (d.getDay() + 6) % 7;
+        const inicioSemana = new Date(d);
+        inicioSemana.setDate(d.getDate() - dow);
+        let cards = "";
+        for (let i = 0; i < 7; i++) {
+          const dia = new Date(inicioSemana);
+          dia.setDate(inicioSemana.getDate() + i);
+          const iso = isoOf(dia);
+          cards += weekDayCardHtml(iso, { selected: iso === diaSelecionado });
+        }
+        html = `<div class="history-week">${cards}</div>`;
+      }
+      wrap.innerHTML = html;
+      wrap.querySelectorAll("[data-dia]").forEach((cell) =>
+        cell.addEventListener("click", () => {
+          diaSelecionado = cell.dataset.dia;
+          renderHistorico();
+        })
+      );
+    }
+
+    function renderCalendarioMes() {
+      const wrap = document.getElementById("calendario-wrap");
+      const ano = mesRef.ano, mes = mesRef.mes;
+      const daysInMonth = new Date(ano, mes + 1, 0).getDate();
+      const firstDow = (new Date(ano, mes, 1).getDay() + 6) % 7;
+      const hoje = todayIso();
+
+      let cells = "";
+      for (let i = 0; i < firstDow; i++) cells += `<div class="history-month-cell blank"></div>`;
+      for (let d = 1; d <= daysInMonth; d++) {
+        const iso = `${ano}-${String(mes + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+        const rec = porData(iso);
+        const isToday = iso === hoje;
+        const isSelected = iso === diaSelecionado;
+        const tituloCell = rec?.pendenteAjuste ? "Ajuste pendente — aguardando aprovação do RH" : rec?.alteradoPeloRH ? "Alterado pelo RH — " + esc(rec.alteradoPeloRH.motivo) : "Selecionar dia";
+        cells += `<div class="history-month-cell clickable ${diaClasse(rec, isToday)}${isSelected ? " selected" : ""}" data-dia="${iso}" title="${tituloCell}"><span>${d}</span>${rec && rec.status !== "futuro" ? '<span class="dot"></span>' : ""}</div>`;
+      }
+      wrap.innerHTML = `
+        <div class="history-month-head"><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span><span>Dom</span></div>
+        <div class="history-month-grid">${cells}</div>`;
+      wrap.querySelectorAll("[data-dia]").forEach((cell) =>
+        cell.addEventListener("click", () => {
+          diaSelecionado = cell.dataset.dia;
+          renderControlesPeriodo(); renderCalendario(); renderTabelaHistorico();
+        })
+      );
+    }
+
+    function registrosDoPeriodo() {
+      const all = DEMO.ponto.historico.filter((h) => h.status !== "futuro");
+      if (periodoTipo === "dia") return all.filter((h) => h.data === diaSelecionado);
+      if (periodoTipo === "semana") {
+        const d = new Date(diaSelecionado + "T00:00:00");
+        const dow = (d.getDay() + 6) % 7;
+        const inicio = new Date(d); inicio.setDate(d.getDate() - dow);
+        const fim = new Date(inicio); fim.setDate(inicio.getDate() + 6);
+        return all.filter((h) => h.data >= isoOf(inicio) && h.data <= isoOf(fim));
+      }
+      if (periodoTipo === "personalizado") return intervaloValido() ? all.filter((h) => h.data >= rangeInicio && h.data <= rangeFim) : [];
+      // mês
+      const prefixo = `${mesRef.ano}-${String(mesRef.mes + 1).padStart(2, "0")}`;
+      return all.filter((h) => h.data.startsWith(prefixo));
+    }
+    function isoOf(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
+
+    function renderTabelaHistorico() {
+      const rows = registrosDoPeriodo().slice().reverse();
+      const countEl = document.getElementById("history-count");
+      if (countEl) countEl.textContent = `${rows.length} ${rows.length === 1 ? "registro" : "registros"}`;
+      document.getElementById("tabela-historico").innerHTML = rows.length
+        ? `
+        <table>
+          <thead><tr><th>Data</th><th>Entrada</th><th>Saída</th><th>Intervalo</th><th class="cell-num">Horas</th><th class="cell-num">Extras</th><th class="cell-num">Atraso</th><th>Local</th><th>Status</th><th>RH</th></tr></thead>
+          <tbody>
+            ${rows
+              .map(
+                (h) => `<tr>
+              <td>${fmtDate(h.data)}</td>
+              <td>${h.entrada || "—"}</td>
+              <td>${h.saida || (h.status === "hoje" ? "Em andamento" : "—")}</td>
+              <td>${h.intervaloSaida && h.intervaloVolta ? `${h.intervaloSaida}–${h.intervaloVolta}` : "—"}</td>
+              <td class="cell-num">${h.horasTrabalhadas != null ? fmtHoras(h.horasTrabalhadas) : "—"}</td>
+              <td class="cell-num">${h.horasExtras ? fmtHoras(h.horasExtras) : "—"}</td>
+              <td class="cell-num">${h.atrasoMin ? `${h.atrasoMin} min` : "—"}</td>
+              <td>${localBadgeHtml(h.local)}${geoLinkForPonto(h.geo, h.data)}</td>
+              <td>${statusPillPonto(h.status)}</td>
+              <td>${h.alteradoPeloRH ? `<span class="badge-alterado" title="${esc(h.alteradoPeloRH.motivo)} — ${fmtDate(h.alteradoPeloRH.em.slice(0,10))}">${ICONS.edit}Alterado</span>` : "—"}</td>
+            </tr>`
+              )
+              .join("")}
+          </tbody>
+        </table>`
+        : emptyStateHtml({ icon: ICONS.calendar, title: "Nenhum registro neste período", desc: "Selecione um dia no calendário para ver os detalhes da sua jornada." });
+    }
+
+    function statusPillPonto(status) {
+      const map = { completo: ["status-DONE", "Completo"], atraso: ["status-ATRASO", "Atraso"], falta: ["status-CANCELED", "Falta"], hoje: ["status-EM_ANALISE", "Em andamento"] };
+      const [cls, label] = map[status] || ["badge-neutral", status];
+      return `<span class="status-badge ${cls}">${label}</span>`;
+    }
+
+    // Reconecte/perca conexão: se a tela "Hoje" estiver aberta, o botão de
+    // registrar ponto e o status da jornada precisam refletir isso na hora.
+    window.addEventListener("online", () => { if (abaAtiva === "hoje") render(); });
+    window.addEventListener("offline", () => { if (abaAtiva === "hoje") render(); });
+
+    if (session) {
+      renderShell(session, NAV_COLABORADOR);
+      renderTopHeader(document.getElementById("top-header"), session, { notifications: [] });
+      render();
+      initLembretePonto(session.horarioPrevisto, DEMO.ponto.hoje);
+      wireModalClosers();
+    }
+  
+})();
+</script>
+  <script src="../js/ui-effects.js"></script>
+</body>
+</html>
