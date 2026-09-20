@@ -33,6 +33,14 @@
        não um registro de ponto. Deixamos o ícone menor e na cor do tema para
        diferenciar dos dois contextos. */
     input[type="time"]::-webkit-calendar-picker-indicator{opacity:.55;filter:none;color:var(--indigo-600);transform:scale(.85);cursor:pointer}
+
+    /* Títulos de seção dentro dos formulários de Cadastrar/Editar colaborador
+       — antes eram ~15 campos soltos em sequência, sem nenhum agrupamento
+       visual, o que dificultava encontrar um campo específico. Agora os
+       campos ficam divididos em blocos (Dados pessoais, Cargo e
+       departamento, Jornada de trabalho, Financeiro, Acesso). */
+    .form-section-title{grid-column:1/-1;display:flex;align-items:center;gap:.5rem;font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--indigo-600);margin:1.15rem 0 .15rem;padding-top:1rem;border-top:1px solid var(--border)}
+    .form-section-title.first{margin-top:0;padding-top:0;border-top:none}
   </style>
 
   <style>
@@ -76,7 +84,12 @@
       <form id="form-novo">
         <div class="modal-body">
           <div class="form-grid">
+            <div class="form-section-title first">Dados pessoais</div>
             <div class="field full"><label>Nome completo</label><input id="novo-nome" type="text" required placeholder="Ex.: Ana Beatriz Silva" /></div>
+            <div class="field"><label>Telefone</label><input id="novo-telefone" type="tel" placeholder="Ex.: (11) 91234-5678" /></div>
+            <div class="field"><label>Data de aniversário</label><input id="novo-data-nascimento" type="date" /></div>
+
+            <div class="form-section-title">Cargo e departamento</div>
             <div class="field"><label>Cargo</label><input id="novo-cargo" type="text" required /></div>
             <div class="field"><label>Departamento</label>
               <select id="novo-departamento" required>
@@ -86,14 +99,19 @@
               </select>
             </div>
             <div class="field"><label>Data de admissão</label><input id="novo-admissao" type="date" /></div>
-            <div class="field"><label>Data de aniversário</label><input id="novo-data-nascimento" type="date" /></div>
+
+            <div class="form-section-title">Jornada de trabalho</div>
             <div class="field"><label>Entrada</label><input id="novo-horario-entrada" type="time" /></div>
             <div class="field"><label>Saída</label><input id="novo-horario-saida" type="time" /></div>
             <div class="field"><label>Início do intervalo</label><input id="novo-intervalo-inicio" type="time" /></div>
             <div class="field"><label>Fim do intervalo</label><input id="novo-intervalo-fim" type="time" /></div>
             <div class="field full"><label>Dias de trabalho</label><div id="novo-dias" style="display:flex;flex-wrap:wrap;gap:.45rem"></div></div>
             <div class="field"><label>Horas semanais</label><input id="novo-horas-semanais" type="number" min="0" max="60" step="0.5" placeholder="Ex.: 44" /></div>
+
+            <div class="form-section-title">Financeiro</div>
             <div class="field"><label>Salário</label><input id="novo-salario" type="number" min="0" step="0.01" placeholder="Ex.: 3000.00" /></div>
+
+            <div class="form-section-title">Acesso ao sistema</div>
             <div class="field full">
               <label>Como criar o acesso?</label>
               <div style="display:flex;flex-direction:column;gap:.5rem;margin-top:.3rem">
@@ -165,8 +183,13 @@
       <form id="form-editar">
         <div class="modal-body">
           <div class="form-grid">
+            <div class="form-section-title first">Dados pessoais</div>
             <div class="field full"><label>Nome completo</label><input id="edit-nome" type="text" required /></div>
             <div class="field"><label>E-mail corporativo</label><input id="edit-email" type="email" required /></div>
+            <div class="field"><label>Telefone</label><input id="edit-telefone" type="tel" placeholder="Ex.: (11) 91234-5678" /></div>
+            <div class="field"><label>Data de aniversário</label><input id="edit-data-nascimento" type="date" /></div>
+
+            <div class="form-section-title">Cadastro</div>
             <div class="field"><label>Código de Colaborador</label><input id="edit-codigo" class="edit-code-input" type="text" inputmode="text" autocomplete="off" pattern="BSconta\+\d+" maxlength="32" required /><span class="field-help">Editável pelo RH. Deve seguir o padrão BSconta+12, BSconta+13...</span></div>
             <div class="field"><label>Cargo</label><input id="edit-cargo" type="text" required /></div>
             <div class="field"><label>Departamento</label>
@@ -177,14 +200,6 @@
               </select>
             </div>
             <div class="field"><label>Data de admissão</label><input id="edit-admissao" type="date" /></div>
-            <div class="field"><label>Data de aniversário</label><input id="edit-data-nascimento" type="date" /></div>
-            <div class="field"><label>Entrada</label><input id="edit-horario-entrada" type="time" /></div>
-            <div class="field"><label>Saída</label><input id="edit-horario-saida" type="time" /></div>
-            <div class="field"><label>Início do intervalo</label><input id="edit-intervalo-inicio" type="time" /></div>
-            <div class="field"><label>Fim do intervalo</label><input id="edit-intervalo-fim" type="time" /></div>
-            <div class="field full"><label>Dias de trabalho</label><div id="edit-dias" style="display:flex;flex-wrap:wrap;gap:.45rem"></div></div>
-            <div class="field"><label>Horas semanais</label><input id="edit-horas-semanais" type="number" min="0" max="60" step="0.5" placeholder="Ex.: 44" /></div>
-            <div class="field"><label>Salário</label><input id="edit-salario" type="number" min="0" step="0.01" placeholder="Ex.: 3000.00" /></div>
             <div class="field"><label>Status</label>
               <select id="edit-status"><option value="ATIVO">Ativo</option><option value="AFASTADO">Afastado</option><option value="INATIVO">Inativo</option></select>
             </div>
@@ -193,6 +208,17 @@
               <input id="edit-data-desligamento" type="date" />
               <p class="field-hint" style="margin:.3rem 0 0;font-size:.78rem;color:var(--text-faint)">Preenchida automaticamente ao marcar "Inativo" — edite aqui só se precisar registrar uma data retroativa diferente de hoje. Só é salva de fato quando o Status acima também estiver como "Inativo" (em qualquer outro status, o sistema mantém esta data em branco).</p>
             </div>
+
+            <div class="form-section-title">Jornada de trabalho</div>
+            <div class="field"><label>Entrada</label><input id="edit-horario-entrada" type="time" /></div>
+            <div class="field"><label>Saída</label><input id="edit-horario-saida" type="time" /></div>
+            <div class="field"><label>Início do intervalo</label><input id="edit-intervalo-inicio" type="time" /></div>
+            <div class="field"><label>Fim do intervalo</label><input id="edit-intervalo-fim" type="time" /></div>
+            <div class="field full"><label>Dias de trabalho</label><div id="edit-dias" style="display:flex;flex-wrap:wrap;gap:.45rem"></div></div>
+            <div class="field"><label>Horas semanais</label><input id="edit-horas-semanais" type="number" min="0" max="60" step="0.5" placeholder="Ex.: 44" /></div>
+
+            <div class="form-section-title">Financeiro</div>
+            <div class="field"><label>Salário</label><input id="edit-salario" type="number" min="0" step="0.01" placeholder="Ex.: 3000.00" /></div>
           </div>
         </div>
         <div class="modal-footer">
@@ -244,6 +270,7 @@
         intervaloFim: row.intervalo_fim || null,
         diasTrabalho: row.dias_trabalho || [],
         horasSemanais: row.horas_semanais,
+        telefone: row.telefone || null,
         fonteCadastro: "Banco de dados (rh.colaboradores)",
         emailProvisorio: /^BSconta@\d+/i.test(row.email || ""),
       };
@@ -471,6 +498,7 @@
         </div>
         <div class="form-grid" style="margin:0">
           <div class="field"><label>E-mail corporativo</label><div class="field-static">${esc(employee.email || "—")}</div></div>
+          <div class="field"><label>Telefone</label><div class="field-static">${esc(employee.telefone || "—")}</div></div>
           <div class="field"><label>Código de Colaborador</label><div class="field-static strong-code">${esc(employee.codigoColaborador || "—")}</div></div>
           <div class="field"><label>CPF</label><div class="field-static" id="perfil-cpf">Carregando...</div></div>
           <div class="field"><label>Salário</label><div class="field-static" id="perfil-salario">Carregando...</div></div>
@@ -507,6 +535,7 @@
       editEmployeeId = employee.id;
       document.getElementById("edit-nome").value = employee.nome || "";
       document.getElementById("edit-email").value = employee.email || "";
+      document.getElementById("edit-telefone").value = employee.telefone || "";
       document.getElementById("edit-codigo").value = employee.codigoColaborador || "";
       document.getElementById("edit-cargo").value = employee.cargo || "";
       document.getElementById("edit-departamento").value = employee.departamento || "";
@@ -587,6 +616,7 @@
             .update({
               nome: document.getElementById("edit-nome").value,
               email: document.getElementById("edit-email").value,
+              telefone: document.getElementById("edit-telefone").value || null,
               codigo: document.getElementById("edit-codigo").value || null,
               cargo: document.getElementById("edit-cargo").value,
               departamento: document.getElementById("edit-departamento").value,
@@ -688,6 +718,7 @@
           // (não recebidos por ela) são gravados aqui, numa segunda chamada
           // real ao banco — ainda dentro do mesmo fluxo de cadastro.
           const jornada = {
+            telefone: document.getElementById("novo-telefone").value || null,
             horario_entrada: document.getElementById("novo-horario-entrada").value || null,
             horario_saida: document.getElementById("novo-horario-saida").value || null,
             intervalo_inicio: document.getElementById("novo-intervalo-inicio").value || null,
