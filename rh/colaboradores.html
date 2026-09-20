@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Colaboradores — BSconta+ RH</title>
+  <link rel="icon" type="image/png" href="../assets/bsconta-icon.png" />
   <link rel="stylesheet" href="../css/styles.css" />
   <link rel="stylesheet" href="../css/theme-v2.css" />
 
@@ -92,6 +93,7 @@
             <div class="field"><label>Fim do intervalo</label><input id="novo-intervalo-fim" type="time" /></div>
             <div class="field full"><label>Dias de trabalho</label><div id="novo-dias" style="display:flex;flex-wrap:wrap;gap:.45rem"></div></div>
             <div class="field"><label>Horas semanais</label><input id="novo-horas-semanais" type="number" min="0" max="60" step="0.5" placeholder="Ex.: 44" /></div>
+            <div class="field"><label>Salário</label><input id="novo-salario" type="number" min="0" step="0.01" placeholder="Ex.: 3000.00" /></div>
             <div class="field full">
               <label>Como criar o acesso?</label>
               <div style="display:flex;flex-direction:column;gap:.5rem;margin-top:.3rem">
@@ -182,6 +184,7 @@
             <div class="field"><label>Fim do intervalo</label><input id="edit-intervalo-fim" type="time" /></div>
             <div class="field full"><label>Dias de trabalho</label><div id="edit-dias" style="display:flex;flex-wrap:wrap;gap:.45rem"></div></div>
             <div class="field"><label>Horas semanais</label><input id="edit-horas-semanais" type="number" min="0" max="60" step="0.5" placeholder="Ex.: 44" /></div>
+            <div class="field"><label>Salário</label><input id="edit-salario" type="number" min="0" step="0.01" placeholder="Ex.: 3000.00" /></div>
             <div class="field"><label>Status</label>
               <select id="edit-status"><option value="ATIVO">Ativo</option><option value="AFASTADO">Afastado</option><option value="INATIVO">Inativo</option></select>
             </div>
@@ -267,6 +270,7 @@
     }
     function fmt(iso) { if (!iso) return "—"; const [y, m, d] = iso.split("-"); return `${d}/${m}/${y}`; }
     function formatCpf(cpf) { if (!cpf) return "—"; const d = String(cpf).replace(/\D/g, ""); if (d.length !== 11) return cpf; return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9,11)}`; }
+    function formatSalario(v) { if (v == null) return "—"; return Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
 
     const WORK_DAYS = ["SEG","TER","QUA","QUI","SEX","SÁB","DOM"];
     function formatWorkDays(days) {
@@ -469,6 +473,7 @@
           <div class="field"><label>E-mail corporativo</label><div class="field-static">${esc(employee.email || "—")}</div></div>
           <div class="field"><label>Código de Colaborador</label><div class="field-static strong-code">${esc(employee.codigoColaborador || "—")}</div></div>
           <div class="field"><label>CPF</label><div class="field-static" id="perfil-cpf">Carregando...</div></div>
+          <div class="field"><label>Salário</label><div class="field-static" id="perfil-salario">Carregando...</div></div>
           <div class="field"><label>Cargo</label><div class="field-static">${esc(employee.cargo || "—")}</div></div>
           <div class="field"><label>Departamento</label><div class="field-static">${esc(employee.departamento || "—")}</div></div>
           <div class="field"><label>Data de admissão</label><div class="field-static">${fmt(employee.admissao)}</div></div>
@@ -491,6 +496,8 @@
           if (elNascimento) elNascimento.textContent = !error && data && data[0] ? fmt(data[0].data_nascimento) : "—";
           const elCpf = document.getElementById("perfil-cpf");
           if (elCpf) elCpf.textContent = !error && data && data[0] ? formatCpf(data[0].cpf) : "—";
+          const elSalario = document.getElementById("perfil-salario");
+          if (elSalario) elSalario.textContent = !error && data && data[0] ? formatSalario(data[0].salario) : "—";
         });
     }
 
@@ -508,10 +515,12 @@
       // db/supabase/19_criptografia_dados_pessoais.sql) — não vem no select
       // geral de colaboradores, só decifrada por esta função, sob demanda.
       document.getElementById("edit-data-nascimento").value = "";
+      document.getElementById("edit-salario").value = "";
       sb.rpc("colaboradores_dados_pessoais", { p_colaborador_id: id })
         .then(({ data, error }) => {
           if (error || !data || !data[0]) return;
           document.getElementById("edit-data-nascimento").value = data[0].data_nascimento || "";
+          document.getElementById("edit-salario").value = data[0].salario != null ? data[0].salario : "";
         });
       document.getElementById("edit-data-desligamento").value = employee.dataDesligamento || "";
       document.getElementById("edit-horario-entrada").value = employee.horarioEntrada || "";
@@ -602,6 +611,14 @@
             p_data_nascimento: document.getElementById("edit-data-nascimento").value || null,
           });
           if (nascErr) showToast("Colaborador atualizado, mas houve um erro ao salvar a data de nascimento: " + nascErr.message, "error");
+          // Salário é cifrado (ver 21_salario_colaborador.sql) — grava por
+          // uma função própria, nunca direto na coluna.
+          const salarioEditado = document.getElementById("edit-salario").value;
+          const { error: salarioErr } = await sb.rpc("rh_definir_salario_colaborador", {
+            p_colaborador_id: editEmployeeId,
+            p_salario: salarioEditado !== "" ? Number(salarioEditado) : null,
+          });
+          if (salarioErr) showToast("Colaborador atualizado, mas houve um erro ao salvar o salário: " + salarioErr.message, "error");
           await carregarColaboradores();
           closeModal("modal-editar");
           state.page = 1;
@@ -691,6 +708,16 @@
               p_data_nascimento: dataNascimentoNovo,
             });
             if (nascErr) showToast("Colaborador cadastrado, mas houve um erro ao salvar a data de nascimento: " + nascErr.message, "error");
+          }
+          // Salário é cifrado (ver 21_salario_colaborador.sql) — grava por
+          // uma função própria, nunca direto na coluna.
+          const salarioNovo = document.getElementById("novo-salario").value;
+          if (salarioNovo !== "") {
+            const { error: salarioErr } = await sb.rpc("rh_definir_salario_colaborador", {
+              p_colaborador_id: resultado.colaborador.id,
+              p_salario: Number(salarioNovo),
+            });
+            if (salarioErr) showToast("Colaborador cadastrado, mas houve um erro ao salvar o salário: " + salarioErr.message, "error");
           }
           await carregarColaboradores();
           closeModal("modal-novo");
