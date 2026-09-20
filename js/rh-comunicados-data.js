@@ -119,3 +119,12 @@ async function rhArquivarComunicado(id) {
   if (error) throw error;
   return true;
 }
+
+/** Exclui definitivamente um comunicado do banco (RH/RH_ADMIN). Ao
+ * contrário de arquivar, não há como desfazer — o registro é removido de
+ * verdade da tabela rh.comunicados. */
+async function rhExcluirComunicado(id) {
+  const { error } = await sb.from("comunicados").delete().eq("id", id);
+  if (error) throw error;
+  return true;
+}

@@ -120,3 +120,13 @@ async function rhResponderSolicitacaoGeral(id, { texto, autor, novoStatus }) {
   if (error) throw error;
   return true;
 }
+
+/** Exclui definitivamente uma solicitação da fila (RH/RH_ADMIN). `origem`
+ * diz de qual tabela apagar: "ferias" -> rh.ferias_solicitacoes, qualquer
+ * outra coisa (inclusive "geral") -> rh.solicitacoes. Não há como desfazer. */
+async function rhExcluirSolicitacao(id, origem) {
+  const tabela = origem === "ferias" ? "ferias_solicitacoes" : "solicitacoes";
+  const { error } = await sb.from(tabela).delete().eq("id", id);
+  if (error) throw error;
+  return true;
+}
