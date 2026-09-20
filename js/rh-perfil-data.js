@@ -14,7 +14,7 @@
  * específicas, depois de validar que a linha é dele mesmo.
  */
 
-function rhMapPerfilColaborador(row) {
+function rhMapPerfilColaborador(row, dadosPessoais) {
   return {
     id: row.id,
     codigo: row.codigo,
@@ -27,18 +27,29 @@ function rhMapPerfilColaborador(row) {
     photo: row.foto_url,
     horasSemanais: row.horas_semanais,
     gestor: row.gestor_nome,
-    cpf: row.cpf,
-    nascimento: row.data_nascimento,
+    cpf: dadosPessoais?.cpf ?? null,
+    nascimento: dadosPessoais?.data_nascimento ?? null,
     telefone: row.telefone,
-    endereco: row.endereco,
-    cep: row.cep,
+    endereco: dadosPessoais?.endereco ?? null,
+    cep: dadosPessoais?.cep ?? null,
   };
 }
 
+/** CPF/nascimento/endereço/CEP ficam cifrados no banco (ver
+ * db/supabase/19_criptografia_dados_pessoais.sql) — nunca vêm de um SELECT
+ * direto na tabela. São decifrados só aqui, na hora de montar o perfil para
+ * exibir na tela, através da função rh.colaboradores_dados_pessoais, que só
+ * decifra a linha do próprio colaborador (ou qualquer uma, se quem chamar
+ * for RH/RH_ADMIN). */
 async function rhCarregarPerfilColaborador(colaboradorId) {
-  const { data, error } = await sb.from("colaboradores").select("*").eq("id", colaboradorId).single();
+  const [{ data, error }, { data: dadosPessoaisRows, error: dpErr }] = await Promise.all([
+    sb.from("colaboradores").select("*").eq("id", colaboradorId).single(),
+    sb.rpc("colaboradores_dados_pessoais", { p_colaborador_id: colaboradorId }),
+  ]);
   if (error) throw error;
-  return rhMapPerfilColaborador(data);
+  if (dpErr) throw dpErr;
+  const dadosPessoais = (dadosPessoaisRows || [])[0] || null;
+  return rhMapPerfilColaborador(data, dadosPessoais);
 }
 
 async function rhSalvarDadosPessoaisColaborador({ cpf, nascimento, telefone, endereco, cep }) {
