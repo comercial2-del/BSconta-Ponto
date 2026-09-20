@@ -266,6 +266,7 @@
       return `<span class="status-pill ${cls}"><span class="dot"></span>${label}</span>`;
     }
     function fmt(iso) { if (!iso) return "—"; const [y, m, d] = iso.split("-"); return `${d}/${m}/${y}`; }
+    function formatCpf(cpf) { if (!cpf) return "—"; const d = String(cpf).replace(/\D/g, ""); if (d.length !== 11) return cpf; return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9,11)}`; }
 
     const WORK_DAYS = ["SEG","TER","QUA","QUI","SEX","SÁB","DOM"];
     function formatWorkDays(days) {
@@ -467,6 +468,7 @@
         <div class="form-grid" style="margin:0">
           <div class="field"><label>E-mail corporativo</label><div class="field-static">${esc(employee.email || "—")}</div></div>
           <div class="field"><label>Código de Colaborador</label><div class="field-static strong-code">${esc(employee.codigoColaborador || "—")}</div></div>
+          <div class="field"><label>CPF</label><div class="field-static" id="perfil-cpf">Carregando...</div></div>
           <div class="field"><label>Cargo</label><div class="field-static">${esc(employee.cargo || "—")}</div></div>
           <div class="field"><label>Departamento</label><div class="field-static">${esc(employee.departamento || "—")}</div></div>
           <div class="field"><label>Data de admissão</label><div class="field-static">${fmt(employee.admissao)}</div></div>
@@ -486,9 +488,10 @@
       // geral de colaboradores, só decifrada sob demanda, aqui.
       sb.rpc("colaboradores_dados_pessoais", { p_colaborador_id: employee.id })
         .then(({ data, error }) => {
-          const el = document.getElementById("perfil-data-nascimento");
-          if (!el) return;
-          el.textContent = !error && data && data[0] ? fmt(data[0].data_nascimento) : "—";
+          const elNascimento = document.getElementById("perfil-data-nascimento");
+          if (elNascimento) elNascimento.textContent = !error && data && data[0] ? fmt(data[0].data_nascimento) : "—";
+          const elCpf = document.getElementById("perfil-cpf");
+          if (elCpf) elCpf.textContent = !error && data && data[0] ? formatCpf(data[0].cpf) : "—";
         });
     }
 
