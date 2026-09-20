@@ -441,7 +441,7 @@
           <div class="field"><label>Cargo</label><div class="field-static">${esc(employee.cargo || "—")}</div></div>
           <div class="field"><label>Departamento</label><div class="field-static">${esc(employee.departamento || "—")}</div></div>
           <div class="field"><label>Data de admissão</label><div class="field-static">${fmt(employee.admissao)}</div></div>
-          <div class="field"><label>Data de aniversário</label><div class="field-static">${fmt(employee.dataNascimento)}</div></div>
+          <div class="field"><label>Data de aniversário</label><div class="field-static" id="perfil-data-nascimento">Carregando...</div></div>
           ${employee.dataDesligamento ? `<div class="field"><label>Data de desligamento</label><div class="field-static">${fmt(employee.dataDesligamento)}</div></div>` : ""}
           <div class="field"><label>Jornada</label><div class="field-static">${formatSchedule(employee)}</div></div>
           <div class="field"><label>Dias de trabalho</label><div class="field-static">${esc(formatWorkDays(employee.diasTrabalho))}</div></div>
@@ -452,9 +452,18 @@
       `;
       document.getElementById("btn-gerar-login-provisorio")?.addEventListener("click", () => gerarLoginParaColaborador(employee.id));
       openModal("modal-perfil");
+      // Data de nascimento é cifrada no banco (ver
+      // db/supabase/19_criptografia_dados_pessoais.sql) — não vem no select
+      // geral de colaboradores, só decifrada sob demanda, aqui.
+      sb.rpc("colaboradores_dados_pessoais", { p_colaborador_id: employee.id })
+        .then(({ data, error }) => {
+          const el = document.getElementById("perfil-data-nascimento");
+          if (!el) return;
+          el.textContent = !error && data && data[0] ? fmt(data[0].data_nascimento) : "—";
+        });
     }
 
-    function openEditEmployee(id) {
+    async function openEditEmployee(id) {
       const employee = getEmployeeById(id);
       if (!employee) { showToast("Colaborador não encontrado.", "error"); return; }
       editEmployeeId = employee.id;
@@ -464,7 +473,15 @@
       document.getElementById("edit-cargo").value = employee.cargo || "";
       document.getElementById("edit-departamento").value = employee.departamento || "";
       document.getElementById("edit-admissao").value = employee.admissao || "";
-      document.getElementById("edit-data-nascimento").value = employee.dataNascimento || "";
+      // Data de nascimento fica cifrada no banco (ver
+      // db/supabase/19_criptografia_dados_pessoais.sql) — não vem no select
+      // geral de colaboradores, só decifrada por esta função, sob demanda.
+      document.getElementById("edit-data-nascimento").value = "";
+      sb.rpc("colaboradores_dados_pessoais", { p_colaborador_id: id })
+        .then(({ data, error }) => {
+          if (error || !data || !data[0]) return;
+          document.getElementById("edit-data-nascimento").value = data[0].data_nascimento || "";
+        });
       document.getElementById("edit-data-desligamento").value = employee.dataDesligamento || "";
       document.getElementById("edit-horario-entrada").value = employee.horarioEntrada || "";
       document.getElementById("edit-horario-saida").value = employee.horarioSaida || "";
@@ -533,7 +550,6 @@
               cargo: document.getElementById("edit-cargo").value,
               departamento: document.getElementById("edit-departamento").value,
               admissao: document.getElementById("edit-admissao").value || null,
-              data_nascimento: document.getElementById("edit-data-nascimento").value || null,
               data_desligamento: document.getElementById("edit-data-desligamento").value || null,
               horario_entrada: document.getElementById("edit-horario-entrada").value || null,
               horario_saida: document.getElementById("edit-horario-saida").value || null,
@@ -547,6 +563,13 @@
             .select()
             .single();
           if (error) throw error;
+          // Data de nascimento é cifrada (ver 19_criptografia_dados_pessoais.sql)
+          // — grava por uma função própria, nunca direto na coluna.
+          const { error: nascErr } = await sb.rpc("rh_definir_nascimento_colaborador", {
+            p_colaborador_id: editEmployeeId,
+            p_data_nascimento: document.getElementById("edit-data-nascimento").value || null,
+          });
+          if (nascErr) showToast("Colaborador atualizado, mas houve um erro ao salvar a data de nascimento: " + nascErr.message, "error");
           await carregarColaboradores();
           closeModal("modal-editar");
           state.page = 1;
@@ -615,7 +638,6 @@
           // (não recebidos por ela) são gravados aqui, numa segunda chamada
           // real ao banco — ainda dentro do mesmo fluxo de cadastro.
           const jornada = {
-            data_nascimento: document.getElementById("novo-data-nascimento").value || null,
             horario_entrada: document.getElementById("novo-horario-entrada").value || null,
             horario_saida: document.getElementById("novo-horario-saida").value || null,
             intervalo_inicio: document.getElementById("novo-intervalo-inicio").value || null,
@@ -626,6 +648,16 @@
           if (Object.values(jornada).some((v) => v != null && (!Array.isArray(v) || v.length))) {
             const { error: jornadaErr } = await sb.from("colaboradores").update(jornada).eq("id", resultado.colaborador.id);
             if (jornadaErr) showToast("Colaborador cadastrado, mas houve um erro ao salvar a jornada: " + jornadaErr.message, "error");
+          }
+          // Data de nascimento é cifrada (ver 19_criptografia_dados_pessoais.sql)
+          // — grava por uma função própria, nunca direto na coluna.
+          const dataNascimentoNovo = document.getElementById("novo-data-nascimento").value || null;
+          if (dataNascimentoNovo) {
+            const { error: nascErr } = await sb.rpc("rh_definir_nascimento_colaborador", {
+              p_colaborador_id: resultado.colaborador.id,
+              p_data_nascimento: dataNascimentoNovo,
+            });
+            if (nascErr) showToast("Colaborador cadastrado, mas houve um erro ao salvar a data de nascimento: " + nascErr.message, "error");
           }
           await carregarColaboradores();
           closeModal("modal-novo");

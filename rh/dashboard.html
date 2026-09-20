@@ -50,14 +50,21 @@
       em30dias.setDate(em30dias.getDate() + 30);
       const em30diasIso = em30dias.toISOString().slice(0, 10);
 
-      const [{ data: colabRows, error: e1 }, { data: pontoHojeRows, error: e2 }, feriasRH, solicitacoesRH] = await Promise.all([
-        sb.from("colaboradores").select(`id, nome, departamento, status, data_nascimento, ${RH_COLABORADOR_JORNADA_COLS}`).order("nome"),
+      const [{ data: colabRows, error: e1 }, { data: pontoHojeRows, error: e2 }, feriasRH, solicitacoesRH, { data: dadosPessoaisRows, error: e3 }] = await Promise.all([
+        sb.from("colaboradores").select(`id, nome, departamento, status, ${RH_COLABORADOR_JORNADA_COLS}`).order("nome"),
         sb.from("ponto_registros").select("colaborador_id, entrada, local").eq("data", hojeIso),
         rhCarregarFeriasRH(),
         rhCarregarSolicitacoesRH(),
+        // Data de nascimento é cifrada no banco (ver
+        // db/supabase/19_criptografia_dados_pessoais.sql). Como quem está
+        // vendo este dashboard é RH/RH_ADMIN, chamar sem colaborador_id
+        // devolve a data de nascimento decifrada de TODOS os colaboradores,
+        // só para montar o card de aniversariantes.
+        sb.rpc("colaboradores_dados_pessoais"),
       ]);
       if (e1) throw e1;
       if (e2) throw e2;
+      if (e3) throw e3;
 
       const colaboradores = colabRows || [];
       dash.totalColaboradores = colaboradores.length;
@@ -68,9 +75,11 @@
       colaboradores.forEach((c) => { const d = c.departamento || "Sem departamento"; porDepto[d] = (porDepto[d] || 0) + 1; });
       dash.departamentos = Object.entries(porDepto).map(([nome, qtd]) => ({ nome, qtd })).sort((a, b) => b.qtd - a.qtd);
 
+      const nascimentoPorId = new Map((dadosPessoaisRows || []).map((d) => [d.id, d.data_nascimento]));
       dash.aniversariantes = colaboradores
-        .filter((c) => c.data_nascimento && Number(c.data_nascimento.slice(5, 7)) === mesAtual)
-        .map((c) => ({ nome: c.nome, data: fmtDate(c.data_nascimento).slice(0, 5) }))
+        .map((c) => ({ nome: c.nome, nascimento: nascimentoPorId.get(c.id) || null }))
+        .filter((c) => c.nascimento && Number(c.nascimento.slice(5, 7)) === mesAtual)
+        .map((c) => ({ nome: c.nome, data: fmtDate(c.nascimento).slice(0, 5) }))
         .sort((a, b) => a.data.localeCompare(b.data));
 
       // Classificação real por pessoa (jornada configurada em
