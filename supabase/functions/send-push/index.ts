@@ -51,7 +51,7 @@
 //      SETUP-SUPABASE.md, Passo 4.14) e configure como secrets da função:
 //        supabase secrets set VAPID_PUBLIC_KEY="..." VAPID_PRIVATE_KEY="..." \
 //          VAPID_SUBJECT="mailto:seu-email@empresa.com" \
-//          CRON_SHARED_SECRET="uma-string-aleatoria-longa"
+//          CRON_SHARED_SECRET="uma-string-aleatoria-longa" \\ SITE_BASE_PATH="/BSconta-Ponto" (defina isso se o site estiver publicado num subcaminho, como o GitHub Pages de um repositorio - deixe vazio/omitido se o site estiver na raiz do dominio)
 //   2) supabase functions deploy send-push --no-verify-jwt
 //      (--no-verify-jwt é necessário porque o modo lote é chamado pelo
 //      pg_cron/pg_net, que não manda um JWT de usuário — a função faz a
@@ -71,7 +71,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const VAPID_PUBLIC_KEY = Deno.env.get("VAPID_PUBLIC_KEY") || "";
 const VAPID_PRIVATE_KEY = Deno.env.get("VAPID_PRIVATE_KEY") || "";
 const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") || "mailto:comercial2@bsconta.com.br";
-const CRON_SHARED_SECRET = Deno.env.get("CRON_SHARED_SECRET") || "";
+const CRON_SHARED_SECRET = Deno.env.get("CRON_SHARED_SECRET") || ""; const SITE_BASE_PATH = (Deno.env.get("SITE_BASE_PATH") || "").replace(/\/$/, "");
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -211,7 +211,7 @@ async function modoLote(adminClient: ReturnType<typeof createClient>) {
         title: "BSconta+ RH — Lembrete de ponto",
         body: `Seu horário de ${label} está próximo (${alvo.hhmm}). Não esqueça de bater o ponto.`,
         tag: `ponto-${alvo.tipo}-${agora.dataIso}`,
-        url: "/colaborador/ponto.html",
+        url: `${SITE_BASE_PATH}/colaborador/ponto.html`,
       };
 
       let algumEnviado = false;
@@ -281,7 +281,7 @@ async function modoSobDemanda(req: Request, adminClient: ReturnType<typeof creat
 
   let enviados = 0;
   for (const sub of inscricoes) {
-    const resultado = await enviarParaInscricao(adminClient, sub, { title: titulo, body: mensagem, tag: `avulso-${colaboradorId}-${Date.now()}`, url: payload.url || "/colaborador/documentos.html" });
+    const resultado = await enviarParaInscricao(adminClient, sub, { title: titulo, body: mensagem, tag: `avulso-${colaboradorId}-${Date.now()}`, url: payload.url || `${SITE_BASE_PATH}/colaborador/documentos.html` });
     if (resultado.ok) enviados++;
   }
 

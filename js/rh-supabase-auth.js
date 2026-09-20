@@ -208,7 +208,7 @@ async function rhLoginReal(email, senha) {
 
 /** Recuperação de senha real — dispara o e-mail de verdade pelo Supabase. */
 async function rhEsqueciSenha(email) {
-  const redirectTo = `${window.location.origin}${window.BASE_PATH || ""}login.html`;
+  const redirectTo = new URL(`${window.BASE_PATH || ""}login.html`, window.location.href).href;
   const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
   if (error) throw error;
 }

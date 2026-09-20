@@ -31,9 +31,9 @@ self.addEventListener("push", (event) => {
   const options = {
     body: dados.body,
     tag: dados.tag || undefined,
-    data: { url: dados.url || "/" },
-    icon: "/assets/bsconta-icon.png",
-    badge: "/assets/bsconta-icon.png",
+    data: { url: dados.url ? new URL(dados.url, self.location.origin).href : self.registration.scope },
+    icon: new URL("assets/bsconta-icon.png", self.registration.scope).href,
+    badge: new URL("assets/bsconta-icon.png", self.registration.scope).href,
     requireInteraction: false,
   };
 
@@ -42,7 +42,7 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = event.notification.data?.url || "/";
+  const url = event.notification.data?.url || self.registration.scope;
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {

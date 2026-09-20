@@ -46,9 +46,9 @@ function rhUrlBase64ToUint8Array(base64String) {
  * num hosting estático simples. Ficando na raiz, o escopo "/" (que cobre
  * tanto /rh/*.html quanto /colaborador/*.html) funciona sem precisar de
  * nenhuma configuração extra de servidor. */
-async function rhPushGarantirServiceWorker() {
+function rhSwScope() { const m = window.location.pathname.match(/^(.*\/)(?:rh|colaborador)\/[^/]*$/); return m ? m[1] : window.location.pathname.replace(/[^/]*$/, ""); } async function rhPushGarantirServiceWorker() {
   if (!rhPushSuportado()) throw new Error("Este navegador não tem suporte a notificações push.");
-  return navigator.serviceWorker.register("/sw.js", { scope: "/" });
+  const scope = rhSwScope(); return navigator.serviceWorker.register(`${scope}sw.js`, { scope });
 }
 
 /** Estado atual, PARA ESTE NAVEGADOR: permissão concedida e existe uma
@@ -58,7 +58,7 @@ async function rhPushStatusAtual() {
   const permissao = Notification.permission; // "default" | "granted" | "denied"
   if (permissao !== "granted") return { suportado: true, permissao, inscrito: false };
   try {
-    const registration = await navigator.serviceWorker.getRegistration("/");
+    const registration = await navigator.serviceWorker.getRegistration(rhSwScope());
     const sub = await registration?.pushManager?.getSubscription();
     return { suportado: true, permissao, inscrito: !!sub };
   } catch {
@@ -110,7 +110,7 @@ async function rhPushAtivar() {
  * endpoint que a pessoa, do lado do navegador, já cancelou). */
 async function rhPushDesativar() {
   if (!rhPushSuportado()) return true;
-  const registration = await navigator.serviceWorker.getRegistration("/");
+  const registration = await navigator.serviceWorker.getRegistration(rhSwScope());
   const sub = await registration?.pushManager?.getSubscription();
   if (!sub) return true;
   const endpoint = sub.endpoint;
