@@ -73,7 +73,7 @@ function rhShowFatalError(message) {
  * fluxo de convite ainda). Lança erro para falhas de conexão/consulta —
  * quem chama decide como mostrar isso (nunca fingimos que "funcionou"). */
 async function rhFetchPerfilCompleto(userId, userEmail) {
-  const { data: perfil, error: perfilErr } = await sb.from("perfis").select("role, colaborador_id, ativo, nome, email, preferencias_notificacao").eq("user_id", userId).maybeSingle();
+  const { data: perfil, error: perfilErr } = await sb.from("perfis").select("role, colaborador_id, ativo, nome, email, preferencias_notificacao, primeiro_acesso, acesso_atualizado_em").eq("user_id", userId).maybeSingle();
   if (perfilErr) throw perfilErr;
   if (!perfil) return null;
 
@@ -88,6 +88,8 @@ async function rhFetchPerfilCompleto(userId, userEmail) {
     role: perfil.role, // 'COLABORADOR' | 'RH' | 'RH_ADMIN'
     employeeId: perfil.colaborador_id || null,
     contaAtiva: perfil.ativo !== false,
+    primeiroAcesso: perfil.primeiro_acesso === true,
+    acessoAtualizadoEm: perfil.acesso_atualizado_em || null,
     preferenciasNotificacao: perfil.preferencias_notificacao || {},
     name: colaborador?.nome || perfil.nome || userEmail,
     email: colaborador?.email || perfil.email || userEmail,
@@ -166,6 +168,11 @@ async function requireRoleReal(expectedRole) {
     await sb.auth.signOut();
     rhClearCachedSession();
     rhShowFatalError("Seu acesso ao sistema foi desativado por um RH_ADMIN em Configurações &gt; Usuários e permissões. Fale com o setor de Recursos Humanos se isso for um engano.");
+    return null;
+  }
+
+  if (perfilCompleto.primeiroAcesso && !window.location.pathname.replace(/\\/g, "/").endsWith("/trocar-senha.html")) {
+    window.location.href = `${window.BASE_PATH || ""}trocar-senha.html`;
     return null;
   }
 
@@ -269,6 +276,47 @@ async function rhCriarLoginColaborador({ colaboradorId, nome, email, cargo, depa
   }
   if (data?.error) throw new Error(data.error);
   return data;
+}
+
+/**
+ * Regenera código/e-mail/senha de um colaborador que já tem login (ou cria
+ * um do zero, se ainda não tiver) — chama a Edge Function
+ * supabase/functions/regenerar-acesso-colaborador/index.ts. Mantém o mesmo
+ * id do colaborador e o mesmo user_id de autenticação — todo o histórico
+ * (ponto, férias, documentos, solicitações) continua ligado à mesma pessoa.
+ * A senha antiga deixa de funcionar assim que esta chamada tiver sucesso.
+ */
+async function rhRegenerarAcessoColaborador({ colaboradorId }) {
+  const { data, error } = await sb.functions.invoke("regenerar-acesso-colaborador", {
+    body: { colaboradorId },
+  });
+  if (error) {
+    let detalhe = error.message || String(error);
+    try {
+      const body = await error.context?.json?.();
+      if (body?.error) detalhe = body.error;
+    } catch {
+      /* mantém detalhe genérico */
+    }
+    throw new Error(detalhe);
+  }
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
+
+/**
+ * Troca a PRÓPRIA senha (usada em trocar-senha.html, no primeiro acesso ou
+ * sempre que a pessoa quiser trocar por conta própria) e, em caso de
+ * sucesso, avisa o banco que o primeiro acesso foi concluído
+ * (rh.concluir_primeiro_acesso — só mexe na própria linha, nunca na de
+ * outra pessoa).
+ */
+async function rhAlterarSenhaPropria(novaSenha) {
+  const { error: authErr } = await sb.auth.updateUser({ password: novaSenha });
+  if (authErr) throw authErr;
+  const { error: rpcErr } = await sb.rpc("concluir_primeiro_acesso");
+  if (rpcErr) throw rpcErr;
+  rhClearCachedSession();
 }
 
 /** Substitui o logout() fake de demo-data.js — mesmo nome global (ui.js já
