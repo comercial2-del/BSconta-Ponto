@@ -145,7 +145,10 @@
       </div>
       <div class="modal-body" id="perfil-body"></div>
       <div class="modal-footer" style="justify-content:space-between">
-        <button type="button" class="btn-ghost danger" id="btn-excluir-perfil">Excluir colaborador</button>
+        <div style="display:flex;gap:.6rem">
+          <button type="button" class="btn-ghost danger" id="btn-excluir-perfil">Excluir colaborador</button>
+          <button type="button" class="btn-ghost danger" id="btn-regenerar-acesso-perfil">Regenerar acesso</button>
+        </div>
         <div style="display:flex;gap:.6rem">
           <button type="button" class="btn-ghost" data-close-modal>Fechar</button>
           <button type="button" class="btn-primary auto" id="btn-editar-perfil">Editar colaborador</button>
@@ -422,6 +425,32 @@
       }
     }
 
+    /** Regenera o acesso (código, e-mail e senha) de um colaborador que já
+     * possui login — usado quando o colaborador perdeu a senha ou o acesso
+     * precisa ser recriado por segurança. A senha atual deixa de funcionar
+     * imediatamente após a regeneração. */
+    async function regenerarAcessoParaColaborador(colaboradorId) {
+      const employee = getEmployeeById(colaboradorId);
+      const ok = await confirmDialog({
+        title: "Regenerar acesso",
+        message: `Regenerar o acesso de ${employee?.nome || "este colaborador"}? A senha atual deixa de funcionar imediatamente e um novo e-mail e senha de login serão gerados.`,
+        confirmLabel: "Regenerar acesso",
+        danger: true,
+      });
+      if (!ok) return;
+      try {
+        const resultado = await rhRegenerarAcessoColaborador({ colaboradorId });
+        await carregarColaboradores();
+        closeModal("modal-perfil");
+        render();
+        wireModalClosers();
+        mostrarCredenciaisGeradas(resultado);
+        showToast(`Acesso regenerado para ${resultado.colaborador.nome}.`, "success");
+      } catch (error) {
+        showToast(error.message || String(error), "error");
+      }
+    }
+
     function openEmployeeProfile(id) {
       const employee = getEmployeeById(id);
       if (!employee) { showToast("Colaborador não encontrado.", "error"); return; }
@@ -535,6 +564,7 @@
       document.querySelectorAll(".modal-close").forEach((button) => { button.innerHTML = ICONS.x; });
       document.getElementById("btn-editar-perfil").addEventListener("click", () => { if (perfilEmployeeId) openEditEmployee(perfilEmployeeId); });
       document.getElementById("btn-excluir-perfil").addEventListener("click", () => { if (perfilEmployeeId) deleteEmployee(perfilEmployeeId); });
+      document.getElementById("btn-regenerar-acesso-perfil")?.addEventListener("click", () => { if (perfilEmployeeId) regenerarAcessoParaColaborador(perfilEmployeeId); });
 
       document.getElementById("form-editar").addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -578,6 +608,7 @@
           document.querySelectorAll(".modal-close").forEach((button) => { button.innerHTML = ICONS.x; });
           document.getElementById("btn-editar-perfil").addEventListener("click", () => { if (perfilEmployeeId) openEditEmployee(perfilEmployeeId); });
           document.getElementById("btn-excluir-perfil").addEventListener("click", () => { if (perfilEmployeeId) deleteEmployee(perfilEmployeeId); });
+      document.getElementById("btn-regenerar-acesso-perfil")?.addEventListener("click", () => { if (perfilEmployeeId) regenerarAcessoParaColaborador(perfilEmployeeId); });
           showToast(`${updated.nome} atualizado com sucesso.`, "success");
         } catch (error) {
           showToast(traduzErroBanco(error), "error");
