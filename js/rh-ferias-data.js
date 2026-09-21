@@ -19,6 +19,12 @@ function rhGerarProtocoloFerias() {
   return `FER-${Date.now().toString(36).toUpperCase()}`;
 }
 
+/** Data de hoje em formato ISO (YYYY-MM-DD), usado como fallback quando
+ * hojeIso nao e informado (ex.: rhCalcularAvisoFerias). */
+function rhTodayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function rhDiasEntre(inicioIso, fimIso) {
   const a = new Date(inicioIso + "T00:00:00");
   const b = new Date(fimIso + "T00:00:00");
