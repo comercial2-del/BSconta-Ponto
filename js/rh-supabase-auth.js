@@ -344,17 +344,25 @@ async function logout() {
  * `await rhNavBadges()` no lugar da chamada síncrona antiga. */
 async function rhNavBadges() {
   try {
-    const [geraisRes, feriasRes, docsRes] = await Promise.all([
+    const [geraisRes, feriasRes, docsRes, colabRes, feriasTodasRes] = await Promise.all([
       sb.from("solicitacoes").select("id", { count: "exact", head: true }).in("status", ["PENDENTE", "EM_ANALISE"]),
       sb.from("ferias_solicitacoes").select("id", { count: "exact", head: true }).in("status", ["PENDENTE", "EM_ANALISE"]),
       sb.from("documentos").select("id", { count: "exact", head: true }).in("status", ["PENDENTE", "AGUARDANDO_IMPORTACAO"]),
+      // Item "Lembrete de férias": colaboradores com o período aquisitivo
+      // vigente perto de vencer (ou já vencido) e ainda sem férias
+      // programadas — ver rhContarAvisosFerias abaixo.
+      sb.from("colaboradores").select("id, nome, admissao").neq("status", "INATIVO"),
+      sb.from("ferias_solicitacoes").select("colaborador_id, inicio, status").in("status", ["APROVADA", "PENDENTE", "EM_ANALISE"]),
     ]);
     if (geraisRes.error) throw geraisRes.error;
     if (feriasRes.error) throw feriasRes.error;
     if (docsRes.error) throw docsRes.error;
+    if (colabRes.error) throw colabRes.error;
+    if (feriasTodasRes.error) throw feriasTodasRes.error;
+    const avisosFerias = rhContarAvisosFerias(colabRes.data || [], feriasTodasRes.data || []);
     return {
       "solicitacoes.html": (geraisRes.count || 0) + (feriasRes.count || 0),
-      "ferias.html": feriasRes.count || 0,
+      "ferias.html": (feriasRes.count || 0) + avisosFerias,
       "documentos.html": docsRes.count || 0,
     };
   } catch (err) {
@@ -363,4 +371,35 @@ async function rhNavBadges() {
     console.error("rhNavBadges: falha ao contar pendências para os badges do menu.", err);
     return {};
   }
+}
+
+/** Lembrete automático de férias (item pedido pelo RH): conta quantos
+ * colaboradores ativos estão com o período aquisitivo vigente (admissão +
+ * 1 ano, repetido a cada aniversário) a ≤60 dias de vencer — ou já vencido —
+ * e ainda sem nenhuma férias aprovada/pendente marcando esse período.
+ * Cálculo autocontido de propósito (sem depender de js/rh-ferias-data.js,
+ * que não está incluído em todas as telas do RH — ver comentário acima de
+ * rhNavBadges). A mesma regra (com mais detalhe por pessoa) é usada em
+ * rh/ferias.html e no aviso do próprio colaborador. */
+const RH_FERIAS_AVISO_DIAS_BADGE = 60;
+function rhContarAvisosFerias(colaboradores, solicitacoes) {
+  const isoOf = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  let total = 0;
+  colaboradores.forEach((c) => {
+    if (!c.admissao) return;
+    const admissao = new Date(c.admissao + "T00:00:00");
+    if (Number.isNaN(admissao.getTime())) return;
+    let fimPeriodo = new Date(admissao);
+    while (fimPeriodo <= hoje) fimPeriodo = new Date(fimPeriodo.getFullYear() + 1, fimPeriodo.getMonth(), fimPeriodo.getDate());
+    const inicioPeriodo = new Date(fimPeriodo.getFullYear() - 1, fimPeriodo.getMonth(), fimPeriodo.getDate());
+    const diasParaVencer = Math.round((fimPeriodo - hoje) / 86400000);
+    if (diasParaVencer > RH_FERIAS_AVISO_DIAS_BADGE) return;
+    const inicioIso = isoOf(inicioPeriodo);
+    const fimIso = isoOf(fimPeriodo);
+    const jaProgramada = solicitacoes.some((f) => f.colaborador_id === c.id && f.inicio >= inicioIso && f.inicio <= fimIso);
+    if (!jaProgramada) total++;
+  });
+  return total;
 }
