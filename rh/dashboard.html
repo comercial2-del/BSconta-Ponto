@@ -41,7 +41,7 @@
     // dados fixos em memória (js/demo-data.js).
     let dash = {
       totalColaboradores: 0, ativos: 0, afastados: 0, feriasProximas: 0, solicitacoesPendentes: 0,
-      departamentos: [], aniversariantes: [], pontoHoje: [], solicitacoesPendentesRows: [], feriasProximasRows: [],
+      departamentos: [], aniversariantes: [], pontoHoje: [], solicitacoesPendentesRows: [], feriasProximasRows: [], avisosFerias: [],
     };
 
     async function refrescarDashboard() {
@@ -52,7 +52,7 @@
       const em30diasIso = em30dias.toISOString().slice(0, 10);
 
       const [{ data: colabRows, error: e1 }, { data: pontoHojeRows, error: e2 }, feriasRH, solicitacoesRH, { data: dadosPessoaisRows, error: e3 }] = await Promise.all([
-        sb.from("colaboradores").select(`id, nome, departamento, status, ${RH_COLABORADOR_JORNADA_COLS}`).order("nome"),
+        sb.from("colaboradores").select(`id, nome, departamento, status, admissao, ${RH_COLABORADOR_JORNADA_COLS}`).order("nome"),
         sb.from("ponto_registros").select("colaborador_id, entrada, local").eq("data", hojeIso),
         rhCarregarFeriasRH(),
         rhCarregarSolicitacoesRH(),
@@ -71,6 +71,15 @@
       dash.totalColaboradores = colaboradores.length;
       dash.ativos = colaboradores.filter((c) => c.status === "ATIVO").length;
       dash.afastados = colaboradores.filter((c) => c.status === "AFASTADO").length;
+
+      // Lembrete de férias (mesma regra de rh/ferias.html): colaboradores
+      // ativos cujo período aquisitivo está a até 60 dias de vencer (ou já
+      // venceu) e que ainda não têm férias programadas para esse período.
+      dash.avisosFerias = colaboradores
+        .filter((c) => c.status !== "INATIVO")
+        .map((c) => rhAvisoFeriasColaborador(c, feriasRH.filter((f) => f.colaboradorId === c.id), hojeIso))
+        .filter(Boolean)
+        .sort((a, b) => a.diasParaVencer - b.diasParaVencer);
 
       const porDepto = {};
       colaboradores.forEach((c) => { const d = c.departamento || "Sem departamento"; porDepto[d] = (porDepto[d] || 0) + 1; });
@@ -284,6 +293,14 @@
       if (dash.afastados > 0) {
         notificacoes.push({ text: `${dash.afastados} colaborador${dash.afastados === 1 ? "" : "es"} afastado${dash.afastados === 1 ? "" : "s"} atualmente.`, time: "agora", unread: false, icon: ICONS.alertCircle });
       }
+      dash.avisosFerias.forEach((a) => {
+        notificacoes.push({
+          text: `<strong>${esc(a.colaboradorNome)}</strong> precisa programar férias — período aquisitivo de ${fmtDate(a.periodoAquisitivoInicio)} a ${fmtDate(a.periodoAquisitivoFim)}.`,
+          time: a.vencido ? `Vencido há ${Math.abs(a.diasParaVencer)} dia(s)` : `Vence em ${a.diasParaVencer} dia(s)`,
+          unread: true,
+          icon: ICONS.palmTree,
+        });
+      });
       renderTopHeader(document.getElementById("top-header"), session, { notifications: notificacoes });
       render();
     }
