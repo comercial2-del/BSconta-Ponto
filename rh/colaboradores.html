@@ -457,16 +457,18 @@
       }
     }
 
-    /** Regenera o acesso (código, e-mail e senha) de um colaborador que já
-     * possui login — usado quando o colaborador perdeu a senha ou o acesso
-     * precisa ser recriado por segurança. A senha atual deixa de funcionar
-     * imediatamente após a regeneração. */
+    /** Regenera SÓ A SENHA de um colaborador que já possui login — usado
+     * quando o colaborador perdeu a senha ou o acesso precisa ser
+     * recriado por segurança. O e-mail de login não muda (fica o mesmo de
+     * sempre); só é gerada uma senha nova, no padrão "BSconta" + Nome +
+     * código aleatório. A senha atual deixa de funcionar imediatamente
+     * após a regeneração. */
     async function regenerarAcessoParaColaborador(colaboradorId) {
       const employee = getEmployeeById(colaboradorId);
       const ok = await confirmDialog({
         title: "Regenerar acesso",
-        message: `Regenerar o acesso de ${employee?.nome || "este colaborador"}? A senha atual deixa de funcionar imediatamente e um novo e-mail e senha de login serão gerados.`,
-        confirmLabel: "Regenerar acesso",
+        message: `Regenerar a senha de acesso de ${employee?.nome || "este colaborador"}? O e-mail de login não muda — só a senha atual deixa de funcionar imediatamente e uma senha nova é gerada.`,
+        confirmLabel: "Regenerar senha",
         danger: true,
       });
       if (!ok) return;
@@ -477,7 +479,7 @@
         render();
         wireModalClosers();
         mostrarCredenciaisGeradas(resultado);
-        showToast(`Acesso regenerado para ${resultado.colaborador.nome}.`, "success");
+        showToast(`Senha regenerada para ${resultado.colaborador.nome}.`, "success");
       } catch (error) {
         showToast(error.message || String(error), "error");
       }
