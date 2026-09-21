@@ -13,6 +13,7 @@
     .field-static{min-height:40px;display:flex;align-items:center;padding:.58rem .72rem;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text);font-size:.82rem}
     .strong-code{font-weight:800;color:var(--indigo-700)}
     .edit-code-input{font-weight:800;letter-spacing:.01em;color:var(--indigo-700);background:linear-gradient(180deg,var(--surface),var(--surface-2));}
+    .edit-code-input[readonly]{cursor:not-allowed;background:var(--surface-2);opacity:.85;}
     .field-help{display:block;margin-top:.32rem;font-size:.68rem;line-height:1.35;color:var(--text-faint)}
     .notice{padding:.75rem .85rem;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text-soft);font-size:.76rem;line-height:1.45}
     @media (max-width:720px){.bs-profile-btn{min-width:88px}.modal{max-width:100%!important}}
@@ -123,6 +124,10 @@
                   <input type="radio" name="novo-modo-acesso" value="interno" style="margin-top:.2rem" />
                   <span>Login automático (uso interno da BSconta) — o sistema gera um e-mail e uma senha na hora, sem precisar de caixa de e-mail real.</span>
                 </label>
+                <label style="display:flex;align-items:flex-start;gap:.5rem;font-weight:400;cursor:pointer">
+                  <input type="radio" name="novo-modo-acesso" value="estagiario" style="margin-top:.2rem" />
+                  <span>Estagiário — você informa o e-mail, e o sistema gera só a senha na hora (mesmo padrão da função "Regenerar acesso").</span>
+                </label>
               </div>
             </div>
             <div class="field full" id="novo-email-wrap"><label>E-mail corporativo</label><input id="novo-email" type="email" required /></div>
@@ -190,7 +195,7 @@
             <div class="field"><label>Data de aniversário</label><input id="edit-data-nascimento" type="date" /></div>
 
             <div class="form-section-title">Cadastro</div>
-            <div class="field"><label>Código de Colaborador</label><input id="edit-codigo" class="edit-code-input" type="text" inputmode="text" autocomplete="off" pattern="BSconta\+\d+" maxlength="32" required /><span class="field-help">Editável pelo RH. Deve seguir o padrão BSconta+12, BSconta+13...</span></div>
+            <div class="field"><label>Código de Colaborador</label><input id="edit-codigo" class="edit-code-input" type="text" inputmode="text" autocomplete="off" pattern="BSconta\+\d+" maxlength="32" required readonly aria-readonly="true" title="Campo bloqueado — não pode ser editado aqui." /><span class="field-help">🔒 Bloqueado — gerado pelo sistema, não pode ser editado nesta tela.</span></div>
             <div class="field"><label>Cargo</label><input id="edit-cargo" type="text" required /></div>
             <div class="field"><label>Departamento</label>
               <select id="edit-departamento" required>
@@ -258,6 +263,7 @@
         nome: row.nome,
         email: row.email,
         codigoColaborador: row.codigo || "—",
+        tipo: row.tipo || "COLABORADOR",
         cargo: row.cargo,
         departamento: row.departamento,
         admissao: row.admissao,
@@ -294,6 +300,13 @@
       const map = { ATIVO: ["on", "Ativo"], AFASTADO: ["away", "Afastado"], INATIVO: ["off", "Inativo"] };
       const [cls, label] = map[status] || ["off", status];
       return `<span class="status-pill ${cls}"><span class="dot"></span>${label}</span>`;
+    }
+    // Badge "Estagiário" — só aparece quando c.tipo === "ESTAGIARIO" (setado
+    // pela Edge Function criar-estagiario-colaborador). Colaboradores
+    // normais (tipo "COLABORADOR", o padrão) não mostram nada aqui.
+    function tipoBadge(tipo) {
+      if (tipo !== "ESTAGIARIO") return "";
+      return `<span class="status-pill" style="background:var(--indigo-50,#eef2ff);color:var(--indigo-700,#4338ca);border:1px solid var(--indigo-200,#c7d2fe)">Estagiário</span>`;
     }
     function fmt(iso) { if (!iso) return "—"; const [y, m, d] = iso.split("-"); return `${d}/${m}/${y}`; }
     function formatCpf(cpf) { if (!cpf) return "—"; const d = String(cpf).replace(/\D/g, ""); if (d.length !== 11) return cpf; return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9,11)}`; }
@@ -377,7 +390,7 @@
               ${pageRows
                 .map(
                   (c) => `<tr>
-                <td><div class="person-cell"><span class="avatar avatar-sm ${avatarColorClass(c.nome)}">${initials(c.nome)}</span>${esc(c.nome)}</div></td>
+                <td><div class="person-cell"><span class="avatar avatar-sm ${avatarColorClass(c.nome)}">${initials(c.nome)}</span>${esc(c.nome)} ${tipoBadge(c.tipo)}</div></td>
                 <td><strong>${esc(c.codigoColaborador)}</strong></td>
                 <td>${esc(c.email)}</td>
                 <td>${esc(c.cargo || "—")}</td>
@@ -494,7 +507,7 @@
         <div style="display:flex;align-items:center;gap:.9rem;margin-bottom:1.25rem">
           <span class="avatar ${avatarColorClass(employee.nome)}" style="width:52px;height:52px;font-size:.9rem">${initials(employee.nome)}</span>
           <div>
-            <div style="font-weight:800;color:var(--text);font-size:1rem">${esc(employee.nome)}</div>
+            <div style="font-weight:800;color:var(--text);font-size:1rem">${esc(employee.nome)} ${tipoBadge(employee.tipo)}</div>
             <div style="display:flex;align-items:center;gap:.5rem;margin-top:.28rem">${statusPill(employee.status)}<span style="color:var(--text-faint);font-size:.76rem">${esc(employee.codigoColaborador)}</span></div>
           </div>
         </div>
@@ -502,6 +515,7 @@
           <div class="field"><label>E-mail corporativo</label><div class="field-static">${esc(employee.email || "—")}</div></div>
           <div class="field"><label>Telefone</label><div class="field-static">${esc(employee.telefone || "—")}</div></div>
           <div class="field"><label>Código de Colaborador</label><div class="field-static strong-code">${esc(employee.codigoColaborador || "—")}</div></div>
+          <div class="field"><label>Tipo</label><div class="field-static">${employee.tipo === "ESTAGIARIO" ? "Estagiário" : "Colaborador"}</div></div>
           <div class="field"><label>CPF</label><div class="field-static" id="perfil-cpf">Carregando...</div></div>
           <div class="field"><label>Salário</label><div class="field-static" id="perfil-salario">Carregando...</div></div>
           <div class="field"><label>Cargo</label><div class="field-static">${esc(employee.cargo || "—")}</div></div>
@@ -670,6 +684,7 @@
 
       const NOTICE_CONVITE = 'Ao cadastrar, a Supabase envia um e-mail real de convite para este endereço, com um link para a pessoa definir a própria senha. O acesso só passa a existir depois que ela concluir esse convite.';
       const NOTICE_INTERNO = 'O sistema vai gerar automaticamente um e-mail de login e uma senha para esta pessoa — não precisa de caixa de e-mail real. Depois de cadastrar, a senha aparece na tela UMA ÚNICA VEZ para você anotar e passar ao colaborador.';
+      const NOTICE_ESTAGIARIO = 'Informe o e-mail do estagiário abaixo — o sistema não manda convite nenhum para ele. Só a senha é gerada automaticamente (mesmo padrão da função "Regenerar acesso"). Depois de cadastrar, a senha aparece na tela UMA ÚNICA VEZ para você anotar e passar ao estagiário.';
 
       function aplicarModoAcesso(modo) {
         const emailInput = document.getElementById("novo-email");
@@ -681,6 +696,11 @@
           emailWrap.style.display = "none";
           notice.textContent = NOTICE_INTERNO;
           submitBtn.textContent = "Gerar login e cadastrar";
+        } else if (modo === "estagiario") {
+          emailInput.required = true;
+          emailWrap.style.display = "";
+          notice.textContent = NOTICE_ESTAGIARIO;
+          submitBtn.textContent = "Gerar senha e cadastrar";
         } else {
           emailInput.required = true;
           emailWrap.style.display = "";
@@ -704,7 +724,7 @@
         const btn = e.target.querySelector('button[type="submit"]');
         const modo = document.querySelector('input[name="novo-modo-acesso"]:checked').value;
         btn.disabled = true;
-        btn.textContent = modo === "interno" ? "Gerando login..." : "Enviando convite...";
+        btn.textContent = modo === "interno" ? "Gerando login..." : modo === "estagiario" ? "Gerando senha..." : "Enviando convite...";
         try {
           const dadosBase = {
             nome: document.getElementById("novo-nome").value,
@@ -715,6 +735,8 @@
           };
           const resultado = modo === "interno"
             ? await rhCriarLoginColaborador(dadosBase)
+            : modo === "estagiario"
+            ? await rhCriarEstagiarioColaborador({ ...dadosBase, email: document.getElementById("novo-email").value })
             : await rhConvidarColaborador({ ...dadosBase, email: document.getElementById("novo-email").value });
           // A Edge Function cria o registro básico; os campos de jornada
           // (não recebidos por ela) são gravados aqui, numa segunda chamada
@@ -765,6 +787,9 @@
           if (modo === "interno") {
             mostrarCredenciaisGeradas(resultado);
             showToast(`Colaborador ${resultado.colaborador.nome} cadastrado com login automático.`, "success");
+          } else if (modo === "estagiario") {
+            mostrarCredenciaisGeradas(resultado);
+            showToast(`Estagiário ${resultado.colaborador.nome} cadastrado com senha gerada automaticamente.`, "success");
           } else {
             showToast(resultado.mensagem || `Convite enviado para ${resultado.colaborador.email}.`, "success");
           }
