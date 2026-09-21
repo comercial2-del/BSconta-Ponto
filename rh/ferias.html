@@ -7,6 +7,10 @@
   <link rel="icon" type="image/png" href="../assets/bsconta-icon.png" />
   <link rel="stylesheet" href="../css/styles.css" />
   <link rel="stylesheet" href="../css/theme-v2.css" />
+  <style>
+    .report-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.5rem}
+    .report-list li{font-size:.85rem;line-height:1.55;padding:.6rem .8rem;border-radius:10px;background:rgba(255,255,255,.6);border:1px solid rgba(217,119,6,.18)}
+  </style>
 </head>
 <body>
   <div class="app-shell">
@@ -16,6 +20,56 @@
         <div id="top-header" class="top-header"></div>
         <div id="content"><div class="loading-wrap"><div class="spinner"></div></div></div>
       </main>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-lancar">
+    <div class="modal" style="max-width:620px">
+      <div class="modal-header"><h3>Lançar férias</h3><button class="modal-close" data-close-modal>${''}</button></div>
+      <form id="form-lancar">
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="field full">
+              <label>Colaborador</label>
+              <select id="lancar-colaborador" required></select>
+            </div>
+            <div class="field full">
+              <label>Tipo de lançamento</label>
+              <div style="display:flex;flex-direction:column;gap:.5rem;margin-top:.3rem">
+                <label style="display:flex;align-items:flex-start;gap:.5rem;font-weight:400;cursor:pointer">
+                  <input type="radio" name="lancar-tipo" value="unico" checked style="margin-top:.2rem" />
+                  <span>Período único — informo a data de início e fim.</span>
+                </label>
+                <label style="display:flex;align-items:flex-start;gap:.5rem;font-weight:400;cursor:pointer">
+                  <input type="radio" name="lancar-tipo" value="fracionado" style="margin-top:.2rem" />
+                  <span>Férias fracionadas — dividir em blocos de 15 em 15 dias (2 a 4 períodos).</span>
+                </label>
+              </div>
+            </div>
+          </div>
+          <div id="lancar-unico-wrap" class="form-grid" style="margin-top:.9rem">
+            <div class="field"><label>Data de início</label><input type="date" id="lancar-inicio" /></div>
+            <div class="field"><label>Data de fim</label><input type="date" id="lancar-fim" /></div>
+          </div>
+          <div id="lancar-fracionado-wrap" style="display:none;margin-top:.9rem">
+            <div class="field" style="max-width:220px">
+              <label>Quantidade de períodos</label>
+              <select id="lancar-qtd-blocos">
+                <option value="2">2 períodos (30 dias)</option>
+                <option value="3">3 períodos (45 dias)</option>
+                <option value="4">4 períodos (60 dias)</option>
+              </select>
+            </div>
+            <div id="lancar-blocos-list" style="display:flex;flex-direction:column;gap:.6rem;margin-top:.8rem"></div>
+            <p class="hint" style="margin-top:.4rem">Cada bloco tem 15 dias corridos — ajuste a data de início de cada um; a data de fim é calculada automaticamente.</p>
+          </div>
+          <p class="field-hint" id="lancar-resumo" style="margin-top:.9rem"></p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-ghost" data-close-modal>Cancelar</button>
+          <button type="submit" class="btn-primary auto" id="lancar-btn-submit">Lançar férias</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -32,9 +86,25 @@
     if (!session) return;
     let filtro = "PENDENTES";
     let cacheFerias = [];
+    let colaboradoresAtivos = [];
+    let avisosFerias = [];
 
     async function refrescarFerias() {
       cacheFerias = await rhCarregarFeriasRH();
+    }
+
+    async function carregarColaboradoresAtivos() {
+      const { data, error } = await sb.from("colaboradores").select("id, nome, admissao").neq("status", "INATIVO").order("nome");
+      if (error) throw error;
+      colaboradoresAtivos = data || [];
+    }
+
+    function recalcularAvisosFerias() {
+      const hojeIso = rhTodayIso();
+      avisosFerias = colaboradoresAtivos
+        .map((c) => rhAvisoFeriasColaborador(c, cacheFerias.filter((f) => f.colaboradorId === c.id), hojeIso))
+        .filter(Boolean)
+        .sort((a, b) => a.diasParaVencer - b.diasParaVencer);
     }
 
     function mesAtualIso() {
@@ -54,7 +124,10 @@
               <h1 class="page-title">Gestão de Férias</h1>
               <p class="page-sub">Analise e acompanhe as solicitações de férias de toda a equipe.</p>
             </div>
+            <button type="button" class="btn-primary auto" id="btn-lancar">${ICONS.plus}<span>Lançar férias</span></button>
           </div>
+
+          ${avisosHtml()}
 
           <div id="kpi-grid"></div>
 
@@ -72,6 +145,8 @@
         </div>
       `;
 
+      document.getElementById("btn-lancar").addEventListener("click", () => abrirModalLancar());
+
       renderKpiGrid(document.getElementById("kpi-grid"), [
         { label: "Aguardando análise", value: pendentesCount, tone: "amber", icon: ICONS.messageSquare },
         { label: "Aprovadas (período atual)", value: aprovadasCount, tone: "green", icon: ICONS.checkCircle },
@@ -88,6 +163,34 @@
         })
       );
       renderView();
+    }
+
+    // ------------------------------------------------------------------
+    // Lembrete de férias — banner com os colaboradores cujo período
+    // aquisitivo (admissão + 1 ano) está a até 60 dias de vencer, ou já
+    // vencido, e que ainda não têm férias programadas para esse período.
+    // ------------------------------------------------------------------
+    function avisosHtml() {
+      if (!avisosFerias.length) return "";
+      return `
+        <div class="card card-p" style="border-color:rgba(245,158,11,.35);background:var(--amber-50)">
+          <div class="row-between" style="align-items:flex-start;margin-bottom:.6rem">
+            <div style="display:flex;align-items:center;gap:.6rem">
+              <span style="color:var(--amber-700)">${ICONS.alertCircle}</span>
+              <h3 style="margin:0;color:var(--amber-700)">Lembrete de férias — ${avisosFerias.length} colaborador${avisosFerias.length > 1 ? "es" : ""} precisa${avisosFerias.length > 1 ? "m" : ""} programar</h3>
+            </div>
+          </div>
+          <div class="report-list">
+            ${avisosFerias
+              .map(
+                (a) => `<li>
+                <strong>${esc(a.colaboradorNome)}</strong> — período aquisitivo ${fmtDate(a.periodoAquisitivoInicio)} a ${fmtDate(a.periodoAquisitivoFim)}
+                ${a.vencido ? ` — <span style="color:var(--red-600);font-weight:700">vencido há ${Math.abs(a.diasParaVencer)} dia(s)</span>` : ` — vence em ${a.diasParaVencer} dia(s)`}
+              </li>`
+              )
+              .join("")}
+          </div>
+        </div>`;
     }
 
     function filteredRows() {
@@ -156,12 +259,117 @@
         </div>`;
     }
 
+    // ------------------------------------------------------------------
+    // Modal "Lançar férias" — período único, ou fracionado em blocos de 15
+    // dias (ver rhLancarFeriasRH / rhBlocosFerias15 em rh-ferias-data.js).
+    // ------------------------------------------------------------------
+    function tipoLancamentoSelecionado() {
+      return document.querySelector('input[name="lancar-tipo"]:checked')?.value || "unico";
+    }
+
+    function renderBlocosFracionado() {
+      const qtd = Number(document.getElementById("lancar-qtd-blocos").value);
+      const wrap = document.getElementById("lancar-blocos-list");
+      const hojeIso = rhTodayIso();
+      wrap.innerHTML = Array.from({ length: qtd }, (_, i) => `
+        <div class="field">
+          <label>Bloco ${i + 1} — data de início (15 dias)</label>
+          <input type="date" class="lancar-bloco-inicio" data-bloco="${i}" value="${i === 0 ? hojeIso : ""}" />
+        </div>`).join("");
+      wrap.querySelectorAll(".lancar-bloco-inicio").forEach((input) => input.addEventListener("change", atualizarResumoLancamento));
+      atualizarResumoLancamento();
+    }
+
+    function atualizarResumoLancamento() {
+      const resumo = document.getElementById("lancar-resumo");
+      const tipo = tipoLancamentoSelecionado();
+      if (tipo === "unico") {
+        const inicio = document.getElementById("lancar-inicio").value;
+        const fim = document.getElementById("lancar-fim").value;
+        if (!inicio || !fim || fim < inicio) { resumo.textContent = ""; return; }
+        resumo.innerHTML = `Período: <strong>${fmtDate(inicio)} a ${fmtDate(fim)}</strong> (${rhDiasEntre(inicio, fim)} dias).`;
+        return;
+      }
+      const inicios = Array.from(document.querySelectorAll(".lancar-bloco-inicio")).map((i) => i.value).filter(Boolean);
+      if (!inicios.length) { resumo.textContent = ""; return; }
+      const periodos = inicios.map((iniIso) => {
+        const fimDate = new Date(iniIso + "T00:00:00");
+        fimDate.setDate(fimDate.getDate() + 14);
+        return `${fmtDate(iniIso)} a ${fmtDate(`${fimDate.getFullYear()}-${String(fimDate.getMonth() + 1).padStart(2, "0")}-${String(fimDate.getDate()).padStart(2, "0")}`)}`;
+      });
+      resumo.innerHTML = `${inicios.length} período(s) de 15 dias — total de <strong>${inicios.length * 15} dias</strong>: ${periodos.join(" · ")}.`;
+    }
+
+    function abrirModalLancar() {
+      const sel = document.getElementById("lancar-colaborador");
+      sel.innerHTML = colaboradoresAtivos.map((c) => `<option value="${c.id}">${esc(c.nome)}</option>`).join("");
+      document.querySelectorAll('input[name="lancar-tipo"]').forEach((r) => (r.checked = r.value === "unico"));
+      document.getElementById("lancar-unico-wrap").style.display = "";
+      document.getElementById("lancar-fracionado-wrap").style.display = "none";
+      document.getElementById("lancar-inicio").value = "";
+      document.getElementById("lancar-fim").value = "";
+      document.getElementById("lancar-qtd-blocos").value = "2";
+      renderBlocosFracionado();
+      document.getElementById("lancar-resumo").textContent = "";
+      openModal("modal-lancar");
+    }
+
+    document.querySelectorAll('input[name="lancar-tipo"]').forEach((r) =>
+      r.addEventListener("change", () => {
+        const tipo = tipoLancamentoSelecionado();
+        document.getElementById("lancar-unico-wrap").style.display = tipo === "unico" ? "" : "none";
+        document.getElementById("lancar-fracionado-wrap").style.display = tipo === "fracionado" ? "" : "none";
+        atualizarResumoLancamento();
+      })
+    );
+    document.getElementById("lancar-inicio").addEventListener("change", atualizarResumoLancamento);
+    document.getElementById("lancar-fim").addEventListener("change", atualizarResumoLancamento);
+    document.getElementById("lancar-qtd-blocos").addEventListener("change", renderBlocosFracionado);
+
+    document.getElementById("form-lancar").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById("lancar-btn-submit");
+      const colaboradorId = document.getElementById("lancar-colaborador").value;
+      const tipo = tipoLancamentoSelecionado();
+      let periodos;
+      if (tipo === "unico") {
+        periodos = [{ inicio: document.getElementById("lancar-inicio").value, fim: document.getElementById("lancar-fim").value }];
+      } else {
+        const inicios = Array.from(document.querySelectorAll(".lancar-bloco-inicio")).map((i) => i.value);
+        if (inicios.some((v) => !v)) { showToast("Informe a data de início de todos os blocos.", "error"); return; }
+        periodos = inicios.map((iniIso) => {
+          const fim = new Date(iniIso + "T00:00:00");
+          fim.setDate(fim.getDate() + 14);
+          return { inicio: iniIso, fim: `${fim.getFullYear()}-${String(fim.getMonth() + 1).padStart(2, "0")}-${String(fim.getDate()).padStart(2, "0")}` };
+        });
+      }
+      btn.disabled = true;
+      btn.textContent = "Lançando...";
+      try {
+        await rhLancarFeriasRH({ colaboradorId, periodos });
+        await refrescarFerias();
+        recalcularAvisosFerias();
+        closeModal("modal-lancar");
+        document.getElementById("form-lancar").reset();
+        showToast(`Férias lançadas (${periodos.length} período${periodos.length > 1 ? "s" : ""}).`, "success");
+        render();
+      } catch (err) {
+        showToast(rhMensagemErroSupabase(err), "error");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Lançar férias";
+      }
+    });
+
     if (session) {
       renderShell(session, withBadges(NAV_RH, await rhNavBadges()));
       renderTopHeader(document.getElementById("top-header"), session, { notifications: [] });
       document.getElementById("content").innerHTML = `<div class="loading-wrap"><div class="spinner"></div></div>`;
+      document.querySelector("#modal-lancar .modal-close").innerHTML = ICONS.x;
+      wireModalClosers();
       try {
-        await refrescarFerias();
+        await Promise.all([refrescarFerias(), carregarColaboradoresAtivos()]);
+        recalcularAvisosFerias();
         render();
       } catch (err) {
         rhShowFatalError(rhMensagemErroSupabase(err));

@@ -31,6 +31,16 @@
     .ponto-day-card.status-atraso{background:var(--amber-50);border-color:rgba(245,158,11,.22)}
     .ponto-day-card.status-falta{background:var(--red-50);border-color:rgba(239,68,68,.20)}
     .ponto-day-card.status-extra{background:var(--violet-50);border-color:rgba(139,92,246,.20)}
+    /* Padrão de cores solicitado pelo RH: azul = presencial, verde = home
+       office, cinza = dia com alteração feita pelo RH. Tem prioridade sobre
+       as cores de status acima (que continuam valendo só quando não há
+       local registrado nem alteração do RH — ex.: falta, atraso sem local). */
+    .ponto-day-card.cor-presencial{background:var(--blue-50);border-color:rgba(59,130,246,.28)}
+    .ponto-day-card.cor-presencial .ponto-date{color:var(--blue-700)}
+    .ponto-day-card.cor-home{background:var(--emerald-50);border-color:rgba(16,185,129,.28)}
+    .ponto-day-card.cor-home .ponto-date{color:var(--emerald-700)}
+    .ponto-day-card.cor-rh{background:var(--slate-100);border-color:rgba(100,116,139,.35)}
+    .ponto-day-card.cor-rh .ponto-date{color:var(--slate-700)}
     .ponto-day-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
     .ponto-dow{font-size:.67rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--text-faint)}
     .ponto-date{font-size:1.15rem;line-height:1;font-weight:800;color:var(--text)}
@@ -48,7 +58,9 @@
     .ponto-status-dot.delay{background:var(--amber-500)}
     .ponto-status-dot.absent{background:var(--red-500)}
     .ponto-status-dot.extra{background:var(--violet-500)}
-    .ponto-status-dot.rh{background:var(--indigo-500)}
+    .ponto-status-dot.rh{background:var(--slate-500)}
+    .ponto-status-dot.presencial{background:var(--blue-500)}
+    .ponto-status-dot.home{background:var(--emerald-500)}
     .ponto-month-head{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;margin-top:14px}
     .ponto-month-head span{font-size:.67rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--text-faint);padding:0 10px}
     .ponto-custom-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;margin-top:14px}
@@ -481,11 +493,11 @@
             </div>
             <div id="calendario-wrap"></div>
             <div class="ponto-legend">
-              <span class="item"><span class="dot" style="background:var(--emerald-500)"></span>Trabalhado</span>
-              <span class="item"><span class="dot" style="background:var(--indigo-500)"></span>Home office</span>
+              <span class="item"><span class="dot" style="background:var(--blue-500)"></span>Presencial na empresa</span>
+              <span class="item"><span class="dot" style="background:var(--emerald-500)"></span>Home office</span>
+              <span class="item"><span class="dot" style="background:var(--slate-500)"></span>Alteração feita pelo RH</span>
               <span class="item"><span class="dot" style="background:var(--amber-500)"></span>Atraso</span>
               <span class="item"><span class="dot" style="background:var(--red-500)"></span>Falta</span>
-              <span class="item"><span class="dot" style="background:var(--indigo-500)"></span>Alterado pelo RH</span>
             </div>
           </div>
 
@@ -638,9 +650,16 @@
         const dow = dayNames[(d.getDay() + 6) % 7];
         const date = String(d.getDate()).padStart(2, "0");
         const home = rec?.local === "HOME_OFFICE";
+        const presencial = rec?.local === "PRESENCIAL";
         const rh = !!rec?.alteradoPeloRH;
+        // Cor do card: alteração do RH (cinza) tem prioridade sobre o local;
+        // depois vem o local (azul presencial / verde home office); sem
+        // nenhum dos dois (falta, atraso sem local, etc.) cai no status.
+        const corClasse = rh ? "cor-rh" : home ? "cor-home" : presencial ? "cor-presencial" : info.cls;
+        const dotClasse = rh ? "rh" : home ? "home" : presencial ? "presencial" : (info.dot || "");
+        const rodapeTexto = rh ? "Alterado pelo RH" : home ? "Home office" : presencial ? "Presencial" : (rec ? "Registro" : "Sem registro");
         return `
-          <div class="ponto-day-card ${info.cls} ${isToday ? "is-today" : ""} ${isWeekend ? "is-weekend" : ""}" data-dia="${iso}">
+          <div class="ponto-day-card ${corClasse} ${isToday ? "is-today" : ""} ${isWeekend ? "is-weekend" : ""}" data-dia="${iso}">
             <div class="ponto-day-top">
               <div>
                 <div class="ponto-dow">${dow}</div>
@@ -653,8 +672,8 @@
               <span class="ponto-day-hours">${info.hours || ""}</span>
             </div>
             <div class="ponto-day-footer">
-              <span class="ponto-status-dot ${home ? "complete" : (info.dot || "")}"></span>
-              <span>${home ? "Home office" : (rh ? "Alterado pelo RH" : (rec ? "Registro" : "Sem registro"))}</span>
+              <span class="ponto-status-dot ${dotClasse}"></span>
+              <span>${rodapeTexto}${rh && (home || presencial) ? ` · ${home ? "Home office" : "Presencial"}` : ""}</span>
             </div>
           </div>`;
       };

@@ -7,6 +7,33 @@
   <link rel="icon" type="image/png" href="../assets/bsconta-icon.png" />
   <link rel="stylesheet" href="../css/styles.css" />
   <link rel="stylesheet" href="../css/theme-v2.css" />
+  <style>
+    /* Redesign visual dos relatórios: letras maiores/mais legíveis, mais
+       espaçamento e uma disposição em seções (cabeçalho + indicadores +
+       tabela) em vez do bloco de texto corrido único de antes. O texto
+       corrido continua existindo só como fonte do "Baixar (.txt)". */
+    .report-head{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;padding-bottom:1rem;margin-bottom:1.1rem;border-bottom:1px solid var(--border)}
+    .report-head h2{margin:0;font-size:1.28rem;font-weight:800;letter-spacing:-.01em}
+    .report-head .report-meta{margin:.35rem 0 0;font-size:.86rem;color:var(--text-faint);line-height:1.55}
+    .report-section{margin-top:1.6rem}
+    .report-section:first-child{margin-top:0}
+    .report-section-title{font-size:.96rem;font-weight:800;color:var(--text);margin:0 0 .8rem}
+    .report-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.85rem}
+    .report-table-wrap table{font-size:.86rem}
+    .report-table-wrap th{font-size:.72rem;letter-spacing:.03em;text-transform:uppercase;color:var(--text-faint);padding:.7rem .9rem;font-weight:800}
+    .report-table-wrap td{padding:.75rem .9rem;line-height:1.5}
+    .report-table-wrap tbody tr:nth-child(even){background:var(--surface-2)}
+    .report-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.6rem}
+    .report-list li{font-size:.87rem;line-height:1.55;padding:.7rem .9rem;border-radius:10px;background:var(--surface-2);border:1px solid var(--border)}
+    .report-toggle-txt{margin-top:1.4rem;padding-top:1rem;border-top:1px dashed var(--border)}
+    .report-toggle-txt summary{cursor:pointer;font-size:.82rem;font-weight:700;color:var(--text-soft)}
+    .report-toggle-txt summary:hover{color:var(--text)}
+    .report-pre{margin-top:.8rem;font-size:.86rem;line-height:1.65;letter-spacing:.01em}
+    @media print {
+      .top-header, #app-header, #cards-grid, .period-buttons, #btn-baixar { display: none !important; }
+      .report-pre { display: none !important; }
+    }
+  </style>
 </head>
 <body>
   <div class="app-shell">
@@ -45,6 +72,7 @@
     // rhPontoHoje), que eram listas fixas em memória.
     const REPORTS_CARDS = [
       { id: "colaboradores", nome: "Colaboradores", desc: "Total, status e distribuição por departamento.", icon: "users", tone: "indigo" },
+      { id: "presenca", nome: "Presença e Home Office", desc: "Dias presenciais, em home office e com alteração do RH, por colaborador.", icon: "mapPin", tone: "blue" },
       { id: "ferias", nome: "Férias", desc: "Solicitações aprovadas, pendentes e recusadas.", icon: "palmTree", tone: "green" },
       { id: "solicitacoes", nome: "Solicitações", desc: "Volume, status e categorias das solicitações ao RH.", icon: "messageSquare", tone: "amber" },
       { id: "documentos", nome: "Documentos", desc: "Holerites e documentos enviados, pendentes e assinados.", icon: "fileText", tone: "violet" },
@@ -53,7 +81,7 @@
 
     // Dados reais carregados uma vez ao abrir a tela (recarregados sempre
     // que a tela reabre — não há cache entre sessões).
-    let base = { colaboradores: [], ferias: [], solicitacoes: [], documentos: [], pontoHoje: [] };
+    let base = { colaboradores: [], ferias: [], solicitacoes: [], documentos: [], pontoHoje: [], pontoRegistros: [] };
 
     function periodoInicioIso() {
       const d = new Date();
@@ -65,17 +93,22 @@
 
     async function carregarBase() {
       const hojeIso = rhTodayIso();
-      const [{ data: colabRows, error: e1 }, ferias, solicitacoes, documentos, { data: pontoHojeRows, error: e2 }, { data: pontoRestoRows, error: e3 }] = await Promise.all([
+      const [{ data: colabRows, error: e1 }, ferias, solicitacoes, documentos, { data: pontoHojeRows, error: e2 }, { data: pontoRestoRows, error: e3 }, { data: pontoRegistrosRows, error: e4 }] = await Promise.all([
         sb.from("colaboradores").select(`id, nome, departamento, status, admissao, data_desligamento, ${RH_COLABORADOR_JORNADA_COLS}`).order("nome"),
         rhCarregarFeriasRH(),
         rhCarregarSolicitacoesRH(),
         rhListarDocumentosRH(),
         sb.from("ponto_registros").select("colaborador_id, entrada, local").eq("data", hojeIso),
         sb.from("ponto_registros").select("colaborador_id, atraso_min, horas_extras").neq("data", hojeIso),
+        // Histórico completo (colaborador, data, local, alteração do RH) —
+        // usado pelo relatório "Presença e Home Office", que precisa contar
+        // dias por período, não só o status de hoje.
+        sb.from("ponto_registros").select("colaborador_id, data, local, alterado_pelo_rh").order("data"),
       ]);
       if (e1) throw e1;
       if (e2) throw e2;
       if (e3) throw e3;
+      if (e4) throw e4;
 
       const colaboradores = colabRows || [];
       const pontoPorId = {};
@@ -92,13 +125,21 @@
           return { nome: c.nome, status, saldoBanco: saldoPorId[c.id] || 0 };
         });
 
-      base = { colaboradores, ferias, solicitacoes, documentos, pontoHoje };
+      base = { colaboradores, ferias, solicitacoes, documentos, pontoHoje, pontoRegistros: pontoRegistrosRows || [] };
     }
 
-    function gerarConteudo(id) {
+    // ------------------------------------------------------------------
+    // Cada gerador devolve uma estrutura só de DADOS (título, indicadores,
+    // seções com tabela ou lista) — usada tanto para desenhar a tela nova
+    // (KPIs + tabelas, mais legível) quanto para montar o .txt do botão
+    // "Baixar", sem duplicar a lógica em dois lugares.
+    // ------------------------------------------------------------------
+    function gerarRelatorio(id) {
       const hoje = new Date().toLocaleDateString("pt-BR");
       const periodoLabel = { mes: "últimos 30 dias", trimestre: "último trimestre", ano: "ano corrente" }[periodo];
       const inicioPeriodo = periodoInicioIso();
+      const metaPadrao = `Período: ${periodoLabel} · Gerado em ${hoje} por ${session.name}`;
+
       const geradores = {
         colaboradores: () => {
           const total = base.colaboradores.length;
@@ -108,18 +149,61 @@
           const desligamentosPeriodo = base.colaboradores.filter((c) => c.data_desligamento && c.data_desligamento >= inicioPeriodo).length;
           const porDeptoMap = {};
           base.colaboradores.forEach((c) => { const d = c.departamento || "Sem departamento"; porDeptoMap[d] = (porDeptoMap[d] || 0) + 1; });
-          const porDept = Object.entries(porDeptoMap).map(([nome, qtd]) => `  - ${nome}: ${qtd} colaborador${qtd === 1 ? "" : "es"}`).join("\n") || "  Nenhum colaborador cadastrado.";
-          return `RELATÓRIO DE COLABORADORES — período: ${periodoLabel}
-Gerado em ${hoje} por ${session.name}
-
-Total de colaboradores: ${total}
-Ativos: ${ativos}
-Afastados: ${afastados}
-Admissões no período (por data de admissão): ${admissoesPeriodo}
-Desligamentos no período (por data de desligamento): ${desligamentosPeriodo}
-
-Distribuição por departamento:
-${porDept}`;
+          const porDept = Object.entries(porDeptoMap).sort((a, b) => b[1] - a[1]);
+          return {
+            titulo: "Relatório de Colaboradores",
+            meta: metaPadrao,
+            kpis: [
+              { label: "Total de colaboradores", value: total, tone: "indigo", icon: ICONS.users },
+              { label: "Ativos", value: ativos, tone: "green", icon: ICONS.checkCircle },
+              { label: "Afastados", value: afastados, tone: "amber", icon: ICONS.alertCircle },
+              { label: "Admissões no período", value: admissoesPeriodo, tone: "teal", icon: ICONS.users },
+              { label: "Desligamentos no período", value: desligamentosPeriodo, tone: "red", icon: ICONS.xCircle },
+            ],
+            secoes: [
+              { titulo: "Distribuição por departamento", tabela: { headers: ["Departamento", "Colaboradores"], rows: porDept.length ? porDept.map(([nome, qtd]) => [nome, String(qtd)]) : [] }, vazio: "Nenhum colaborador cadastrado." },
+            ],
+          };
+        },
+        presenca: () => {
+          // Item 1 do pedido do RH: para cada colaborador, no período
+          // selecionado — dias presenciais, dias em home office e dias com
+          // alguma alteração feita pelo RH (rh.ponto_registros.alterado_pelo_rh).
+          const ativos = base.colaboradores.filter((c) => c.status !== "INATIVO");
+          const noPeriodo = base.pontoRegistros.filter((r) => r.data >= inicioPeriodo);
+          const porColab = {};
+          ativos.forEach((c) => { porColab[c.id] = { nome: c.nome, presencial: 0, homeOffice: 0, alteradoRH: 0 }; });
+          noPeriodo.forEach((r) => {
+            const linha = porColab[r.colaborador_id];
+            if (!linha) return; // colaborador inativo/removido — não entra no relatório
+            if (r.local === "PRESENCIAL") linha.presencial++;
+            else if (r.local === "HOME_OFFICE") linha.homeOffice++;
+            if (r.alterado_pelo_rh) linha.alteradoRH++;
+          });
+          const linhas = Object.values(porColab).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+          const totalPresencial = linhas.reduce((a, l) => a + l.presencial, 0);
+          const totalHome = linhas.reduce((a, l) => a + l.homeOffice, 0);
+          const totalAlterado = linhas.reduce((a, l) => a + l.alteradoRH, 0);
+          return {
+            titulo: "Relatório de Presença e Home Office",
+            meta: metaPadrao,
+            kpis: [
+              { label: "Dias presenciais (equipe)", value: totalPresencial, tone: "blue", icon: ICONS.building || ICONS.mapPin },
+              { label: "Dias em home office (equipe)", value: totalHome, tone: "green", icon: ICONS.home },
+              { label: "Dias alterados pelo RH", value: totalAlterado, tone: "indigo", icon: ICONS.edit || ICONS.alertCircle },
+              { label: "Colaboradores no relatório", value: linhas.length, tone: "teal", icon: ICONS.users },
+            ],
+            secoes: [
+              {
+                titulo: "Por colaborador",
+                tabela: {
+                  headers: ["Colaborador", "Dias presenciais", "Dias home office", "Dias alterados pelo RH"],
+                  rows: linhas.map((l) => [l.nome, String(l.presencial), String(l.homeOffice), String(l.alteradoRH)]),
+                },
+                vazio: "Nenhum colaborador ativo cadastrado.",
+              },
+            ],
+          };
         },
         ferias: () => {
           const noPeriodo = base.ferias.filter((f) => f.solicitadoEm && f.solicitadoEm >= inicioPeriodo);
@@ -129,16 +213,23 @@ ${porDept}`;
           const diasTotal = noPeriodo.filter((f) => f.status === "APROVADA").reduce((a, f) => a + (f.dias || 0), 0);
           const hojeIso = rhTodayIso();
           const proximas = base.ferias.filter((f) => f.status === "APROVADA" && f.fim >= hojeIso).sort((a, b) => (a.inicio < b.inicio ? -1 : 1)).slice(0, 10);
-          return `RELATÓRIO DE FÉRIAS — período: ${periodoLabel}
-Gerado em ${hoje} por ${session.name}
-
-Solicitações aprovadas no período: ${aprov}
-Solicitações pendentes no período: ${pend}
-Solicitações recusadas no período: ${rec}
-Total de dias de férias aprovados no período: ${diasTotal}
-
-Próximas férias (todas as aprovadas futuras, não só do período):
-${proximas.map((v) => `  - ${v.colaborador}: ${fmtDate(v.inicio)} a ${fmtDate(v.fim)} (${v.dias} dias)`).join("\n") || "  Nenhuma férias aprovada futura."}`;
+          return {
+            titulo: "Relatório de Férias",
+            meta: metaPadrao,
+            kpis: [
+              { label: "Aprovadas no período", value: aprov, tone: "green", icon: ICONS.checkCircle },
+              { label: "Pendentes no período", value: pend, tone: "amber", icon: ICONS.alertCircle },
+              { label: "Recusadas no período", value: rec, tone: "red", icon: ICONS.xCircle },
+              { label: "Dias de férias aprovados", value: diasTotal, tone: "indigo", icon: ICONS.palmTree },
+            ],
+            secoes: [
+              {
+                titulo: "Próximas férias aprovadas (todas as futuras, não só do período)",
+                tabela: { headers: ["Colaborador", "Início", "Fim", "Dias"], rows: proximas.map((v) => [v.colaborador, fmtDate(v.inicio), fmtDate(v.fim), String(v.dias)]) },
+                vazio: "Nenhuma férias aprovada futura.",
+              },
+            ],
+          };
         },
         solicitacoes: () => {
           const noPeriodo = base.solicitacoes.filter((s) => s.data && s.data >= inicioPeriodo);
@@ -151,51 +242,100 @@ ${proximas.map((v) => `  - ${v.colaborador}: ${fmtDate(v.inicio)} a ${fmtDate(v.
             .filter((s) => s.origem === "geral" && s.respostas && s.respostas.length && s.data)
             .map((s) => (new Date(s.respostas[s.respostas.length - 1].data) - new Date(s.data)) / 86400000)
             .filter((d) => d >= 0);
-          const tempoMedio = temposResposta.length ? (temposResposta.reduce((a, b) => a + b, 0) / temposResposta.length).toFixed(1).replace(".", ",") + " dia(s)" : "sem dados suficientes ainda (nenhuma solicitação com resposta registrada no período)";
-          return `RELATÓRIO DE SOLICITAÇÕES — período: ${periodoLabel}
-Gerado em ${hoje} por ${session.name}
-
-Total de solicitações no período: ${total}
-Resolvidas/recusadas: ${resolvidas}
-Em aberto: ${abertas}
-Tempo médio de resposta (só "geral", entre abertura e última resposta registrada): ${tempoMedio}
-
-Por categoria:
-${Object.entries(porCategoria).map(([c, n]) => `  - ${c}: ${n}`).join("\n") || "  Nenhuma solicitação no período."}`;
+          const tempoMedio = temposResposta.length ? (temposResposta.reduce((a, b) => a + b, 0) / temposResposta.length).toFixed(1).replace(".", ",") + " dia(s)" : "sem dados suficientes";
+          return {
+            titulo: "Relatório de Solicitações",
+            meta: metaPadrao,
+            kpis: [
+              { label: "Total no período", value: total, tone: "indigo", icon: ICONS.messageSquare },
+              { label: "Resolvidas/recusadas", value: resolvidas, tone: "green", icon: ICONS.checkCircle },
+              { label: "Em aberto", value: abertas, tone: "amber", icon: ICONS.alertCircle },
+              { label: "Tempo médio de resposta", value: tempoMedio, tone: "teal", icon: ICONS.clock, format: "text" },
+            ],
+            secoes: [
+              { titulo: "Por categoria", tabela: { headers: ["Categoria", "Solicitações"], rows: Object.entries(porCategoria).sort((a, b) => b[1] - a[1]).map(([c, n]) => [c, String(n)]) }, vazio: "Nenhuma solicitação no período." },
+            ],
+          };
         },
         documentos: () => {
           const noPeriodo = base.documentos.filter((d) => d.data && d.data >= inicioPeriodo);
           const publicadosOuAssinados = noPeriodo.filter((d) => d.status === "PUBLICADO" || d.status === "ASSINADO").length;
           const pendentesRows = base.documentos.filter((d) => d.status === "PENDENTE" || d.status === "AGUARDANDO_IMPORTACAO");
           const vencendo15 = base.documentos.filter((d) => d.prazo && d.status !== "ASSINADO" && d.status !== "PUBLICADO" && d.prazo >= rhTodayIso() && d.prazo <= new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10)).length;
-          return `RELATÓRIO DE DOCUMENTOS — período: ${periodoLabel}
-Gerado em ${hoje} por ${session.name}
-
-Documentos enviados no período (publicados ou já assinados): ${publicadosOuAssinados}
-Documentos pendentes (todos, não só do período): ${pendentesRows.length}
-Documentos com prazo nos próximos 15 dias (ainda não assinados/publicados): ${vencendo15}
-
-Pendências:
-${pendentesRows.map((d) => `  - ${d.colaborador}: ${d.titulo || d.tipo} (${{ ...STATUS_LABELS, PENDENTE: "Pendente de assinatura", AGUARDANDO_IMPORTACAO: "Aguardando importação" }[d.status] || d.status})`).join("\n") || "  Nenhuma pendência."}`;
+          const labelsStatus = { ...STATUS_LABELS, PENDENTE: "Pendente de assinatura", AGUARDANDO_IMPORTACAO: "Aguardando importação" };
+          return {
+            titulo: "Relatório de Documentos",
+            meta: metaPadrao,
+            kpis: [
+              { label: "Enviados no período", value: publicadosOuAssinados, tone: "green", icon: ICONS.fileText },
+              { label: "Pendentes (total)", value: pendentesRows.length, tone: "amber", icon: ICONS.alertCircle },
+              { label: "Vencendo em 15 dias", value: vencendo15, tone: "red", icon: ICONS.xCircle },
+            ],
+            secoes: [
+              { titulo: "Pendências", tabela: { headers: ["Colaborador", "Documento", "Status"], rows: pendentesRows.map((d) => [d.colaborador, d.titulo || d.tipo, labelsStatus[d.status] || d.status]) }, vazio: "Nenhuma pendência." },
+            ],
+          };
         },
         ponto: () => {
           const emDia = base.pontoHoje.filter((r) => r.status === "completo").length;
           const atrasos = base.pontoHoje.filter((r) => r.status === "atraso").length;
           const faltas = base.pontoHoje.filter((r) => r.status === "falta").length;
           const negativo = base.pontoHoje.filter((r) => r.saldoBanco < 0).length;
-          return `RELATÓRIO DE JORNADA / PONTO — hoje (${hoje}), o período selecionado não se aplica a este relatório
-Gerado em ${hoje} por ${session.name}
-
-Colaboradores em dia hoje: ${emDia}
-Atrasos hoje: ${atrasos}
-Faltas hoje: ${faltas}
-Colaboradores com banco de horas negativo (acumulado): ${negativo}
-
-Detalhe por colaborador:
-${base.pontoHoje.map((r) => `  - ${r.nome}: ${r.status} · banco: ${r.saldoBanco >= 0 ? "+" : ""}${r.saldoBanco.toFixed(1)}h`).join("\n") || "  Nenhum colaborador ativo cadastrado."}`;
+          return {
+            titulo: "Relatório de Jornada / Ponto",
+            meta: `Situação de hoje (${hoje}) — o período selecionado não se aplica a este relatório · Gerado por ${session.name}`,
+            kpis: [
+              { label: "Em dia hoje", value: emDia, tone: "green", icon: ICONS.checkCircle },
+              { label: "Atrasos hoje", value: atrasos, tone: "amber", icon: ICONS.alertCircle },
+              { label: "Faltas hoje", value: faltas, tone: "red", icon: ICONS.xCircle },
+              { label: "Banco de horas negativo", value: negativo, tone: "violet", icon: ICONS.clock },
+            ],
+            secoes: [
+              { titulo: "Detalhe por colaborador", tabela: { headers: ["Colaborador", "Status hoje", "Banco de horas"], rows: base.pontoHoje.map((r) => [r.nome, r.status, `${r.saldoBanco >= 0 ? "+" : ""}${r.saldoBanco.toFixed(1)}h`]) }, vazio: "Nenhum colaborador ativo cadastrado." },
+            ],
+          };
         },
       };
-      return (geradores[id] || (() => "Relatório indisponível."))();
+      return (geradores[id] || (() => ({ titulo: "Relatório indisponível", meta: "", kpis: [], secoes: [] })))();
+    }
+
+    function relatorioParaTexto(rel) {
+      const linhas = [rel.titulo.toUpperCase(), rel.meta, ""];
+      rel.kpis.forEach((k) => linhas.push(`${k.label}: ${k.value}`));
+      rel.secoes.forEach((s) => {
+        linhas.push("", s.titulo.toUpperCase() + ":");
+        const rows = s.tabela?.rows || [];
+        if (!rows.length) { linhas.push(`  ${s.vazio || "Sem dados."}`); return; }
+        rows.forEach((r) => linhas.push(`  - ${r.join(" · ")}`));
+      });
+      return linhas.join("\n");
+    }
+
+    function relatorioParaHtml(rel) {
+      const kpisHtml = rel.kpis.length ? `<div class="report-kpi-grid">${rel.kpis.map(kpiCardHtml).join("")}</div>` : "";
+      const secoesHtml = rel.secoes
+        .map((s) => {
+          const rows = s.tabela?.rows || [];
+          const tabelaHtml = rows.length
+            ? `<div class="table-scroll report-table-wrap"><table><thead><tr>${s.tabela.headers.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`
+            : emptyStateHtml({ icon: ICONS.reports, title: s.vazio || "Sem dados", desc: "" });
+          return `<div class="report-section"><h3 class="report-section-title">${esc(s.titulo)}</h3>${tabelaHtml}</div>`;
+        })
+        .join("");
+      return `
+        <div class="report-head">
+          <div>
+            <h2>${esc(rel.titulo)}</h2>
+            <p class="report-meta">${esc(rel.meta)}</p>
+          </div>
+        </div>
+        ${kpisHtml}
+        ${secoesHtml}
+        <details class="report-toggle-txt">
+          <summary>Ver como texto simples</summary>
+          <pre class="report-pre">${esc(relatorioParaTexto(rel))}</pre>
+        </details>
+      `;
     }
 
     function render() {
@@ -216,13 +356,13 @@ ${base.pontoHoje.map((r) => `  - ${r.nome}: ${r.status} · banco: ${r.saldoBanco
           <div class="grid-3-even" id="cards-grid"></div>
 
           <div class="card card-p" id="resultado-wrap" style="display:none">
-            <div class="row-between" style="margin-bottom:0.8rem">
-              <h2 id="resultado-titulo" style="margin:0"></h2>
+            <div class="row-between" style="margin-bottom:0.4rem">
+              <div></div>
               <div style="display:flex;gap:0.5rem">
                 <button type="button" class="btn-ghost" style="width:auto" id="btn-baixar">${ICONS.download}<span>Baixar (.txt)</span></button>
               </div>
             </div>
-            <pre class="report-pre" id="resultado-conteudo"></pre>
+            <div id="resultado-conteudo"></div>
           </div>
         </div>
       `;
@@ -256,10 +396,9 @@ ${base.pontoHoje.map((r) => `  - ${r.nome}: ${r.status} · banco: ${r.saldoBanco
     }
 
     function mostrarResultado(id, nome) {
-      selecionado = { id, nome };
+      selecionado = { id, nome, rel: gerarRelatorio(id) };
       document.getElementById("resultado-wrap").style.display = "";
-      document.getElementById("resultado-titulo").textContent = nome;
-      document.getElementById("resultado-conteudo").textContent = gerarConteudo(id);
+      document.getElementById("resultado-conteudo").innerHTML = relatorioParaHtml(selecionado.rel);
       document.getElementById("resultado-wrap").scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
 
@@ -275,7 +414,7 @@ ${base.pontoHoje.map((r) => `  - ${r.nome}: ${r.status} · banco: ${r.saldoBanco
       render();
       document.addEventListener("click", (e) => {
         if (!e.target.closest("#btn-baixar") || !selecionado) return;
-        const conteudo = document.getElementById("resultado-conteudo").textContent;
+        const conteudo = relatorioParaTexto(selecionado.rel);
         const blob = new Blob([conteudo], { type: "text/plain;charset=utf-8" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
