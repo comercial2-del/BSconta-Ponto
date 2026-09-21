@@ -279,6 +279,35 @@ async function rhCriarLoginColaborador({ colaboradorId, nome, email, cargo, depa
 }
 
 /**
+ * Cadastro de ESTAGIÁRIO — chama a Edge Function
+ * supabase/functions/criar-estagiario-colaborador/index.ts. Meio-termo entre
+ * rhConvidarColaborador e rhCriarLoginColaborador: aqui quem está cadastrando
+ * INFORMA o e-mail manualmente (`email` é obrigatório), e o SERVIDOR gera só
+ * a senha, no mesmo padrão já usado por "Regenerar acesso" ("BSconta" +
+ * PrimeiroNome + 4 dígitos aleatórios). A senha volta nesta resposta, uma
+ * única vez (não fica salva em nenhum lugar depois). Não aceita
+ * `colaboradorId` — é só para cadastrar um estagiário novo; colaboradores já
+ * existentes não são afetados por esta função.
+ */
+async function rhCriarEstagiarioColaborador({ nome, email, cargo, departamento, admissao, role }) {
+  const { data, error } = await sb.functions.invoke("criar-estagiario-colaborador", {
+    body: { nome, email, cargo, departamento, admissao, role: role || "COLABORADOR" },
+  });
+  if (error) {
+    let detalhe = error.message || String(error);
+    try {
+      const body = await error.context?.json?.();
+      if (body?.error) detalhe = body.error;
+    } catch {
+      /* mantém detalhe genérico */
+    }
+    throw new Error(detalhe);
+  }
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
+
+/**
  * Regenera SÓ A SENHA de um colaborador que já tem login — chama a Edge
  * Function supabase/functions/regenerar-acesso-colaborador/index.ts. O
  * e-mail de login não muda (fica o mesmo de sempre); a senha nova segue o
