@@ -105,6 +105,20 @@
         .map((c) => rhAvisoFeriasColaborador(c, cacheFerias.filter((f) => f.colaboradorId === c.id), hojeIso))
         .filter(Boolean)
         .sort((a, b) => a.diasParaVencer - b.diasParaVencer);
+      atualizarNotificacoes();
+    }
+
+    // Sino de notificações do topo (renderTopHeader) — um item por
+    // colaborador que precisa programar férias (mesmos dados do banner
+    // avisosHtml abaixo, só que no formato que o sino espera).
+    function atualizarNotificacoes() {
+      const notifications = avisosFerias.map((a) => ({
+        text: `<strong>${esc(a.colaboradorNome)}</strong> precisa programar férias — período aquisitivo de ${fmtDate(a.periodoAquisitivoInicio)} a ${fmtDate(a.periodoAquisitivoFim)}.`,
+        time: a.vencido ? `Vencido há ${Math.abs(a.diasParaVencer)} dia(s)` : `Vence em ${a.diasParaVencer} dia(s)`,
+        unread: true,
+        icon: ICONS.palmTree,
+      }));
+      renderTopHeader(document.getElementById("top-header"), session, { notifications });
     }
 
     function mesAtualIso() {
@@ -207,6 +221,7 @@
       try {
         await rhResolverFerias(solicitacaoId, aprovado);
         await refrescarFerias();
+        recalcularAvisosFerias();
         showToast(aprovado ? `Férias de ${f?.colaborador || "colaborador"} aprovadas.` : `Férias de ${f?.colaborador || "colaborador"} recusadas.`, aprovado ? "success" : "error");
         render();
       } catch (err) {
@@ -231,12 +246,15 @@
       return `
         <div class="table-scroll">
           <table>
-            <thead><tr><th>Colaborador</th><th>Período</th><th class="cell-num">Dias</th><th>Status</th><th>Solicitado em</th><th></th></tr></thead>
+            <thead><tr><th>Colaborador</th><th>Contratação</th><th>Período aquisitivo</th><th class="cell-num">Dias disponíveis</th><th>Período solicitado</th><th class="cell-num">Dias</th><th>Status</th><th>Solicitado em</th><th></th></tr></thead>
             <tbody>
               ${rows
                 .map(
                   (f) => `<tr>
                 <td><div class="person-cell"><span class="avatar avatar-sm ${avatarColorClass(f.colaborador)}">${initials(f.colaborador)}</span>${esc(f.colaborador)}</div></td>
+                <td>${fmtDate(f.colaboradorAdmissao)}</td>
+                <td>${f.periodoAquisitivoInicio ? `${fmtDate(f.periodoAquisitivoInicio)} a ${fmtDate(f.periodoAquisitivoFim)}` : "—"}</td>
+                <td class="cell-num">${f.saldoDiasDisponiveis ?? "—"}</td>
                 <td>${fmtDate(f.inicio)} a ${fmtDate(f.fim)}</td>
                 <td class="cell-num">${f.dias}</td>
                 <td>${statusBadgeHtml(f.status, STATUS_LABELS)}</td>
@@ -369,7 +387,7 @@
       wireModalClosers();
       try {
         await Promise.all([refrescarFerias(), carregarColaboradoresAtivos()]);
-        recalcularAvisosFerias();
+        recalcularAvisosFerias(); // também popula o sino de notificações do topo
         render();
       } catch (err) {
         rhShowFatalError(rhMensagemErroSupabase(err));
