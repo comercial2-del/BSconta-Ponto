@@ -279,12 +279,15 @@ async function rhCriarLoginColaborador({ colaboradorId, nome, email, cargo, depa
 }
 
 /**
- * Regenera código/e-mail/senha de um colaborador que já tem login (ou cria
- * um do zero, se ainda não tiver) — chama a Edge Function
- * supabase/functions/regenerar-acesso-colaborador/index.ts. Mantém o mesmo
- * id do colaborador e o mesmo user_id de autenticação — todo o histórico
- * (ponto, férias, documentos, solicitações) continua ligado à mesma pessoa.
- * A senha antiga deixa de funcionar assim que esta chamada tiver sucesso.
+ * Regenera SÓ A SENHA de um colaborador que já tem login — chama a Edge
+ * Function supabase/functions/regenerar-acesso-colaborador/index.ts. O
+ * e-mail de login não muda (fica o mesmo de sempre); a senha nova segue o
+ * padrão "BSconta" + PrimeiroNome + código aleatório de 4 dígitos. Mantém
+ * o mesmo id do colaborador e o mesmo user_id de autenticação — todo o
+ * histórico (ponto, férias, documentos, solicitações) continua ligado à
+ * mesma pessoa. A senha antiga deixa de funcionar assim que esta chamada
+ * tiver sucesso. Se o colaborador ainda não tiver login, a função retorna
+ * erro — use rhCriarLoginColaborador para criar um primeiro.
  */
 async function rhRegenerarAcessoColaborador({ colaboradorId }) {
   const { data, error } = await sb.functions.invoke("regenerar-acesso-colaborador", {
