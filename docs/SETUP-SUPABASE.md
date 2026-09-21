@@ -61,6 +61,7 @@ do projeto → **SQL Editor** → **New query** → cole o conteúdo do arquivo 
 | 16 | `16_push_notifications.sql` | Tabelas `push_subscriptions` e `lembretes_ponto_enviados` (base do lembrete de ponto sem aba aberta) | — |
 | 17 | `17_pg_cron_push_reminders.sql` | Job `pg_cron` + `pg_net` que chama a Edge Function `send-push` a cada 5 minutos | **Edite a URL/segredo antes de rodar** — ver Passo 4.14 |
 | 18 | `18_dados_pessoais_planilha.sql` | Preenche CPF/nascimento/endereço/CEP reais dos colaboradores a partir de `Empregados.xls` | Precisa do 03 e do 11 já rodados |
+| 20 | `20_atualizar_emails_login.sql` | Troca de e-mails de login de 10 colaboradores confirmados (item 4 do pedido de 21/09/2026, 12 pessoas na lista original) — atualiza `auth.users`, `auth.identities`, `rh.colaboradores.email` e `rh.perfis.email`, casando por `user_id` | Ver Passo 5 abaixo — Marlon e Paulo Rocha ficaram de fora, precisam de uma decisão sua antes |
 
 Depois disso, faltam **dois passos que não são SQL**: implantar as duas
 Edge Functions (Passo 4.13/4.14) e expor o schema `rh` na API (Passo 2
@@ -334,6 +335,48 @@ de produto):**
   (`rh.perfis`), mas não apaga o login em `auth.users` — se a pessoa também
   usa outro sistema no mesmo projeto Supabase, bloquear ela por completo
   exige uma ação manual em Authentication > Users.
+
+## Passo 5 — Trocar o e-mail de login de um colaborador (sem mexer na senha)
+
+Pedido específico de 21/09/2026 (com os acréscimos de Lorena Vieira e
+Sheilla feitos depois, 12 pessoas ao todo): trocar o e-mail de acesso,
+mantendo a senha atual de cada um e sem alterar mais nada.
+
+**Atualização importante:** eu tinha dito antes que o jeito suportado era
+Authentication > Users > clicar na pessoa > "Edit user" > trocar o campo
+Email > Save. Conferi de novo o painel deste projeto e **essa tela não
+existe mais** na versão atual do Supabase Studio — o painel de detalhes do
+usuário só tem "Send password recovery", "Send magic link", "Remove MFA
+factors", "Ban user" e "Delete user", nenhuma opção de editar o e-mail.
+
+Por isso `db/supabase/20_atualizar_emails_login.sql` foi reescrito: ele
+mesmo troca o e-mail de login de verdade, direto em `auth.users.email` e em
+`auth.identities.identity_data` (a coluna `auth.identities.email` é gerada
+automaticamente a partir daí, então nunca é tocada direto), e depois
+sincroniza as cópias em `rh.colaboradores.email`/`rh.perfis.email`. Isso
+usa exatamente as mesmas duas colunas que a API de administração da própria
+Supabase mexeria — eu conferi antes que não existe nenhum trigger de UPDATE
+nessas tabelas (só um de INSERT, que não é afetado) e que a senha
+(`encrypted_password`) nunca é tocada. O script tem SELECTs de conferência
+de duplicidade antes do UPDATE e de verificação depois — leia os
+comentários dele antes de rodar, ele é o jeito mais seguro disponível sem a
+`service_role key` (que eu não tenho).
+
+Duas pendências que o script não resolve sozinho, meu (Claude) automação de
+navegador não pôde executar o `UPDATE` de produção diretamente (bloqueado
+pela política de segurança do ambiente para escrita em recursos
+compartilhados) — então **rode o script você mesmo no SQL Editor**, e antes
+disso decida:
+
+- **Marlon Gomes da Silva**: o e-mail pedido para ele,
+  `comercial2@bsconta.com.br`, já pertence a outra conta em `auth.users`
+  (criada 27/08/2026, login em 19/09/2026, sem vínculo com nenhum
+  colaborador — provavelmente do sistema de Marketing/CRM que divide este
+  mesmo projeto). Ele está de fora do script até você decidir: outro e-mail
+  para ele, ou liberar/apagar essa conta.
+- **Paulo Rocha**: não encontrado nem em `rh.colaboradores` nem em
+  `auth.users` — preciso do nome completo certo ou confirmar se ele ainda
+  não tem usuário no sistema.
 
 ## Se algo der errado
 
