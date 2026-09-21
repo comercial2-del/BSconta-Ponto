@@ -36,6 +36,7 @@
 // =============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { primeiroNomeCapitalizado } from "../_shared/nome-colaborador.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -58,17 +59,6 @@ function jsonResponse(body: unknown, status = 200) {
     status,
     headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
   });
-}
-
-/** Primeiro nome do colaborador, sem acento e capitalizado — "Ângela Dos
- * Santos" -> "Angela", "MARLON GOMES DA SILVA" -> "Marlon". Usado como base
- * do padrão "BSconta" + PrimeiroNome pedido pelo cliente. */
-function primeiroNomeCapitalizado(nome: string): string {
-  const primeiro = nome.trim().split(/\s+/)[0] || "";
-  const semAcento = primeiro.normalize("NFD").replace(/[̀-ͯ]/g, "");
-  const soLetras = semAcento.replace(/[^a-zA-Z]/g, "");
-  if (!soLetras) return "Colaborador";
-  return soLetras.charAt(0).toUpperCase() + soLetras.slice(1).toLowerCase();
 }
 
 Deno.serve(async (req) => {
