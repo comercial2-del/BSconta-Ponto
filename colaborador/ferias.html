@@ -20,16 +20,37 @@
   </div>
 
   <div class="modal-overlay" id="modal-solicitar">
-    <div class="modal">
+    <div class="modal" style="max-width:640px">
       <div class="modal-header"><h3>Solicitar férias</h3><button class="modal-close" data-close-modal>${''}</button></div>
       <form id="form-ferias">
         <div class="modal-body">
           <div class="form-grid">
-            <div class="field"><label>Data de início</label><input type="date" required id="fer-inicio" /></div>
-            <div class="field"><label>Data de fim</label><input type="date" required id="fer-fim" /></div>
-            <div class="field full"><label>Observações (opcional)</label><textarea id="fer-obs" placeholder="Alguma informação para o RH?"></textarea></div>
+            <div class="field full">
+              <label>Tipo de solicitação</label>
+              <div style="display:flex;flex-direction:column;gap:.5rem;margin-top:.3rem">
+                <label style="display:flex;align-items:flex-start;gap:.5rem;font-weight:400;cursor:pointer">
+                  <input type="radio" name="fer-tipo" value="integral" checked style="margin-top:.2rem" />
+                  <span>Férias integrais — todos os dias disponíveis de uma vez.</span>
+                </label>
+                <label style="display:flex;align-items:flex-start;gap:.5rem;font-weight:400;cursor:pointer">
+                  <input type="radio" name="fer-tipo" value="parcelado" style="margin-top:.2rem" />
+                  <span>Férias parceladas — dividir em até 3 períodos (um deles com 14 dias ou mais; os demais com 5 dias ou mais).</span>
+                </label>
+              </div>
+            </div>
           </div>
-          <p class="field-hint">Você tem <strong>${'' /*filled by js*/}</strong> dias disponíveis neste período aquisitivo.</p>
+
+          <div id="fer-integral-wrap" class="form-grid" style="margin-top:.9rem">
+            <div class="field"><label>Data de início</label><input type="date" id="fer-integral-inicio" /></div>
+          </div>
+
+          <div id="fer-parcelado-wrap" style="display:none;margin-top:.9rem">
+            <div id="fer-periodos-list" style="display:flex;flex-direction:column;gap:.7rem"></div>
+            <button type="button" class="btn-ghost" id="fer-add-periodo" style="margin-top:.7rem">${''}Adicionar período</button>
+          </div>
+
+          <p class="field-hint" id="fer-resumo" style="margin-top:.9rem"></p>
+          <div class="field full" style="margin-top:.6rem"><label>Observações (opcional)</label><textarea id="fer-obs" placeholder="Alguma informação para o RH?"></textarea></div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn-ghost" data-close-modal>Cancelar</button>
@@ -55,21 +76,16 @@
       return;
     }
     document.querySelector("#modal-solicitar .modal-close").innerHTML = ICONS.x;
+    document.getElementById("fer-add-periodo").innerHTML = `${ICONS.plus} Adicionar período`;
 
     let feriasState = null;
     let avisoFerias = null;
 
     async function carregarFerias() {
-      const [{ data: colabRow, error: colabErr }, feriasCarregadas] = await Promise.all([
-        sb.from("colaboradores").select("id, nome, admissao").eq("id", session.employeeId).single(),
-        rhCarregarFeriasColaborador(session.employeeId),
-      ]);
-      if (colabErr) throw colabErr;
-      feriasState = feriasCarregadas;
-      document.querySelector("#modal-solicitar .field-hint strong").textContent = feriasState.saldo.saldoDias;
+      feriasState = await rhCarregarFeriasColaborador(session.employeeId);
       // Lembrete de férias (item pedido pelo RH): mesma regra usada em
       // rh/ferias.html, mas aqui avisando o próprio colaborador.
-      avisoFerias = rhAvisoFeriasColaborador(colabRow, feriasState.historico);
+      avisoFerias = rhAvisoFeriasColaborador(feriasState.colaborador, feriasState.historico);
     }
 
     function fmt(iso) { if (!iso) return "—"; const [y, m, d] = iso.split("-"); return `${d}/${m}/${y}`; }
@@ -88,9 +104,9 @@
           <div class="row-between">
             <div>
               <h1 class="page-title">Férias</h1>
-              <p class="page-sub">${f.periodoAquisitivoInicio ? `Período aquisitivo atual: ${fmt(f.periodoAquisitivoInicio)} a ${fmt(f.periodoAquisitivoFim)}.` : "O RH ainda não cadastrou seu período aquisitivo de férias — fale com o RH."}</p>
+              <p class="page-sub">${f.periodoAquisitivoInicio ? `Período aquisitivo atual: ${fmt(f.periodoAquisitivoInicio)} a ${fmt(f.periodoAquisitivoFim)}.` : "Cadastre sua data de admissão com o RH para calcularmos seu período aquisitivo de férias."}</p>
             </div>
-            <button type="button" class="btn-primary auto" id="btn-solicitar">${ICONS.plus}<span>Solicitar férias</span></button>
+            <button type="button" class="btn-primary auto" id="btn-solicitar" ${f.saldoDias < 1 ? "disabled" : ""}>${ICONS.plus}<span>Solicitar férias</span></button>
           </div>
 
           ${avisoFerias ? `
@@ -145,7 +161,7 @@
                   </div>
                   ${statusBadgeHtml(s.status, STATUS_LABELS)}
                 </div>
-                <p class="desc">${s.dias} dias solicitados</p>
+                <p class="desc">${s.dias} dias solicitados${s.observacoes ? ` · ${esc(s.observacoes)}` : ""}</p>
                 <div class="status-pipeline">${steps.map((st) => `<span class="p-step ${st}"></span>`).join("")}</div>
                 <div class="meta-row"><span>${ICONS.calendar}Solicitado em ${fmt(s.solicitadoEm)}</span></div>
               </div>`;
@@ -156,7 +172,7 @@
         </div>
       `;
 
-      document.getElementById("btn-solicitar").addEventListener("click", () => openModal("modal-solicitar"));
+      document.getElementById("btn-solicitar").addEventListener("click", () => abrirModalSolicitar());
     }
 
     function pipelineSteps(status) {
@@ -166,26 +182,137 @@
       return ["filled", "", ""];
     }
 
+    // ------------------------------------------------------------------
+    // Modal "Solicitar férias" — integral (todos os dias disponíveis de
+    // uma vez) ou parcelada (até 3 períodos, ver rhValidarPeriodosFerias
+    // em rh-ferias-data.js para as regras de fracionamento).
+    // ------------------------------------------------------------------
+    function tipoSolicitacaoSelecionado() {
+      return document.querySelector('input[name="fer-tipo"]:checked')?.value || "integral";
+    }
+
+    function somarDias(iniIso, dias) {
+      const d = new Date(iniIso + "T00:00:00");
+      d.setDate(d.getDate() + (dias - 1));
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+
+    function linhaPeriodoHtml(i, podeRemover) {
+      return `
+        <div class="form-grid fer-periodo-row" data-idx="${i}">
+          <div class="field"><label>Período ${i + 1} — início</label><input type="date" class="fer-per-inicio" /></div>
+          <div class="field"><label>Período ${i + 1} — fim</label><input type="date" class="fer-per-fim" /></div>
+          ${podeRemover ? `<button type="button" class="btn-ghost fer-per-remover" style="align-self:flex-end;height:2.6rem">${ICONS.x}</button>` : ""}
+        </div>`;
+    }
+
+    function renderPeriodosParcelado(qtd) {
+      const wrap = document.getElementById("fer-periodos-list");
+      wrap.innerHTML = Array.from({ length: qtd }, (_, i) => linhaPeriodoHtml(i, qtd > 1)).join("");
+      wrap.querySelectorAll(".fer-per-inicio, .fer-per-fim").forEach((input) => input.addEventListener("change", atualizarResumoSolicitacao));
+      wrap.querySelectorAll(".fer-per-remover").forEach((btn) =>
+        btn.addEventListener("click", () => {
+          renderPeriodosParcelado(wrap.querySelectorAll(".fer-periodo-row").length - 1);
+          atualizarResumoSolicitacao();
+        })
+      );
+      atualizarAddPeriodoBtn();
+    }
+
+    function atualizarAddPeriodoBtn() {
+      const qtd = document.querySelectorAll(".fer-periodo-row").length;
+      document.getElementById("fer-add-periodo").style.display = qtd >= FERIAS_MAX_PERIODOS ? "none" : "";
+    }
+
+    function coletarPeriodosParcelado() {
+      return Array.from(document.querySelectorAll(".fer-periodo-row")).map((row) => ({
+        inicio: row.querySelector(".fer-per-inicio").value,
+        fim: row.querySelector(".fer-per-fim").value,
+      }));
+    }
+
+    function atualizarResumoSolicitacao() {
+      const resumo = document.getElementById("fer-resumo");
+      const saldoDisponivel = feriasState.saldo.saldoDias;
+      const tipo = tipoSolicitacaoSelecionado();
+
+      if (tipo === "integral") {
+        const inicio = document.getElementById("fer-integral-inicio").value;
+        if (!inicio || saldoDisponivel < 1) { resumo.textContent = ""; return; }
+        const fim = somarDias(inicio, saldoDisponivel);
+        resumo.innerHTML = `Período: <strong>${fmt(inicio)} a ${fmt(fim)}</strong> (${saldoDisponivel} dias — todo o seu saldo disponível).`;
+        return;
+      }
+
+      const periodos = coletarPeriodosParcelado().filter((p) => p.inicio && p.fim);
+      if (!periodos.length) { resumo.textContent = ""; return; }
+      try {
+        const calc = rhValidarPeriodosFerias(coletarPeriodosParcelado().filter((p) => p.inicio || p.fim));
+        const totalDias = calc.reduce((a, p) => a + p.dias, 0);
+        const partes = calc.map((p) => `${fmt(p.inicio)} a ${fmt(p.fim)} (${p.dias}d)`).join(" · ");
+        const excedeu = totalDias > saldoDisponivel;
+        resumo.innerHTML = `${calc.length} período(s) — total de <strong>${totalDias} dias</strong> de ${saldoDisponivel} disponíveis: ${partes}.${excedeu ? ` <strong style="color:var(--red-600)">Excede seu saldo disponível.</strong>` : ""}`;
+      } catch (err) {
+        resumo.innerHTML = `<span style="color:var(--red-600)">${esc(err.message)}</span>`;
+      }
+    }
+
+    function abrirModalSolicitar() {
+      document.querySelectorAll('input[name="fer-tipo"]').forEach((r) => (r.checked = r.value === "integral"));
+      document.getElementById("fer-integral-wrap").style.display = "";
+      document.getElementById("fer-parcelado-wrap").style.display = "none";
+      document.getElementById("fer-integral-inicio").value = "";
+      document.getElementById("fer-obs").value = "";
+      renderPeriodosParcelado(2);
+      document.getElementById("fer-resumo").textContent = "";
+      openModal("modal-solicitar");
+    }
+
+    document.querySelectorAll('input[name="fer-tipo"]').forEach((r) =>
+      r.addEventListener("change", () => {
+        const tipo = tipoSolicitacaoSelecionado();
+        document.getElementById("fer-integral-wrap").style.display = tipo === "integral" ? "" : "none";
+        document.getElementById("fer-parcelado-wrap").style.display = tipo === "parcelado" ? "" : "none";
+        atualizarResumoSolicitacao();
+      })
+    );
+    document.getElementById("fer-integral-inicio").addEventListener("change", atualizarResumoSolicitacao);
+    document.getElementById("fer-add-periodo").addEventListener("click", () => {
+      const qtd = document.querySelectorAll(".fer-periodo-row").length;
+      if (qtd >= FERIAS_MAX_PERIODOS) return;
+      renderPeriodosParcelado(qtd + 1);
+      atualizarResumoSolicitacao();
+    });
+
     document.getElementById("form-ferias").addEventListener("submit", async (e) => {
       e.preventDefault();
       const btn = e.target.querySelector('button[type="submit"]');
-      const inicio = document.getElementById("fer-inicio").value;
-      const fim = document.getElementById("fer-fim").value;
+      const tipo = tipoSolicitacaoSelecionado();
       const observacoes = document.getElementById("fer-obs").value.trim();
+
+      let periodos;
+      if (tipo === "integral") {
+        const inicio = document.getElementById("fer-integral-inicio").value;
+        if (!inicio) { showToast("Informe a data de início.", "error"); return; }
+        periodos = [{ inicio, fim: somarDias(inicio, feriasState.saldo.saldoDias) }];
+      } else {
+        periodos = coletarPeriodosParcelado();
+        if (periodos.some((p) => !p.inicio || !p.fim)) { showToast("Informe início e fim de todos os períodos.", "error"); return; }
+      }
+
       btn.disabled = true;
       btn.textContent = "Enviando...";
       try {
         await rhCriarSolicitacaoFerias({
           colaboradorId: session.employeeId,
-          inicio,
-          fim,
+          periodos,
           saldoDisponivel: feriasState.saldo.saldoDias,
           observacoes,
         });
         await carregarFerias();
         closeModal("modal-solicitar");
         document.getElementById("form-ferias").reset();
-        showToast("Solicitação de férias enviada ao RH.", "success");
+        showToast(periodos.length > 1 ? "Solicitação de férias parceladas enviada ao RH." : "Solicitação de férias enviada ao RH.", "success");
         render();
       } catch (err) {
         showToast(rhMensagemErroSupabase(err), "error");
