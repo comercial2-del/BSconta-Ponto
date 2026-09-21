@@ -57,10 +57,19 @@
     document.querySelector("#modal-solicitar .modal-close").innerHTML = ICONS.x;
 
     let feriasState = null;
+    let avisoFerias = null;
 
     async function carregarFerias() {
-      feriasState = await rhCarregarFeriasColaborador(session.employeeId);
+      const [{ data: colabRow, error: colabErr }, feriasCarregadas] = await Promise.all([
+        sb.from("colaboradores").select("id, nome, admissao").eq("id", session.employeeId).single(),
+        rhCarregarFeriasColaborador(session.employeeId),
+      ]);
+      if (colabErr) throw colabErr;
+      feriasState = feriasCarregadas;
       document.querySelector("#modal-solicitar .field-hint strong").textContent = feriasState.saldo.saldoDias;
+      // Lembrete de férias (item pedido pelo RH): mesma regra usada em
+      // rh/ferias.html, mas aqui avisando o próprio colaborador.
+      avisoFerias = rhAvisoFeriasColaborador(colabRow, feriasState.historico);
     }
 
     function fmt(iso) { if (!iso) return "—"; const [y, m, d] = iso.split("-"); return `${d}/${m}/${y}`; }
@@ -83,6 +92,16 @@
             </div>
             <button type="button" class="btn-primary auto" id="btn-solicitar">${ICONS.plus}<span>Solicitar férias</span></button>
           </div>
+
+          ${avisoFerias ? `
+          <div class="card card-p" style="border-color:rgba(245,158,11,.35);background:var(--amber-50);display:flex;align-items:center;gap:.7rem">
+            <span style="color:var(--amber-700)">${ICONS.alertCircle}</span>
+            <p style="margin:0;color:var(--amber-700);font-weight:600">
+              ${avisoFerias.vencido
+                ? `Seu período aquisitivo (${fmt(avisoFerias.periodoAquisitivoInicio)} a ${fmt(avisoFerias.periodoAquisitivoFim)}) já venceu há ${Math.abs(avisoFerias.diasParaVencer)} dia(s) — fale com o RH para programar suas férias o quanto antes.`
+                : `Seu período aquisitivo (${fmt(avisoFerias.periodoAquisitivoInicio)} a ${fmt(avisoFerias.periodoAquisitivoFim)}) vence em ${avisoFerias.diasParaVencer} dia(s) — é hora de programar suas férias.`}
+            </p>
+          </div>` : ""}
 
           <div class="grid-3 reverse">
             <div class="card card-p" style="display:flex;align-items:center;gap:1.3rem">
