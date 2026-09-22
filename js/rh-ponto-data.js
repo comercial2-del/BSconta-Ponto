@@ -9,12 +9,12 @@
  * reescrever toda a renderização — só troca de onde o dado vem/vai.
  *
  * RLS relevante (ver db/supabase/01_schema_rh.sql):
- *   - Colaborador só pode INSERT/UPDATE na própria linha de HOJE
- *     (rh.ponto_registros, data = current_date). Ajustes em dias passados
- *     só o RH pode aplicar (política "rh_staff all").
- *   - Pedido de ajuste de ponto = uma linha em rh.solicitacoes (categoria
- *     "Ajuste de ponto", status PENDENTE) — o colaborador só pode inserir
- *     pendente; só o RH pode mudar o status.
+ * - Colaborador só pode INSERT/UPDATE na própria linha de HOJE
+ *   (rh.ponto_registros, data = current_date). Ajustes em dias passados
+ *   só o RH pode aplicar (política "rh_staff all").
+ * - Pedido de ajuste de ponto = uma linha em rh.solicitacoes (categoria
+ *   "Ajuste de ponto", status PENDENTE) — o colaborador só pode inserir
+ *   pendente; só o RH pode mudar o status.
  * Por isso o "dia pendente" no calendário do colaborador não é mais escrito
  * em ponto_registros.pendente_ajuste por ele mesmo (a política não deixa) —
  * é calculado juntando com as solicitações pendentes dele (ver
@@ -60,17 +60,22 @@ function rhEhDiaDeTrabalho(diasTrabalho, dataIso) {
  * rh.colaboradores, ou um subconjunto dela com pelo menos horario_entrada /
  * meta_diaria_horas / horas_semanais / dias_trabalho) — usada tanto para
  * gravar o cálculo do dia quanto para classificar "atraso" nas telas do RH.
- * Meta diária: usa rh.colaboradores.meta_diaria_horas quando definida;
- * senão deriva de horas_semanais / nº de dias trabalhados por semana
- * (ex.: 40h em 5 dias = 8h/dia; 44h em 6 dias = ~7h20/dia); no último caso,
- * o fallback fixo de 8h. */
+ * Meta diária: PRIORIZA horas_semanais / nº de dias trabalhados por semana
+ * quando ambos estão configurados (ex.: 42,5h em 5 dias = 8h30/dia; 44h em
+ * 6 dias = ~7h20/dia) — é o que a tela rh/colaboradores.html deixa a pessoa
+ * editar. Só cai para rh.colaboradores.meta_diaria_horas quando não há
+ * horas_semanais/dias_trabalho configurados; no último caso, o fallback
+ * fixo de 8h. Antes a ordem era invertida: como meta_diaria_horas vem da
+ * coluna com "default 8" (nunca fica null — ver supabase/01_schema_rh.sql),
+ * ela sempre "ganhava" e editar Horas semanais nunca mudava a Jornada
+ * prevista exibida nas telas de ponto. */
 function rhConfigJornada(colaborador) {
   const diasTrabalho = colaborador?.dias_trabalho && colaborador.dias_trabalho.length ? colaborador.dias_trabalho : null;
   let metaDiariaHoras = RH_META_DIARIA_FALLBACK;
-  if (colaborador?.meta_diaria_horas != null) {
-    metaDiariaHoras = Number(colaborador.meta_diaria_horas);
-  } else if (colaborador?.horas_semanais && diasTrabalho) {
+  if (colaborador?.horas_semanais && diasTrabalho) {
     metaDiariaHoras = Number(colaborador.horas_semanais) / diasTrabalho.length;
+  } else if (colaborador?.meta_diaria_horas != null) {
+    metaDiariaHoras = Number(colaborador.meta_diaria_horas);
   }
   return {
     horarioEntradaPrevisto: rhHoraCurta(colaborador?.horario_entrada) || null,
