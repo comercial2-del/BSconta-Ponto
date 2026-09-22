@@ -108,7 +108,7 @@
             <div class="field"><label>Início do intervalo</label><input id="novo-intervalo-inicio" type="time" /></div>
             <div class="field"><label>Fim do intervalo</label><input id="novo-intervalo-fim" type="time" /></div>
             <div class="field full"><label>Dias de trabalho</label><div id="novo-dias" style="display:flex;flex-wrap:wrap;gap:.45rem"></div></div>
-            <div class="field"><label>Horas semanais</label><input id="novo-horas-semanais" type="number" min="0" max="60" step="0.5" placeholder="Ex.: 44" /></div>
+            <div class="field"><label>Horas semanais</label><input id="novo-horas-semanais" type="number" min="0" max="60" step="0.01" placeholder="Ex.: 44 ou 42,83 (42h50)" title="Use ponto para casas decimais. Ex.: 42.5 = 42h30, 42.83 = 42h50." /></div>
 
             <div class="form-section-title">Financeiro</div>
             <div class="field"><label>Salário</label><input id="novo-salario" type="number" min="0" step="0.01" placeholder="Ex.: 3000.00" /></div>
@@ -222,7 +222,7 @@
             <div class="field"><label>Início do intervalo</label><input id="edit-intervalo-inicio" type="time" /></div>
             <div class="field"><label>Fim do intervalo</label><input id="edit-intervalo-fim" type="time" /></div>
             <div class="field full"><label>Dias de trabalho</label><div id="edit-dias" style="display:flex;flex-wrap:wrap;gap:.45rem"></div></div>
-            <div class="field"><label>Horas semanais</label><input id="edit-horas-semanais" type="number" min="0" max="60" step="0.5" placeholder="Ex.: 44" /></div>
+            <div class="field"><label>Horas semanais</label><input id="edit-horas-semanais" type="number" min="0" max="60" step="0.01" placeholder="Ex.: 44 ou 42,83 (42h50)" title="Use ponto para casas decimais. Ex.: 42.5 = 42h30, 42.83 = 42h50." /></div>
 
             <div class="form-section-title">Financeiro</div>
             <div class="field"><label>Salário</label><input id="edit-salario" type="number" min="0" step="0.01" placeholder="Ex.: 3000.00" /></div>
@@ -623,6 +623,27 @@
       document.getElementById("btn-editar-perfil").addEventListener("click", () => { if (perfilEmployeeId) openEditEmployee(perfilEmployeeId); });
       document.getElementById("btn-excluir-perfil").addEventListener("click", () => { if (perfilEmployeeId) deleteEmployee(perfilEmployeeId); });
       document.getElementById("btn-regenerar-acesso-perfil")?.addEventListener("click", () => { if (perfilEmployeeId) regenerarAcessoParaColaborador(perfilEmployeeId); });
+
+      // Antes (bug corrigido nesta entrega): o campo "Horas semanais" tinha
+      // step="0.5", então digitar um valor fora dos múltiplos de meia hora
+      // (ex.: 42,83 = 42h50) fazia a validação nativa do <form> barrar o
+      // submit inteiro — SEM disparar nosso listener de "submit" e SEM
+      // nenhum aviso na tela, dando a impressão de que "nada foi salvo" ou
+      // de que havia um problema no banco. O passo do campo foi ajustado
+      // para aceitar casas decimais livremente (ver inputs #novo-horas-semanais
+      // e #edit-horas-semanais). Este listener de "invalid" fica como reforço
+      // geral: se qualquer outro campo obrigatório do formulário falhar na
+      // validação nativa do navegador, avisamos o usuário em vez de deixar o
+      // clique em "Salvar" não fazer nada visível.
+      function avisarCamposInvalidos(formEl) {
+        formEl.addEventListener("invalid", (ev) => {
+          const campo = ev.target;
+          const label = campo.closest(".field")?.querySelector("label")?.textContent?.trim() || campo.id;
+          showToast(`Não foi possível salvar: verifique o campo "${label}" (${campo.validationMessage}).`, "error");
+        }, true);
+      }
+      avisarCamposInvalidos(document.getElementById("form-editar"));
+      avisarCamposInvalidos(document.getElementById("form-novo"));
 
       document.getElementById("form-editar").addEventListener("submit", async (e) => {
         e.preventDefault();
