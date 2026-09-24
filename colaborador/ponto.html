@@ -746,9 +746,13 @@
           requestAnimationFrame(piscarSucesso);
         } catch (err) {
           Object.assign(p.hoje, antes);
-          if (btn) { btn.disabled = false; btn.classList.remove("is-saving"); }
-          if (hint) { hint.textContent = "Não foi possível registrar o ponto. Tente novamente."; hint.classList.add("is-error"); }
-          showToast("Não foi possível registrar o ponto: " + (err?.message || err), "error");
+          // Redesenha a tela: o botão volta ao rótulo da etapa (antes ficava
+          // preso em "Registrando...") e o motivo do erro aparece por extenso.
+          const motivo = "Não foi possível registrar o ponto: " + (err?.message || err);
+          render();
+          const h = document.getElementById("cta-hint");
+          if (h) { h.textContent = motivo; h.classList.add("is-error"); }
+          showToast(motivo, "error");
         }
       }, 450);
     }
