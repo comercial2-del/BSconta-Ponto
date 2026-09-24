@@ -98,17 +98,18 @@
 
     async function carregarBase() {
       const hojeIso = rhTodayIso();
-      const [{ data: colabRows, error: e1 }, ferias, solicitacoes, documentos, { data: pontoHojeRows, error: e2 }, { data: pontoRestoRows, error: e3 }, { data: pontoRegistrosRows, error: e4 }] = await Promise.all([
+      const [{ data: colabRows, error: e1 }, ferias, solicitacoes, documentos, { data: pontoHojeRows, error: e2 }, { data: pontoRestoRows, error: e3 }, { data: pontoRegistrosRows, error: e4 }, intervaloMinimoMin] = await Promise.all([
         sb.from("colaboradores").select(`id, nome, departamento, status, admissao, data_desligamento, ${RH_COLABORADOR_JORNADA_COLS}`).order("nome"),
         rhCarregarFeriasRH(),
         rhCarregarSolicitacoesRH(),
         rhListarDocumentosRH(),
         sb.from("ponto_registros").select("colaborador_id, entrada, local").eq("data", hojeIso),
-        sb.from("ponto_registros").select("colaborador_id, atraso_min, horas_extras").neq("data", hojeIso),
+        sb.from("ponto_registros").select("colaborador_id, data, entrada, intervalo_saida, intervalo_volta, saida, atraso_min, horas_extras").neq("data", hojeIso),
         // Histórico completo (colaborador, data, local, alteração do RH) —
         // usado pelo relatório "Presença e Home Office", que precisa contar
         // dias por período, não só o status de hoje.
         sb.from("ponto_registros").select("colaborador_id, data, local, alterado_pelo_rh").order("data"),
+        rhIntervaloMinimoConfigurado(),
       ]);
       if (e1) throw e1;
       if (e2) throw e2;
@@ -119,7 +120,10 @@
       const pontoPorId = {};
       (pontoHojeRows || []).forEach((r) => { pontoPorId[r.colaborador_id] = r; });
       const saldoPorId = {};
-      (pontoRestoRows || []).forEach((r) => { saldoPorId[r.colaborador_id] = (saldoPorId[r.colaborador_id] || 0) + (Number(r.horas_extras) || 0) - (Number(r.atraso_min) || 0) / 60; });
+      const jornadaPorId = {};
+      colaboradores.forEach((c) => { jornadaPorId[c.id] = rhConfigJornada(c); });
+      // Banco de horas: + horas extras − atraso − almoço acima do mínimo não compensado.
+      (pontoRestoRows || []).forEach((r) => { saldoPorId[r.colaborador_id] = (saldoPorId[r.colaborador_id] || 0) + (Number(r.horas_extras) || 0) - (Number(r.atraso_min) || 0) / 60 - rhDescontoAlmocoHoras(r, jornadaPorId[r.colaborador_id], intervaloMinimoMin); });
       const pontoHoje = colaboradores
         .filter((c) => c.status !== "INATIVO")
         .map((c) => {
