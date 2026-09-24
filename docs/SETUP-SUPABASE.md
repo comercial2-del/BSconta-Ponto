@@ -62,6 +62,7 @@ do projeto → **SQL Editor** → **New query** → cole o conteúdo do arquivo 
 | 17 | `17_pg_cron_push_reminders.sql` | Job `pg_cron` + `pg_net` que chama a Edge Function `send-push` a cada 5 minutos | **Edite a URL/segredo antes de rodar** — ver Passo 4.14 |
 | 18 | `18_dados_pessoais_planilha.sql` | Preenche CPF/nascimento/endereço/CEP reais dos colaboradores a partir de `Empregados.xls` | Precisa do 03 e do 11 já rodados |
 | 20 | `20_atualizar_emails_login.sql` | Troca de e-mails de login de 10 colaboradores confirmados (item 4 do pedido de 21/09/2026, 12 pessoas na lista original) — atualiza `auth.users`, `auth.identities`, `rh.colaboradores.email` e `rh.perfis.email`, casando por `user_id` | Ver Passo 5 abaixo — Marlon e Paulo Rocha ficaram de fora, precisam de uma decisão sua antes |
+| 22 | `22_historia_abonos_beneficios.sql` | **Aditivo.** História do colaborador (`colaborador_historico`, salário cifrado), benefícios individuais (`colaborador_beneficios`), abonos (`colaborador_abonos` + bucket privado `abonos-rh`), notificações ao colaborador (`notificacoes`), auditoria (`auditoria`), regras de intervalo (`configuracoes_ponto` + trigger), status `PRE_APROVADA` em férias e arquivamento (`arquivado`) em solicitações. Não apaga nem altera nenhum dado existente. | Rodar **antes** de publicar o front-end desta versão |
 
 Depois disso, faltam **dois passos que não são SQL**: implantar as duas
 Edge Functions (Passo 4.13/4.14) e expor o schema `rh` na API (Passo 2
