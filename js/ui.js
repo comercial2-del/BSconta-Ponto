@@ -51,6 +51,11 @@ const ICONS = {
   refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>',
   loader: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/></svg>',
   hourglass: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h12"/><path d="M6 22h12"/><path d="M6 2v3.34a4 4 0 0 0 1.17 2.83L12 12l4.83-3.83A4 4 0 0 0 18 5.34V2"/><path d="M6 22v-3.34a4 4 0 0 1 1.17-2.83L12 12l4.83 3.83A4 4 0 0 1 18 18.66V22"/></svg>',
+  timeline: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="12" r="2"/><circle cx="6" cy="19" r="2"/><path d="M6 7v3M6 14v3M11 5h9M11 12h9M11 19h6"/></svg>',
+  clipboardCheck: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 13l2 2 4-4"/></svg>',
+  archive: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8M10 12h4"/></svg>',
+  trendingUp: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>',
+  award: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="6"/><path d="M8.2 13.8 7 22l5-3 5 3-1.2-8.2"/></svg>',
   zap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
 };
 
@@ -61,6 +66,7 @@ const NAV_COLABORADOR = [
   { group: "Meu espaço" },
   { href: "dashboard.html", label: "Dashboard", curto: "Início", icon: ICONS.overview },
   { href: "perfil.html", label: "Meu Perfil", curto: "Perfil", icon: ICONS.user },
+  { href: "historia.html", label: "Minha História", curto: "História", icon: ICONS.timeline },
   { href: "ponto.html", label: "Ponto / Jornada", curto: "Ponto", icon: ICONS.clock },
   { href: "ferias.html", label: "Férias", curto: "Férias", icon: ICONS.palmTree },
   { href: "documentos.html", label: "Holerites e Documentos", curto: "Docs", icon: ICONS.fileText },
@@ -114,6 +120,12 @@ const STATUS_LABELS = {
   PUBLICADO: "Publicado",
   AGENDADO: "Agendado",
   ARQUIVADO: "Arquivado",
+  PRE_APROVADA: "Pré-aprovada",
+  PRE_APROVADO: "Pré-aprovado",
+  APROVADO: "Aprovado",
+  RECUSADO: "Recusado",
+  SUSPENSO: "Suspenso",
+  ENCERRADO: "Encerrado",
 };
 
 /**
@@ -156,12 +168,16 @@ function avatarColorClass(name) {
  * NAV_RH; `homeHref` é o link do logo (ex.: "dashboard.html").
  */
 function renderShell(profile, navItems) {
-  const current = window.location.pathname.split("/").pop() || "dashboard.html";
-  document.body.dataset.screen = current.replace(/\.html$/, "");
+  const currentReal = window.location.pathname.split("/").pop() || "dashboard.html";
+  document.body.dataset.screen = currentReal.replace(/\.html$/, "");
   const ehRhStaff = isRhStaffRole(profile.role);
   document.body.classList.toggle("is-rh", ehRhStaff);
   document.body.classList.toggle("is-colaborador", !ehRhStaff);
   const linkItems = navItems.filter((i) => i.href);
+  // Abonos e História do Colaborador (RH) ficam dentro de Jornada / Ponto:
+  // não têm item próprio no menu, então o item ativo é "Jornada / Ponto".
+  const SUBPAGINAS_DO_MENU = { "abonos.html": "ponto.html", "historia.html": "ponto.html" };
+  const current = !linkItems.some((i) => i.href === currentReal) && SUBPAGINAS_DO_MENU[currentReal] ? SUBPAGINAS_DO_MENU[currentReal] : currentReal;
 
   const navHtml = navItems
     .map((item) =>
@@ -281,7 +297,8 @@ function screenTitleForShell(screen, profile) {
   const labels = {
     dashboard: "Dashboard", colaboradores: "Colaboradores", ponto: "Jornada", ferias: "Férias",
     solicitacoes: "Solicitações", documentos: "Documentos", comunicados: "Comunicados",
-    relatorios: "Relatórios", configuracoes: "Configurações", perfil: "Meu perfil", beneficios: "Benefícios"
+    relatorios: "Relatórios", configuracoes: "Configurações", perfil: "Meu perfil", beneficios: "Benefícios",
+    historia: isRhStaffRole(profile.role) ? "História do Colaborador" : "Minha História", abonos: "Abonos"
   };
   return isRhStaffRole(profile.role) ? (labels[screen] || "Gestão de RH") : (labels[screen] || "Meu espaço");
 }
@@ -311,7 +328,8 @@ function renderTopHeader(container, profile, opts = {}) {
   const screenLabels = {
     dashboard: "Visão geral", colaboradores: "Pessoas", ponto: "Jornada", ferias: "Férias",
     solicitacoes: "Solicitações", documentos: "Documentos", comunicados: "Comunicação",
-    relatorios: "Relatórios", configuracoes: "Configurações", perfil: "Meu perfil", beneficios: "Benefícios"
+    relatorios: "Relatórios", configuracoes: "Configurações", perfil: "Meu perfil", beneficios: "Benefícios",
+    historia: "História", abonos: "Abonos"
   };
   const screenLabel = screenLabels[document.body.dataset.screen] || "BSconta+ RH";
   const screenContext = isRhStaffRole(profile.role) ? `Gestão de RH · ${screenLabel}` : `Meu espaço · ${screenLabel}`;
@@ -379,6 +397,65 @@ function renderTopHeader(container, profile, opts = {}) {
     notifPanel.classList.remove("open");
     userDrop.classList.remove("open");
   });
+
+  if (!isRhStaffRole(profile.role) && profile.employeeId) {
+    anexarNotificacoesPersistentes(container, profile, notifBtn, notifPanel);
+  }
+}
+
+/**
+ * Colaborador: acrescenta ao sino as notificações persistentes enviadas
+ * pelo RH (rh.notificacoes — benefício, abono, férias, ajuste de ponto...).
+ * Só ACRESCENTA itens ao que a página já mostra; se a tabela ainda não
+ * existir (migração 22 não aplicada) ou der qualquer erro, não faz nada —
+ * nunca quebra o cabeçalho. Abrir o sino marca as não lidas como lidas.
+ */
+async function anexarNotificacoesPersistentes(container, profile, notifBtn, notifPanel) {
+  try {
+    if (!window.sb) return;
+    const [notifRes, descontosRes] = await Promise.all([
+      sb.from("notificacoes").select("id, titulo, mensagem, tipo, lida_em, created_at").eq("colaborador_id", profile.employeeId).order("created_at", { ascending: false }).limit(8),
+      // Benefícios com desconto ATIVOS: sempre aparecem no sino, para o
+      // colaborador saber o que é descontado dele.
+      sb.from("colaborador_beneficios").select("beneficio, valor_desconto, periodicidade, data_inicio").eq("colaborador_id", profile.employeeId).eq("status", "ATIVO").eq("possui_desconto", true),
+    ]);
+    const data = notifRes.error ? [] : notifRes.data || [];
+    const descontos = descontosRes.error ? [] : descontosRes.data || [];
+    if (!data.length && !descontos.length) return;
+    const naoLidas = data.filter((n) => !n.lida_em);
+    const iconePorTipo = { BENEFICIO: ICONS.heart, ABONO: ICONS.clipboardCheck, FERIAS: ICONS.palmTree, AJUSTE_PONTO: ICONS.clock, HISTORICO: ICONS.timeline };
+    const periodicidadeTxt = { MENSAL: "por mês", QUINZENAL: "por quinzena", SEMANAL: "por semana", DIARIO: "por dia", ANUAL: "por ano", UNICO: "uma vez" };
+    const htmlDescontos = descontos
+      .map((d) => `
+          <a class="notif-item" href="${window.BASE_PATH || "../"}colaborador/beneficios.html" style="text-decoration:none;color:inherit">
+            <div class="notif-icon" style="color:var(--amber-700)">${ICONS.dollarSign}</div>
+            <div class="notif-text">
+              <p><strong>Desconto: ${esc(d.beneficio)}</strong> — ${Number(d.valor_desconto || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} ${periodicidadeTxt[d.periodicidade] || ""}</p>
+              <p class="notif-time">Desde ${esc(new Date(d.data_inicio + "T00:00:00").toLocaleDateString("pt-BR"))}</p>
+            </div>
+          </a>`)
+      .join("");
+    const html = htmlDescontos + data
+      .map((n) => `
+          <div class="notif-item ${n.lida_em ? "" : "unread"}">
+            <div class="notif-icon">${iconePorTipo[n.tipo] || ICONS.bell}</div>
+            <div class="notif-text">
+              <p><strong>${esc(n.titulo)}</strong>${n.mensagem ? ` — ${esc(n.mensagem)}` : ""}</p>
+              <p class="notif-time">${esc(new Date(n.created_at).toLocaleDateString("pt-BR"))}</p>
+            </div>
+          </div>`)
+      .join("");
+    notifPanel.querySelector(".notif-empty")?.remove();
+    notifPanel.querySelector(".notif-title").insertAdjacentHTML("afterend", html);
+    if (naoLidas.length && !notifBtn.querySelector(".dot")) notifBtn.insertAdjacentHTML("beforeend", '<span class="dot"></span>');
+    notifBtn.addEventListener("click", () => {
+      if (!naoLidas.length) return;
+      sb.rpc("notificacao_marcar_lida", { p_id: null }).then(() => notifBtn.querySelector(".dot")?.remove());
+      naoLidas.length = 0;
+    });
+  } catch (e) {
+    console.warn("Notificações persistentes indisponíveis:", e);
+  }
 }
 
 // ---------------------------------------------------------------------------

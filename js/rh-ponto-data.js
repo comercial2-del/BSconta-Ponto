@@ -366,3 +366,32 @@ async function rhResolverAjustePonto(solicitacaoId, aprovado, resolvidoPorNome) 
   if (updErr) throw updErr;
   return true;
 }
+
+/** Aprovação EM LOTE de ajustes de ponto (rh/ponto.html → Ajustes
+ * pendentes). Função NOVA e aditiva: para cada id, confere no banco que a
+ * solicitação ainda é um "Ajuste de ponto" PENDENTE e com itens válidos —
+ * só então chama rhResolverAjustePonto (a MESMA regra da aprovação
+ * individual). Registros já aprovados, recusados ou encerrados nunca são
+ * tocados. Devolve { aprovados, ignorados, falhas }. */
+async function rhAprovarAjustesEmLote(solicitacaoIds, resolvidoPorNome) {
+  const resultado = { aprovados: [], ignorados: [], falhas: [] };
+  if (!Array.isArray(solicitacaoIds) || !solicitacaoIds.length) return resultado;
+  const { data, error } = await sb.from("solicitacoes").select("id, categoria, status, ajuste_ponto").in("id", solicitacaoIds);
+  if (error) throw error;
+  const porId = new Map((data || []).map((r) => [r.id, r]));
+  for (const id of solicitacaoIds) {
+    const s = porId.get(id);
+    if (!s || s.categoria !== "Ajuste de ponto" || s.status !== "PENDENTE" || !s.ajuste_ponto?.data || !rhItensAjustePonto(s.ajuste_ponto).length) {
+      resultado.ignorados.push(id);
+      continue;
+    }
+    try {
+      await rhResolverAjustePonto(id, true, resolvidoPorNome);
+      resultado.aprovados.push(id);
+    } catch (e) {
+      console.error("Falha ao aprovar ajuste em lote", id, e);
+      resultado.falhas.push(id);
+    }
+  }
+  return resultado;
+}

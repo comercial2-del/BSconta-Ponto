@@ -42,6 +42,9 @@ function rhMapSolicitacaoFerias(row) {
     status: row.status,
     solicitadoEm: row.solicitado_em,
     observacoes: row.observacoes || "",
+    preAprovadaEm: row.pre_aprovada_em || null,
+    preAprovadaPor: row.pre_aprovada_por || null,
+    arquivado: row.arquivado === true,
   };
 }
 
@@ -397,7 +400,7 @@ function rhAvisoFeriasColaborador(colaborador, historicoFerias, hojeIso) {
   const info = rhCalcularAvisoFerias(colaborador, hojeIso);
   if (!info) return null;
   const jaProgramada = (historicoFerias || []).some(
-    (f) => (f.status === "APROVADA" || f.status === "PENDENTE" || f.status === "EM_ANALISE") && f.inicio >= info.periodoAquisitivoInicio && f.inicio <= info.periodoAquisitivoFim
+    (f) => (f.status === "APROVADA" || f.status === "PRE_APROVADA" || f.status === "PENDENTE" || f.status === "EM_ANALISE") && f.inicio >= info.periodoAquisitivoInicio && f.inicio <= info.periodoAquisitivoFim
   );
   if (jaProgramada) return null;
   return { ...info, colaboradorId: colaborador.id, colaboradorNome: colaborador.nome, colaboradorAdmissao: colaborador.admissao };
@@ -441,4 +444,21 @@ async function rhResolverFerias(solicitacaoId, aprovado) {
     .eq("id", solicitacaoId);
   if (updErr) throw updErr;
   return true;
+}
+
+/** RH PRÉ-APROVA uma solicitação de férias (novo status PRE_APROVADA —
+ * migração 22). Não debita saldo: isso continua acontecendo só na
+ * aprovação definitiva (rhResolverFerias), que aceita tanto PENDENTE quanto
+ * PRE_APROVADA. Só pré-aprova o que ainda está PENDENTE/EM_ANALISE. */
+async function rhPreAprovarFerias(solicitacaoId, porNome) {
+  const { data, error } = await sb
+    .from("ferias_solicitacoes")
+    .update({ status: "PRE_APROVADA", pre_aprovada_em: new Date().toISOString(), pre_aprovada_por: porNome || null })
+    .eq("id", solicitacaoId)
+    .in("status", ["PENDENTE", "EM_ANALISE"])
+    .select()
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("Esta solicitação não está mais pendente — atualize a tela.");
+  return data;
 }
