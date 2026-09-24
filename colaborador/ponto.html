@@ -523,7 +523,7 @@
       // horas" continuar contando só os dias já fechados, igual ao cálculo
       // de p.saldoBancoHoras feito na camada de dados.
       const historicoFechado = p.historico.filter((r) => r.data !== todayIso());
-      const horasDevendo = historicoFechado.reduce((acc, r) => acc + (Number(r.atrasoMin) || 0) / 60, 0);
+      const horasDevendo = historicoFechado.reduce((acc, r) => acc + (Number(r.atrasoMin) || 0) / 60 + (Number(r.descontoAlmocoH) || 0), 0);
       const horasAcumuladas = historicoFechado.reduce((acc, r) => acc + (Number(r.horasExtras) || 0), 0);
 
       let ctaHtml;
