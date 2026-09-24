@@ -86,6 +86,11 @@ function rhConfigJornada(colaborador) {
 
 const RH_COLABORADOR_JORNADA_COLS = "horario_entrada, horario_saida, meta_diaria_horas, horas_semanais, dias_trabalho";
 
+/** Tolerância de atraso: só é atraso quando a entrada passa de 15 min do
+ * horário previsto; dentro da tolerância não lança minutos de atraso.
+ * Pontos já gravados não são recalculados. */
+const RH_TOLERANCIA_ATRASO_MIN = 15;
+
 /** Busca só as colunas de jornada de UM colaborador, já convertidas em
  * config (ver rhConfigJornada). Usada antes de gravar/recalcular um dia, e
  * pelas telas do RH que precisam classificar "atraso" de verdade por
@@ -108,7 +113,7 @@ function rhClassificarStatusHoje({ entradaReal, config, dataIso }) {
   if (!entradaReal) return "falta";
   if (!config?.horarioEntradaPrevisto) return "completo"; // sem horário previsto configurado: não há como julgar atraso
   const atrasoMin = rhParseHora(entradaReal) - rhParseHora(config.horarioEntradaPrevisto);
-  return atrasoMin > 5 ? "atraso" : "completo";
+  return atrasoMin > RH_TOLERANCIA_ATRASO_MIN ? "atraso" : "completo";
 }
 
 /** Mesma lógica de cálculo que js/ponto-store.js usava — só que aqui opera
@@ -133,8 +138,9 @@ function rhCalcularDia({ entrada, intervalo_saida, intervalo_volta, saida }, con
     // Sem horário previsto configurado para este colaborador, não há base
     // pra julgar atraso — trata como "completo" (presente) em vez de
     // inventar uma hora de referência que não é a dele.
-    atrasoMin = horarioPrevistoMin != null ? Math.max(0, entMin - horarioPrevistoMin) : 0;
-    status = atrasoMin > 5 ? "atraso" : "completo";
+    const atrasoBruto = horarioPrevistoMin != null ? Math.max(0, entMin - horarioPrevistoMin) : 0;
+    atrasoMin = atrasoBruto > RH_TOLERANCIA_ATRASO_MIN ? atrasoBruto : 0; // dentro da tolerância: sem minutos de atraso
+    status = atrasoMin > 0 ? "atraso" : "completo";
     let minutos = 0;
     const fim = saiMin !== null ? saiMin : null;
     if (intSaiMin !== null) {
