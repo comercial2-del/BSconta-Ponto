@@ -156,6 +156,49 @@ function rhCalcularDia({ entrada, intervalo_saida, intervalo_volta, saida }, con
   return { status, horas_trabalhadas: horasTrabalhadas, horas_extras: horasExtras, atraso_min: atrasoMin };
 }
 
+/** Banco de horas — almoço acima do intervalo mínimo.
+ * O intervalo mínimo (rh.configuracoes_ponto.intervalo_minimo_min, padrão
+ * 60 min) é obrigatório; ficar mais tempo é permitido, mas o tempo a mais
+ * que NÃO for compensado no mesmo dia entra como NEGATIVO no banco de horas:
+ *   desconto = min(almoço − mínimo, meta do dia − horas trabalhadas), >= 0.
+ * Ex.: meta 8h, almoço de 2h e saída no horário → −1h; almoço de 2h e ficou
+ * 1h a mais → 0 (compensou). O atraso na entrada continua contando à parte
+ * (atraso_min) e não é descontado duas vezes — aqui só entra o que faltou por
+ * causa do almoço. Dia incompleto (sem alguma das 4 batidas) ou fora dos dias
+ * de trabalho do colaborador → 0. Calculado na hora a partir dos horários já
+ * gravados: nada é gravado no banco. Aceita linha do banco (snake_case) ou
+ * já mapeada por rhMapPontoRow (camelCase). Retorna HORAS. */
+function rhDescontoAlmocoHoras(row, config, intervaloMinimoMin) {
+  if (!row) return 0;
+  const hora = (snake, camel) => rhParseHora(rhHoraCurta(row[snake] != null ? row[snake] : row[camel]));
+  const ent = hora("entrada", "entrada");
+  const intSai = hora("intervalo_saida", "intervaloSaida");
+  const intVolta = hora("intervalo_volta", "intervaloVolta");
+  const sai = hora("saida", "saida");
+  if (ent === null || intSai === null || intVolta === null || sai === null) return 0;
+  if (row.data && config?.diasTrabalho && !rhEhDiaDeTrabalho(config.diasTrabalho, row.data)) return 0;
+  const minimo = Number(intervaloMinimoMin) > 0 ? Number(intervaloMinimoMin) : 60;
+  const excessoMin = (intVolta - intSai) - minimo;
+  if (excessoMin <= 0) return 0;
+  const metaHoras = config?.metaDiariaHoras != null ? config.metaDiariaHoras : RH_META_DIARIA_FALLBACK;
+  const trabalhadosMin = Math.max(0, intSai - ent) + Math.max(0, sai - intVolta);
+  const faltandoMin = metaHoras * 60 - trabalhadosMin;
+  if (faltandoMin <= 0) return 0;
+  return Math.min(excessoMin, faltandoMin) / 60;
+}
+
+/** Intervalo mínimo configurado pelo RH (rh.configuracoes_ponto), só para o
+ * cálculo acima. Sem acesso/sem linha → 60 (padrão). */
+async function rhIntervaloMinimoConfigurado() {
+  try {
+    const { data, error } = await sb.from("configuracoes_ponto").select("intervalo_minimo_min").eq("id", 1).maybeSingle();
+    if (error || !data) return 60;
+    return Number(data.intervalo_minimo_min) > 0 ? Number(data.intervalo_minimo_min) : 60;
+  } catch (e) {
+    return 60;
+  }
+}
+
 function rhMapPontoRow(row) {
   return {
     data: row.data,
@@ -180,9 +223,10 @@ function rhMapPontoRow(row) {
  * é gravado de verdade no primeiro bater de ponto). */
 async function rhCarregarPonto(colaboradorId) {
   const hojeIso = rhTodayIso();
-  const [{ data: rows, error }, { data: colaborador, error: colabErr }] = await Promise.all([
+  const [{ data: rows, error }, { data: colaborador, error: colabErr }, intervaloMinimoMin] = await Promise.all([
     sb.from("ponto_registros").select("*").eq("colaborador_id", colaboradorId).order("data"),
     sb.from("colaboradores").select(RH_COLABORADOR_JORNADA_COLS).eq("id", colaboradorId).single(),
+    rhIntervaloMinimoConfigurado(),
   ]);
   if (error) throw error;
   if (colabErr) throw colabErr;
@@ -205,7 +249,8 @@ async function rhCarregarPonto(colaboradorId) {
   // ponto batido e salvo corretamente no banco (a aba "Hoje" lê de `hoje`,
   // por isso sempre mostrava certo). Corrige a causa raiz aqui, na origem
   // do dado, em vez de remendar cada tela que consome `historico`.
-  const historico = todasLinhas.map(rhMapPontoRow);
+  // descontoAlmocoH: almoço acima do mínimo não compensado (ver rhDescontoAlmocoHoras).
+  const historico = todasLinhas.map((r) => ({ ...rhMapPontoRow(r), descontoAlmocoH: rhDescontoAlmocoHoras(r, config, intervaloMinimoMin) }));
   if (!linhaHoje) historico.push({ ...hoje });
   historico.sort((a, b) => a.data.localeCompare(b.data));
 
@@ -214,7 +259,7 @@ async function rhCarregarPonto(colaboradorId) {
   // — hoje ainda está em andamento, então atraso/hora-extra do dia não deve
   // entrar no saldo acumulado até a jornada terminar.
   const historicoFechado = historico.filter((r) => r.data !== hojeIso);
-  const horasDevendo = historicoFechado.reduce((acc, r) => acc + (Number(r.atrasoMin) || 0) / 60, 0);
+  const horasDevendo = historicoFechado.reduce((acc, r) => acc + (Number(r.atrasoMin) || 0) / 60 + (Number(r.descontoAlmocoH) || 0), 0);
   const horasAcumuladas = historicoFechado.reduce((acc, r) => acc + (Number(r.horasExtras) || 0), 0);
 
   return {
