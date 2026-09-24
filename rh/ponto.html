@@ -144,16 +144,20 @@
     }
     async function refrescarHoje() {
       const hojeIso = todayIso();
-      const [{ data: linhasHojeRows, error: e1 }, { data: linhasResto, error: e2 }] = await Promise.all([
+      const [{ data: linhasHojeRows, error: e1 }, { data: linhasResto, error: e2 }, intervaloMinimoMin] = await Promise.all([
         sb.from("ponto_registros").select("*").eq("data", hojeIso),
-        sb.from("ponto_registros").select("colaborador_id, atraso_min, horas_extras").neq("data", hojeIso),
+        sb.from("ponto_registros").select("colaborador_id, data, entrada, intervalo_saida, intervalo_volta, saida, atraso_min, horas_extras").neq("data", hojeIso),
+        rhIntervaloMinimoConfigurado(),
       ]);
       if (e1) throw e1;
       if (e2) throw e2;
       const porId = {};
       (linhasHojeRows || []).forEach((r) => { porId[r.colaborador_id] = r; });
       const saldos = {};
-      (linhasResto || []).forEach((r) => { saldos[r.colaborador_id] = (saldos[r.colaborador_id] || 0) + (Number(r.horas_extras) || 0) - (Number(r.atraso_min) || 0) / 60; });
+      const jornadaPorId = {};
+      COLABORADORES_ATIVOS.forEach((emp) => { jornadaPorId[emp.id] = rhConfigJornada(emp); });
+      // Banco de horas: + horas extras − atraso − almoço acima do mínimo não compensado.
+      (linhasResto || []).forEach((r) => { saldos[r.colaborador_id] = (saldos[r.colaborador_id] || 0) + (Number(r.horas_extras) || 0) - (Number(r.atraso_min) || 0) / 60 - rhDescontoAlmocoHoras(r, jornadaPorId[r.colaborador_id], intervaloMinimoMin); });
       cacheHoje = COLABORADORES_ATIVOS.map((emp) => {
         const row = porId[emp.id];
         const hoje = row ? rhMapPontoRow(row) : { entrada: null, local: null };
