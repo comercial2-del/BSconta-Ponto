@@ -98,6 +98,8 @@
   <script src="../js/supabase-client.js"></script>
   <script src="../js/rh-supabase-auth.js"></script>
   <script src="../js/rh-beneficios-data.js"></script>
+  <script src="../js/rh-historia-data.js"></script>
+  <script src="../js/rh-historia-ui.js"></script>
   <script>
 (async function () {
     const session = await requireRoleReal("RH");
@@ -113,6 +115,22 @@
     let cacheBeneficios = [];
     let cacheColaboradores = [];
     let beneficioEditandoId = null;
+    // Benefícios concedidos individualmente (valor, periodicidade, desconto —
+    // rh.colaborador_beneficios, migração 22). Carregado à parte: se a
+    // migração não estiver aplicada, o catálogo acima continua funcionando.
+    let cacheConcessoes = [];
+    let erroConcessoes = "";
+    let colaboradoresTodos = [];
+    let filtroConcessaoColab = "";
+    async function refrescarConcessoes() {
+      erroConcessoes = "";
+      try {
+        [cacheConcessoes, colaboradoresTodos] = await Promise.all([rhListarConcessoes(), rhListarColaboradoresBasico({ incluirInativos: false })]);
+      } catch (err) {
+        cacheConcessoes = [];
+        erroConcessoes = rhErroMigracao22(err);
+      }
+    }
 
     async function refrescarBeneficios() {
       [cacheBeneficios, cacheColaboradores] = await Promise.all([rhCarregarBeneficiosRH(), rhListarColaboradoresParaAtribuicao()]);
@@ -145,8 +163,27 @@
           <div id="kpi-grid"></div>
 
           <div class="benefit-grid" id="beneficios-grid"></div>
+
+          <div class="card card-p">
+            <div class="row-between" style="margin-bottom:.9rem;flex-wrap:wrap;gap:.7rem">
+              <div>
+                <h2 style="margin:0">Benefícios por colaborador</h2>
+                <p class="page-sub" style="margin:.25rem 0 0">Registre o benefício concedido a cada pessoa: início, valor, periodicidade e se houve desconto — com opção de informar o colaborador.</p>
+              </div>
+              <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center">
+                <select id="f-concessao-colab" style="min-width:200px">${rhOpcoesColaboradoresHtml(colaboradoresTodos, filtroConcessaoColab, { incluirVazio: true, labelVazio: "Todos os colaboradores" })}</select>
+                <button type="button" class="btn-primary auto" id="btn-nova-concessao">${ICONS.plus}<span>Registrar benefício</span></button>
+              </div>
+            </div>
+            <div id="concessoes-wrap"></div>
+          </div>
         </div>
       `;
+      renderConcessoes();
+      document.getElementById("f-concessao-colab").addEventListener("change", (e) => { filtroConcessaoColab = e.target.value; renderConcessoes(); });
+      document.getElementById("btn-nova-concessao").addEventListener("click", () =>
+        rhAbrirModalConcessao({ colaboradores: colaboradoresTodos, catalogo: cacheBeneficios, colaboradorFixoId: filtroConcessaoColab || null, session, onSaved: async () => { await refrescarConcessoes(); render(); } })
+      );
 
       renderKpiGrid(document.getElementById("kpi-grid"), [
         { label: "Benefícios cadastrados", value: total, tone: "indigo", icon: ICONS.heart },
@@ -157,6 +194,21 @@
 
       renderBeneficiosGrid();
       document.getElementById("btn-novo-beneficio").addEventListener("click", () => abrirModalNovo());
+    }
+
+    function renderConcessoes() {
+      const wrap = document.getElementById("concessoes-wrap");
+      if (!wrap) return;
+      if (erroConcessoes) { wrap.innerHTML = `<div class="notice">${esc(erroConcessoes)}</div>`; return; }
+      const rows = cacheConcessoes.filter((c) => !filtroConcessaoColab || c.colaborador_id === filtroConcessaoColab);
+      wrap.innerHTML = rows.length
+        ? `<div class="mini-list">${rows.map((c) => rhConcessaoCardHtml(c, { podeEditar: true, mostrarColaborador: true })).join("")}</div>`
+        : emptyStateHtml({ icon: ICONS.heart, title: "Nenhum benefício individual registrado", desc: "Use “Registrar benefício” para lançar valor, início e desconto de um benefício para um colaborador." });
+      wrap.querySelectorAll("[data-editar-concessao]").forEach((b) =>
+        b.addEventListener("click", () =>
+          rhAbrirModalConcessao({ colaboradores: colaboradoresTodos, catalogo: cacheBeneficios, concessao: cacheConcessoes.find((x) => x.id === b.dataset.editarConcessao), session, onSaved: async () => { await refrescarConcessoes(); render(); } })
+        )
+      );
     }
 
     function renderBeneficiosGrid() {
@@ -350,7 +402,7 @@
       renderTopHeader(document.getElementById("top-header"), session, { notifications: [] });
       document.getElementById("content").innerHTML = `<div class="loading-wrap"><div class="spinner"></div></div>`;
       try {
-        await refrescarBeneficios();
+        await Promise.all([refrescarBeneficios(), refrescarConcessoes()]);
         render();
         wireModalClosers();
       } catch (err) {

@@ -98,6 +98,7 @@
   <script src="../js/supabase-client.js"></script>
   <script src="../js/rh-supabase-auth.js"></script>
   <script src="../js/rh-ponto-data.js"></script>
+  <script src="../js/rh-historia-data.js"></script>
   <script>
 (async function () {
     const session = await requireRoleReal("RH");
@@ -116,6 +117,14 @@
     let cacheHoje = [];
     let cacheAjustes = [];
     let cacheHistorico = {};
+    // Abonos APROVADOS (rh.colaborador_abonos — migração 22): um dia coberto
+    // por abono aprovado não é tratado como falta. Se a migração ainda não
+    // estiver aplicada, fica vazio e a tela funciona exatamente como antes.
+    let cacheAbonos = [];
+    const ajustesSelecionados = new Set();
+    async function refrescarAbonos() {
+      try { cacheAbonos = await rhListarAbonos({ status: "APROVADO" }); } catch (e) { cacheAbonos = []; }
+    }
 
     async function carregarColaboradoresAtivos() {
       const { data, error } = await sb.from("colaboradores").select(`id, nome, ${RH_COLABORADOR_JORNADA_COLS}`).neq("status", "INATIVO").order("nome");
@@ -148,7 +157,10 @@
       cacheHoje = COLABORADORES_ATIVOS.map((emp) => {
         const row = porId[emp.id];
         const hoje = row ? rhMapPontoRow(row) : { entrada: null, local: null };
-        return { nome: emp.nome, status: statusHoje(emp, hoje, hojeIso), entrada: hoje.entrada, local: hoje.local, saldoBanco: saldos[emp.id] || 0 };
+        let status = statusHoje(emp, hoje, hojeIso);
+        const abono = status === "falta" ? rhAbonoDoDia(cacheAbonos, emp.id, hojeIso) : null;
+        if (abono) status = "abonado";
+        return { nome: emp.nome, status, abonoTipo: abono ? (RH_TIPOS_ABONO[abono.tipo]?.label || abono.tipo) : null, entrada: hoje.entrada, local: hoje.local, saldoBanco: saldos[emp.id] || 0 };
       });
     }
     function linhasHoje() {
@@ -186,7 +198,7 @@
       return cacheHistorico[nome] || [];
     }
     function statusPill(status) {
-      const map = { completo: ["on", "Em dia"], atraso: ["away", "Atraso"], falta: ["off", "Falta"], afastado: ["off", "Afastado"], sem_expediente: ["badge-neutral", "Sem expediente hoje"] };
+      const map = { completo: ["on", "Em dia"], atraso: ["away", "Atraso"], falta: ["off", "Falta"], afastado: ["off", "Afastado"], sem_expediente: ["badge-neutral", "Sem expediente hoje"], abonado: ["badge-neutral", "Abonado"] };
       const [cls, label] = map[status] || ["off", status];
       return `<span class="status-pill ${cls}"><span class="dot"></span>${label}</span>`;
     }
@@ -208,10 +220,12 @@
           </div>
 
           <div class="card card-p" style="padding:0.4rem">
-            <div class="tabs" style="border-bottom:none">
+            <div class="tabs subnav-jornada" style="border-bottom:none">
               <button type="button" class="tab-btn ${abaAtiva === "hoje" ? "active" : ""}" data-aba="hoje">${ICONS.users}<span style="margin-left:0.4rem">Hoje</span></button>
               <button type="button" class="tab-btn ${abaAtiva === "ajustes" ? "active" : ""}" data-aba="ajustes">${ICONS.alertCircle}<span style="margin-left:0.4rem">Ajustes pendentes</span>${ajustesPendentes().length ? `<span class="badge badge-red" style="margin-left:0.4rem">${ajustesPendentes().length}</span>` : ""}</button>
               <button type="button" class="tab-btn ${abaAtiva === "historico" ? "active" : ""}" data-aba="historico">${ICONS.calendar}<span style="margin-left:0.4rem">Histórico por colaborador</span></button>
+              <a class="tab-btn" href="abonos.html">${ICONS.clipboardCheck}<span style="margin-left:0.4rem">Abonos</span></a>
+              <a class="tab-btn" href="historia.html">${ICONS.timeline}<span style="margin-left:0.4rem">Histórico do Colaborador</span></a>
             </div>
           </div>
 
@@ -319,7 +333,7 @@
     async function refrescarAjustes() {
       const { data, error } = await sb
         .from("solicitacoes")
-        .select("id, protocolo, ajuste_ponto, colaboradores(nome)")
+        .select("id, protocolo, colaborador_id, ajuste_ponto, colaboradores(nome)")
         .eq("categoria", "Ajuste de ponto")
         .eq("status", "PENDENTE")
         .order("created_at");
@@ -328,6 +342,7 @@
         id: row.id,
         protocolo: row.protocolo,
         colaborador: row.colaboradores?.nome || "—",
+        colaboradorId: row.colaborador_id,
         modo: row.ajuste_ponto?.modo || "pontos",
         data: row.ajuste_ponto?.data,
         itens: itensAjustePonto(row.ajuste_ponto),
@@ -357,21 +372,33 @@
 
     function renderAjustesPendentes() {
       const rows = ajustesPendentes();
+      // descarta seleções de itens que já não estão mais pendentes
+      [...ajustesSelecionados].forEach((id) => { if (!rows.some((r) => r.id === id)) ajustesSelecionados.delete(id); });
+      const compativeis = rows.filter((s) => s.data && s.itens.length);
       document.getElementById("ajustes-pendentes-wrap").innerHTML = rows.length
         ? `
+        ${compativeis.length ? `
+        <div class="bulk-bar">
+          <label class="check-row"><input type="checkbox" id="ajuste-sel-todos" /> Selecionar todos (${compativeis.length})</label>
+          <div style="display:flex;align-items:center;gap:.6rem">
+            <span class="count" id="ajuste-sel-count">${ajustesSelecionados.size} selecionado(s)</span>
+            <button type="button" class="btn-primary auto" id="btn-aprovar-ajustes-lote" ${ajustesSelecionados.size ? "" : "disabled"}>${ICONS.check}<span>Aprovar selecionados</span></button>
+          </div>
+        </div>` : ""}
         <div class="table-scroll">
-          <table>
-            <thead><tr><th>Colaborador</th><th>Tipo</th><th>Data</th><th>Registros solicitados</th><th>Motivo</th><th></th></tr></thead>
+          <table class="table-cards">
+            <thead><tr><th class="cell-check"></th><th>Colaborador</th><th>Tipo</th><th>Data</th><th>Registros solicitados</th><th>Motivo</th><th></th></tr></thead>
             <tbody>
               ${rows
                 .map(
                   (s) => `<tr>
-                <td><div class="person-cell"><span class="avatar avatar-sm ${avatarColorClass(s.colaborador)}">${initials(s.colaborador)}</span>${esc(s.colaborador)}</div></td>
-                <td><span class="ajuste-modo-badge ${s.modo}">${MODO_AJUSTE_LABEL[s.modo] || s.modo}</span></td>
-                <td>${fmtDate(s.data)}</td>
-                <td><div class="ajuste-itens-list">${s.itens.map((it) => `<span class="ajuste-item-chip">${esc(it.campoLabel)} → <strong>${esc(it.horario)}</strong></span>`).join("")}</div></td>
-                <td style="max-width:260px">${esc(s.justificativa || "—")}</td>
-                <td style="text-align:right">
+                <td class="cell-check" data-label="Selecionar">${s.data && s.itens.length ? `<input type="checkbox" data-sel-ajuste="${esc(s.id)}" ${ajustesSelecionados.has(s.id) ? "checked" : ""} aria-label="Selecionar ajuste de ${esc(s.colaborador)}" />` : ""}</td>
+                <td data-label="Colaborador"><div class="person-cell"><span class="avatar avatar-sm ${avatarColorClass(s.colaborador)}">${initials(s.colaborador)}</span>${esc(s.colaborador)}</div></td>
+                <td data-label="Tipo"><span class="ajuste-modo-badge ${s.modo}">${MODO_AJUSTE_LABEL[s.modo] || s.modo}</span></td>
+                <td data-label="Data">${fmtDate(s.data)}</td>
+                <td data-label="Registros"><div class="ajuste-itens-list">${s.itens.map((it) => `<span class="ajuste-item-chip">${esc(it.campoLabel)} → <strong>${esc(it.horario)}</strong></span>`).join("")}</div></td>
+                <td data-label="Motivo" style="max-width:260px">${esc(s.justificativa || "—")}</td>
+                <td class="cell-actions" style="text-align:right">
                   <div class="approve-reject">
                     <button type="button" class="approve" data-aprovar-ajuste="${esc(s.id)}" aria-label="Aprovar">${ICONS.check}</button>
                     <button type="button" class="reject" data-recusar-ajuste="${esc(s.id)}" aria-label="Recusar">${ICONS.x}</button>
@@ -391,6 +418,52 @@
       document.querySelectorAll("[data-recusar-ajuste]").forEach((b) =>
         b.addEventListener("click", () => resolverAjustePonto(b.dataset.recusarAjuste, false, b))
       );
+
+      const atualizarSelecao = () => {
+        const c = document.getElementById("ajuste-sel-count");
+        if (c) c.textContent = `${ajustesSelecionados.size} selecionado(s)`;
+        const btn = document.getElementById("btn-aprovar-ajustes-lote");
+        if (btn) btn.disabled = !ajustesSelecionados.size;
+        const todos = document.getElementById("ajuste-sel-todos");
+        if (todos) todos.checked = compativeis.length > 0 && compativeis.every((s) => ajustesSelecionados.has(s.id));
+      };
+      document.querySelectorAll("[data-sel-ajuste]").forEach((cb) =>
+        cb.addEventListener("change", () => { cb.checked ? ajustesSelecionados.add(cb.dataset.selAjuste) : ajustesSelecionados.delete(cb.dataset.selAjuste); atualizarSelecao(); })
+      );
+      document.getElementById("ajuste-sel-todos")?.addEventListener("change", (e) => {
+        compativeis.forEach((s) => (e.target.checked ? ajustesSelecionados.add(s.id) : ajustesSelecionados.delete(s.id)));
+        document.querySelectorAll("[data-sel-ajuste]").forEach((cb) => (cb.checked = ajustesSelecionados.has(cb.dataset.selAjuste)));
+        atualizarSelecao();
+      });
+      document.getElementById("btn-aprovar-ajustes-lote")?.addEventListener("click", aprovarAjustesEmLote);
+      atualizarSelecao();
+    }
+
+    /** Aprovação em lote: confirma, e aprova UM POR UM usando exatamente a
+     * mesma função da aprovação individual (rhResolverAjustePonto). Antes de
+     * cada um, rhAprovarAjustesEmLote confere no banco que o pedido ainda
+     * está PENDENTE — nunca mexe em algo já aprovado/recusado. */
+    async function aprovarAjustesEmLote() {
+      const itens = ajustesPendentes().filter((s) => ajustesSelecionados.has(s.id));
+      if (!itens.length) return;
+      const lista = itens.slice(0, 6).map((s) => `${s.colaborador} — ${fmtDate(s.data)}`).join("; ") + (itens.length > 6 ? `; e mais ${itens.length - 6}` : "");
+      const ok = await confirmDialog({
+        title: "Aprovar ajustes em lote",
+        message: `Aprovar ${itens.length} ajuste(s) de ponto? ${lista}. Os horários serão aplicados no ponto de cada colaborador. Registros que já não estiverem pendentes são ignorados.`,
+        confirmLabel: `Aprovar ${itens.length}`,
+      });
+      if (!ok) return;
+      const btn = document.getElementById("btn-aprovar-ajustes-lote");
+      if (btn) { btn.disabled = true; btn.innerHTML = `<span class="spinner spinner-sm"></span><span>Aprovando...</span>`; }
+      const resultado = await rhAprovarAjustesEmLote(itens.map((s) => s.id), `${session.name} (RH)`);
+      for (const id of resultado.aprovados) {
+        const it = itens.find((s) => s.id === id);
+        if (it) await rhNotificarSilencioso({ colaboradorId: it.colaboradorId, tipo: "AJUSTE_PONTO", titulo: "Ajuste de ponto aprovado", mensagem: `Seu ajuste de ponto de ${fmtDate(it.data)} foi aprovado pelo RH.`, referenciaTabela: "solicitacoes", referenciaId: id, autor: session.name });
+      }
+      ajustesSelecionados.clear();
+      await refrescarAjustes();
+      showToast(`${resultado.aprovados.length} ajuste(s) aprovado(s)${resultado.ignorados.length ? ` · ${resultado.ignorados.length} ignorado(s) (não estavam mais pendentes)` : ""}${resultado.falhas.length ? ` · ${resultado.falhas.length} falha(s)` : ""}.`, resultado.falhas.length ? "error" : "success");
+      render();
     }
 
     async function resolverAjustePonto(solicitacaoId, aprovado, botao) {
@@ -401,6 +474,8 @@
         // (recalculando status/horas/atraso) e sempre atualiza o status da
         // solicitação em rh.solicitacoes — nada disso fica só em memória.
         await rhResolverAjustePonto(solicitacaoId, aprovado, `${session.name} (RH)`);
+        if (item) await rhNotificarSilencioso({ colaboradorId: item.colaboradorId, tipo: "AJUSTE_PONTO", titulo: aprovado ? "Ajuste de ponto aprovado" : "Ajuste de ponto recusado", mensagem: `Seu ajuste de ponto de ${fmtDate(item.data)} foi ${aprovado ? "aprovado" : "recusado"} pelo RH.`, referenciaTabela: "solicitacoes", referenciaId: solicitacaoId, autor: session.name });
+        ajustesSelecionados.delete(solicitacaoId);
         await refrescarAjustes();
         showToast(item ? (aprovado ? `Ajuste de ${item.colaborador} aprovado.` : `Ajuste de ${item.colaborador} recusado.`) : "Ajuste resolvido.", aprovado ? "success" : "error");
         render();
@@ -430,7 +505,7 @@
                 .map(
                   (r) => `<tr>
                 <td><div class="person-cell"><span class="avatar avatar-sm ${avatarColorClass(r.nome)}">${initials(r.nome)}</span>${esc(r.nome)}</div></td>
-                <td>${statusPill(r.status)}</td>
+                <td>${statusPill(r.status)}${r.abonoTipo ? ` <span class="hint">${esc(r.abonoTipo)}</span>` : ""}</td>
                 <td>${r.entrada || "—"}</td>
                 <td>${r.local ? localBadgeHtml(r.local) : '<span class="muted">—</span>'}</td>
                 <td class="cell-num ${r.saldoBanco < 0 ? "" : "cell-green"}" style="color:${r.saldoBanco < 0 ? "var(--red-600)" : ""}">${r.saldoBanco >= 0 ? "+" : ""}${r.saldoBanco.toFixed(1).replace(".", ",")}h</td>
@@ -498,6 +573,7 @@
               <span class="item"><span class="dot" style="background:var(--slate-500)"></span>Alteração feita pelo RH</span>
               <span class="item"><span class="dot" style="background:var(--amber-500)"></span>Atraso</span>
               <span class="item"><span class="dot" style="background:var(--red-500)"></span>Falta</span>
+              <span class="item"><span class="dot" style="background:var(--violet-500)"></span>Abonado</span>
             </div>
           </div>
 
@@ -655,9 +731,13 @@
         // Cor do card: alteração do RH (cinza) tem prioridade sobre o local;
         // depois vem o local (azul presencial / verde home office); sem
         // nenhum dos dois (falta, atraso sem local, etc.) cai no status.
-        const corClasse = rh ? "cor-rh" : home ? "cor-home" : presencial ? "cor-presencial" : info.cls;
-        const dotClasse = rh ? "rh" : home ? "home" : presencial ? "presencial" : (info.dot || "");
-        const rodapeTexto = rh ? "Alterado pelo RH" : home ? "Home office" : presencial ? "Presencial" : (rec ? "Registro" : "Sem registro");
+        // Abono APROVADO cobrindo o dia (falta ou dia sem registro): o dia
+        // aparece como "Abonado" em vez de falta.
+        const abono = (!rec || rec.status === "falta") ? rhAbonoDoDia(cacheAbonos, idPorNome(colaboradorSelecionado), iso) : null;
+        if (abono) { info.label = "Abonado"; info.hours = ""; }
+        const corClasse = abono ? "cor-abonado" : rh ? "cor-rh" : home ? "cor-home" : presencial ? "cor-presencial" : info.cls;
+        const dotClasse = abono ? "abonado" : rh ? "rh" : home ? "home" : presencial ? "presencial" : (info.dot || "");
+        const rodapeTexto = abono ? (RH_TIPOS_ABONO[abono.tipo]?.label || "Abono") : rh ? "Alterado pelo RH" : home ? "Home office" : presencial ? "Presencial" : (rec ? "Registro" : "Sem registro");
         return `
           <div class="ponto-day-card ${corClasse} ${isToday ? "is-today" : ""} ${isWeekend ? "is-weekend" : ""}" data-dia="${iso}">
             <div class="ponto-day-top">
@@ -668,7 +748,7 @@
               ${isToday ? `<span class="ponto-today-badge">HOJE</span>` : ""}
             </div>
             <div class="ponto-day-middle">
-              <span class="ponto-day-status">${!rec && isWeekend ? "Fim de semana" : info.label}</span>
+              <span class="ponto-day-status">${!rec && isWeekend && !abono ? "Fim de semana" : info.label}</span>
               <span class="ponto-day-hours">${info.hours || ""}</span>
             </div>
             <div class="ponto-day-footer">
@@ -795,7 +875,13 @@
       try {
         await carregarColaboradoresAtivos();
         colaboradorSelecionado = COLABORADORES_ATIVOS[0]?.nome || "";
+        await refrescarAbonos();
         await Promise.all([refrescarHoje(), refrescarAjustes()]);
+        const abaHash = (location.hash || "").replace("#", "");
+        if (abaHash === "ajustes" || abaHash === "historico") {
+          if (abaHash === "historico" && colaboradorSelecionado) await refrescarHistorico(colaboradorSelecionado);
+          abaAtiva = abaHash;
+        }
         render();
       } catch (erro) {
         document.getElementById("content").innerHTML = emptyStateHtml({

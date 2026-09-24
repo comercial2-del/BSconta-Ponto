@@ -43,11 +43,14 @@ function rhMapSolicitacaoGeral(row) {
     ajustePonto: row.ajuste_ponto || null,
     colaboradorId: row.colaborador_id,
     colaborador: row.colaborador?.nome || "—",
+    arquivado: row.arquivado === true,
+    arquivadoEm: row.arquivado_em || null,
+    arquivadoPor: row.arquivado_por || null,
   };
 }
 
 function rhMapFeriasComoSolicitacao(row) {
-  const statusExibicao = { PENDENTE: "PENDENTE", EM_ANALISE: "EM_ANALISE", APROVADA: "RESOLVIDA", RECUSADA: "RECUSADA" }[row.status] || row.status;
+  const statusExibicao = { PENDENTE: "PENDENTE", EM_ANALISE: "EM_ANALISE", PRE_APROVADA: "EM_ANALISE", APROVADA: "RESOLVIDA", RECUSADA: "RECUSADA" }[row.status] || row.status;
   return {
     id: row.id,
     origem: "ferias",
@@ -62,6 +65,9 @@ function rhMapFeriasComoSolicitacao(row) {
     ajustePonto: null,
     colaboradorId: row.colaborador_id,
     colaborador: row.colaborador?.nome || "—",
+    arquivado: row.arquivado === true,
+    arquivadoEm: row.arquivado_em || null,
+    arquivadoPor: row.arquivado_por || null,
   };
 }
 
@@ -127,6 +133,20 @@ async function rhResponderSolicitacaoGeral(id, { texto, autor, novoStatus }) {
 async function rhExcluirSolicitacao(id, origem) {
   const tabela = origem === "ferias" ? "ferias_solicitacoes" : "solicitacoes";
   const { error } = await sb.from(tabela).delete().eq("id", id);
+  if (error) throw error;
+  return true;
+}
+
+/** Arquiva (ou desarquiva) uma solicitação — NUNCA exclui do banco. A
+ * solicitação arquivada só deixa de aparecer na lista principal e continua
+ * disponível no filtro "Arquivadas" (colunas arquivado/arquivado_em/
+ * arquivado_por, migração 22). `origem` = "ferias" usa rh.ferias_solicitacoes. */
+async function rhArquivarSolicitacao(id, origem, arquivar, porNome) {
+  const tabela = origem === "ferias" ? "ferias_solicitacoes" : "solicitacoes";
+  const payload = arquivar
+    ? { arquivado: true, arquivado_em: new Date().toISOString(), arquivado_por: porNome || null }
+    : { arquivado: false, arquivado_em: null, arquivado_por: null };
+  const { error } = await sb.from(tabela).update(payload).eq("id", id);
   if (error) throw error;
   return true;
 }

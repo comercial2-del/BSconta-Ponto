@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Minha História — BSconta+ RH</title>
+  <link rel="icon" type="image/png" href="../assets/bsconta-icon.png" />
+  <link rel="stylesheet" href="../css/styles.css" />
+  <link rel="stylesheet" href="../css/theme-v2.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div id="app-header"></div>
+    <div class="app-content">
+      <main class="main">
+        <div id="top-header" class="top-header"></div>
+        <div id="content"><div class="loading-wrap"><div class="spinner"></div></div></div>
+      </main>
+    </div>
+  </div>
+
+  <script>window.BASE_PATH = "../";</script>
+  <script src="../js/demo-data.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/supabase-client.js"></script>
+  <script src="../js/rh-supabase-auth.js"></script>
+  <script src="../js/rh-historia-data.js"></script>
+  <script src="../js/rh-historia-ui.js"></script>
+  <script>
+(async function () {
+    const session = await requireRoleReal("COLABORADOR");
+    if (!session) return;
+    renderShell(session, NAV_COLABORADOR);
+    renderTopHeader(document.getElementById("top-header"), session, { notifications: [] });
+
+    if (!session.employeeId) {
+      document.getElementById("content").innerHTML = emptyStateHtml({ icon: ICONS.alertCircle, title: "Sem cadastro de colaborador vinculado", desc: "Seu login não está ligado a um cadastro de colaborador. Fale com o RH." });
+      return;
+    }
+
+    // Tudo aqui é SÓ LEITURA e só do próprio colaborador — o banco (RLS e a
+    // função historico_listar) não devolve dados de nenhuma outra pessoa.
+    let aba = "timeline";
+    let eventos = [], concessoes = [], abonos = [];
+    let erro = "";
+    const eu = {
+      id: session.employeeId, nome: session.name, codigo: session.codigoColaborador, cargo: session.cargo,
+      departamento: session.departamento, admissao: session.admissao, status: session.status, foto_url: session.photo,
+    };
+
+    async function carregar() {
+      const [ev, cb, ab] = await Promise.allSettled([
+        rhCarregarHistoria(eu),
+        rhListarConcessoes(eu.id),
+        rhListarAbonos({ colaboradorId: eu.id }),
+      ]);
+      eventos = ev.status === "fulfilled" ? ev.value : [];
+      concessoes = cb.status === "fulfilled" ? cb.value : [];
+      abonos = ab.status === "fulfilled" ? ab.value.filter((a) => a.status !== "ARQUIVADO") : [];
+      erro = ev.status === "rejected" ? rhErroMigracao22(ev.reason) : "";
+      if (ev.status === "rejected" && eu.admissao) {
+        eventos = [{ id: "entrada-virtual", virtual: true, tipo_evento: "ENTRADA", data_evento: eu.admissao, cargo: eu.cargo, departamento: eu.departamento, descricao: "Data de admissão registrada no cadastro." }];
+        erro = "";
+      }
+    }
+
+    function render() {
+      document.getElementById("content").innerHTML = `
+        <div class="space-y">
+          <div>
+            <h1 class="page-title">Minha História</h1>
+            <p class="page-sub">Sua trajetória na empresa, seus benefícios e abonos.</p>
+          </div>
+
+          <div class="card card-p">
+            <div class="hist-header">
+              <div class="hist-header-person">
+                <div class="avatar-lg ${avatarColorClass(eu.nome)}">${eu.foto_url ? `<img src="${esc(eu.foto_url)}" alt="" />` : initials(eu.nome)}</div>
+                <div style="min-width:0">
+                  <p class="hist-header-name">${esc(eu.nome)}</p>
+                  <p class="hist-header-meta">
+                    ${eu.codigo ? `<span class="hist-code">Cód. ${esc(eu.codigo)}</span>` : ""}
+                    <span>${esc(eu.cargo || "—")}</span><span class="sep">·</span><span>${esc(eu.departamento || "—")}</span>
+                    ${statusBadgeHtml(eu.status || "ATIVO", STATUS_LABELS)}
+                  </p>
+                </div>
+              </div>
+              <div class="hist-stat" style="min-width:170px"><p class="lbl">Na empresa desde</p><p class="val">${fmtDate(eu.admissao)}</p></div>
+            </div>
+          </div>
+
+          <div class="card card-p">
+            <div class="tabs subnav-jornada" style="margin-bottom:1rem">
+              <button type="button" class="tab-btn ${aba === "timeline" ? "active" : ""}" data-aba="timeline">${ICONS.timeline}<span style="margin-left:.4rem">Linha do tempo</span></button>
+              <button type="button" class="tab-btn ${aba === "beneficios" ? "active" : ""}" data-aba="beneficios">${ICONS.heart}<span style="margin-left:.4rem">Benefícios</span></button>
+              <button type="button" class="tab-btn ${aba === "abonos" ? "active" : ""}" data-aba="abonos">${ICONS.clipboardCheck}<span style="margin-left:.4rem">Abonos</span></button>
+            </div>
+            <div id="aba-conteudo">${abaHtml()}</div>
+          </div>
+        </div>`;
+      document.querySelectorAll("[data-aba]").forEach((b) => b.addEventListener("click", () => {
+        aba = b.dataset.aba;
+        render();
+      }));
+    }
+
+    function abaHtml() {
+      if (erro) return `<div class="notice">${esc(erro)}</div>`;
+      if (aba === "beneficios") {
+        return concessoes.length
+          ? `<div class="mini-list">${concessoes.map((c) => rhConcessaoCardHtml(c)).join("")}</div>`
+          : emptyStateHtml({ icon: ICONS.heart, title: "Nenhum benefício detalhado ainda", desc: "Quando o RH registrar um benefício para você, os detalhes (valor, início e desconto) aparecem aqui." });
+      }
+      if (aba === "abonos") {
+        return abonos.length
+          ? `<div class="table-scroll"><table class="table-cards"><thead><tr><th>Período</th><th>Tipo</th><th class="cell-num">Dias</th><th>Classificação</th><th>Motivo</th><th>Status</th></tr></thead><tbody>
+            ${abonos.map((a) => `<tr>
+              <td data-label="Período">${rhAbonoPeriodoTexto(a)}</td>
+              <td data-label="Tipo">${esc(RH_TIPOS_ABONO[a.tipo]?.label || a.tipo)}</td>
+              <td data-label="Dias" class="cell-num">${a.dias}</td>
+              <td data-label="Classificação">${rhJustificacaoPillHtml(a.justificada)}</td>
+              <td data-label="Motivo">${esc(a.motivo || "—")}</td>
+              <td data-label="Status">${statusBadgeHtml(a.status, RH_STATUS_ABONO)}</td>
+            </tr>`).join("")}
+          </tbody></table></div>`
+          : emptyStateHtml({ icon: ICONS.clipboardCheck, title: "Nenhum abono registrado", desc: "Atestados e ausências justificadas lançados pelo RH aparecem aqui." });
+      }
+      return rhTimelineHtml(eventos, { podeEditar: false });
+    }
+
+    try {
+      await carregar();
+      render();
+    } catch (err) {
+      rhShowFatalError(rhMensagemErroSupabase(err));
+    }
+})();
+</script>
+  <script src="../js/ui-effects.js"></script>
+</body>
+</html>

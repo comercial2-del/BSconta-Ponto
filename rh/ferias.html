@@ -80,6 +80,7 @@
   <script src="../js/supabase-client.js"></script>
   <script src="../js/rh-supabase-auth.js"></script>
   <script src="../js/rh-ferias-data.js"></script>
+  <script src="../js/rh-historia-data.js"></script>
   <script>
 (async function () {
     const session = await requireRoleReal("RH");
@@ -128,6 +129,7 @@
 
     function render() {
       const pendentesCount = cacheFerias.filter((f) => f.status === "PENDENTE" || f.status === "EM_ANALISE").length;
+      const preAprovadasCount = cacheFerias.filter((f) => f.status === "PRE_APROVADA").length;
       const aprovadasCount = cacheFerias.filter((f) => f.status === "APROVADA").length;
       const recusadasCount = cacheFerias.filter((f) => f.status === "RECUSADA").length;
 
@@ -141,7 +143,6 @@
             <button type="button" class="btn-primary auto" id="btn-lancar">${ICONS.plus}<span>Lançar férias</span></button>
           </div>
 
-          ${avisosHtml()}
 
           <div id="kpi-grid"></div>
 
@@ -149,6 +150,7 @@
             <div class="row-between" style="margin-bottom:1rem">
               <div class="period-buttons">
                 <button type="button" data-f="PENDENTES" class="active">Pendentes</button>
+                <button type="button" data-f="PRE_APROVADAS">Pré-aprovadas${preAprovadasCount ? ` (${preAprovadasCount})` : ""}</button>
                 <button type="button" data-f="APROVADAS">Aprovadas</button>
                 <button type="button" data-f="RECUSADAS">Recusadas</button>
                 <button type="button" data-f="TODAS">Todas</button>
@@ -163,10 +165,11 @@
 
       renderKpiGrid(document.getElementById("kpi-grid"), [
         { label: "Aguardando análise", value: pendentesCount, tone: "amber", icon: ICONS.messageSquare },
+        { label: "Pré-aprovadas", value: preAprovadasCount, tone: "violet", icon: ICONS.hourglass },
         { label: "Aprovadas (período atual)", value: aprovadasCount, tone: "green", icon: ICONS.checkCircle },
         { label: "Recusadas", value: recusadasCount, tone: "red", icon: ICONS.xCircle },
         { label: "Dias de férias no mês", value: cacheFerias.filter((f) => f.inicio.startsWith(mesAtualIso()) || f.fim.startsWith(mesAtualIso())).reduce((a, f) => a + f.dias, 0), tone: "indigo", icon: ICONS.palmTree },
-      ]);
+      ], true);
 
       document.querySelectorAll("[data-f]").forEach((btn) =>
         btn.addEventListener("click", () => {
@@ -210,6 +213,7 @@
     function filteredRows() {
       if (filtro === "TODAS") return cacheFerias;
       if (filtro === "APROVADAS") return cacheFerias.filter((f) => f.status === "APROVADA");
+      if (filtro === "PRE_APROVADAS") return cacheFerias.filter((f) => f.status === "PRE_APROVADA");
       if (filtro === "RECUSADAS") return cacheFerias.filter((f) => f.status === "RECUSADA");
       return cacheFerias.filter((f) => f.status === "PENDENTE" || f.status === "EM_ANALISE");
     }
@@ -220,6 +224,7 @@
       if (botoesLinha) botoesLinha.forEach((b) => (b.disabled = true));
       try {
         await rhResolverFerias(solicitacaoId, aprovado);
+        if (f) await rhNotificarSilencioso({ colaboradorId: f.colaboradorId, tipo: "FERIAS", titulo: aprovado ? "Férias aprovadas" : "Férias recusadas", mensagem: `Sua solicitação de férias de ${fmtDate(f.inicio)} a ${fmtDate(f.fim)} (${f.dias} dias) foi ${aprovado ? "aprovada" : "recusada"}.`, referenciaTabela: "ferias_solicitacoes", referenciaId: f.id, autor: session.name });
         await refrescarFerias();
         recalcularAvisosFerias();
         showToast(aprovado ? `Férias de ${f?.colaborador || "colaborador"} aprovadas.` : `Férias de ${f?.colaborador || "colaborador"} recusadas.`, aprovado ? "success" : "error");
@@ -238,6 +243,29 @@
       document.querySelectorAll("[data-reject]").forEach((b) =>
         b.addEventListener("click", () => resolverFerias(b.dataset.reject, false, b))
       );
+      document.querySelectorAll("[data-preaprovar]").forEach((b) =>
+        b.addEventListener("click", () => preAprovarFerias(b.dataset.preaprovar, b))
+      );
+    }
+
+    /** Pré-aprovação: a solicitação continua registrada e fica claramente
+     * identificada como "Pré-aprovada" — a aprovação definitiva (que debita
+     * o saldo) ou a recusa continuam disponíveis depois. */
+    async function preAprovarFerias(solicitacaoId, botao) {
+      const f = cacheFerias.find((x) => x.id === solicitacaoId);
+      const botoesLinha = botao.closest(".approve-reject")?.querySelectorAll("button");
+      if (botoesLinha) botoesLinha.forEach((b) => (b.disabled = true));
+      try {
+        await rhPreAprovarFerias(solicitacaoId, session.name);
+        if (f) await rhNotificarSilencioso({ colaboradorId: f.colaboradorId, tipo: "FERIAS", titulo: "Férias pré-aprovadas", mensagem: `Sua solicitação de férias de ${fmtDate(f.inicio)} a ${fmtDate(f.fim)} (${f.dias} dias) foi pré-aprovada pelo RH e aguarda a aprovação final.`, referenciaTabela: "ferias_solicitacoes", referenciaId: f.id, autor: session.name });
+        await refrescarFerias();
+        recalcularAvisosFerias();
+        showToast(`Férias de ${f?.colaborador || "colaborador"} pré-aprovadas.`, "success");
+        render();
+      } catch (err) {
+        showToast(rhErroMigracao22(err), "error");
+        if (botoesLinha) botoesLinha.forEach((b) => (b.disabled = false));
+      }
     }
 
     function listHtml() {
@@ -257,13 +285,14 @@
                 <td class="cell-num">${f.saldoDiasDisponiveis ?? "—"}</td>
                 <td>${fmtDate(f.inicio)} a ${fmtDate(f.fim)}</td>
                 <td class="cell-num">${f.dias}</td>
-                <td>${statusBadgeHtml(f.status, STATUS_LABELS)}</td>
+                <td>${statusBadgeHtml(f.status, STATUS_LABELS)}${f.status === "PRE_APROVADA" && f.preAprovadaPor ? `<br><span class="hint">por ${esc(f.preAprovadaPor)}</span>` : ""}</td>
                 <td>${fmtDate(f.solicitadoEm)}</td>
                 <td style="text-align:right">
                   ${
-                    f.status === "PENDENTE" || f.status === "EM_ANALISE"
+                    f.status === "PENDENTE" || f.status === "EM_ANALISE" || f.status === "PRE_APROVADA"
                       ? `<div class="approve-reject">
-                        <button type="button" class="approve" data-approve="${f.id}" aria-label="Aprovar">${ICONS.check}</button>
+                        ${f.status !== "PRE_APROVADA" ? `<button type="button" class="approve" style="background:var(--violet-50);color:var(--violet-600)" data-preaprovar="${f.id}" title="Pré-aprovar" aria-label="Pré-aprovar">${ICONS.hourglass}</button>` : ""}
+                        <button type="button" class="approve" data-approve="${f.id}" title="Aprovar" aria-label="Aprovar">${ICONS.check}</button>
                         <button type="button" class="reject" data-reject="${f.id}" aria-label="Recusar">${ICONS.x}</button>
                       </div>`
                       : ""

@@ -115,6 +115,7 @@
   <script src="../js/rh-perfil-data.js"></script>
   <script src="../js/rh-usuarios-data.js"></script>
   <script src="../js/rh-push-data.js"></script>
+  <script src="../js/rh-historia-data.js"></script>
   <script>
 (async function () {
     const session = await requireRoleReal("RH");
@@ -127,6 +128,7 @@
     let usuarioEditandoId = null;
     let cacheUsuarios = [];
     let meuPerfilCompleto = null;
+    let configPonto = { ...RH_CONFIG_PONTO_PADRAO, _padrao: true };
     const NOTIF_PREFS = [
       { key: "solicitacoes", label: "Novas solicitações e atualizações de status", padrao: true },
       { key: "ferias", label: "Aprovação/recusa de pedidos de férias", padrao: true },
@@ -161,11 +163,13 @@
               <button type="button" class="tab-btn active" data-tab="tab-conta">Minha conta</button>
               <button type="button" class="tab-btn" data-tab="tab-usuarios">Usuários e permissões</button>
               <button type="button" class="tab-btn" data-tab="tab-notif">Notificações</button>
+              <button type="button" class="tab-btn" data-tab="tab-ponto">Regras de ponto</button>
             </div>
 
             <div id="tab-conta" class="tab-panel active">${contaHtml()}</div>
             <div id="tab-usuarios" class="tab-panel">${usuariosHtml()}</div>
             <div id="tab-notif" class="tab-panel">${notifHtml()}</div>
+            <div id="tab-ponto" class="tab-panel">${regrasPontoHtml()}</div>
           </div>
         </div>
       `;
@@ -174,6 +178,55 @@
       wireContaEvents();
       wireUsuariosEvents();
       wireNotifEvents();
+      wireRegrasPonto();
+    }
+
+    // ------------------------------------------------------------------
+    // Regras de ponto (rh.configuracoes_ponto — migração 22). Valem para
+    // todos os colaboradores ao bater o ponto e também são verificadas no
+    // banco (trigger). Não alteram nenhum registro de ponto já existente.
+    // ------------------------------------------------------------------
+    function regrasPontoHtml() {
+      return `
+        <p class="page-sub" style="margin:0 0 1rem">Regras aplicadas quando o colaborador registra o intervalo (almoço). Correções feitas pelo RH não são bloqueadas e nenhum registro antigo é alterado.</p>
+        ${configPonto._padrao ? `<div class="notice" style="margin-bottom:1rem">A migração 22 ainda não foi aplicada — exibindo os valores padrão.</div>` : ""}
+        <form id="form-regras-ponto" style="max-width:620px">
+          <div class="form-grid">
+            <div class="field"><label>Intervalo mínimo (minutos)</label><input type="number" id="rp-intervalo" min="0" max="600" step="5" value="${configPonto.intervalo_minimo_min}" required />
+              <p class="field-hint">Padrão 60. O retorno só é liberado após esse tempo; intervalos maiores são sempre permitidos.</p></div>
+            <div class="field"><label>Almoço não pode começar antes de</label><input type="time" id="rp-inicio" value="${configPonto.almoco_inicio_minimo || ""}" />
+              <p class="field-hint">Deixe em branco para não restringir. Ex.: 12:00 bloqueia a saída para o intervalo às 11:59.</p></div>
+            <div class="field"><label>Início do controle de ponto</label><input type="date" id="rp-controle" value="${configPonto.controle_ponto_inicio || ""}" />
+              <p class="field-hint">Nos relatórios, dias úteis sem registro só contam como falta a partir desta data (em branco = primeiro ponto registrado no sistema).</p></div>
+          </div>
+          ${configPonto.updated_by_nome ? `<p class="hint">Última alteração por ${esc(configPonto.updated_by_nome)} em ${new Date(configPonto.updated_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}.</p>` : ""}
+          <button type="submit" class="btn-primary auto" id="btn-salvar-regras" style="margin-top:1rem" ${configPonto._padrao ? "disabled" : ""}>${ICONS.check}<span>Salvar regras</span></button>
+        </form>`;
+    }
+
+    function wireRegrasPonto() {
+      document.getElementById("form-regras-ponto")?.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById("btn-salvar-regras");
+        const intervalo = Number(document.getElementById("rp-intervalo").value);
+        const inicio = document.getElementById("rp-inicio").value;
+        const ok = await confirmDialog({
+          title: "Salvar regras de ponto",
+          message: `Intervalo mínimo: ${intervalo} min · Início do almoço: ${inicio ? "a partir das " + inicio : "sem restrição"}. As regras passam a valer nas próximas batidas de todos os colaboradores.`,
+          confirmLabel: "Salvar",
+        });
+        if (!ok) return;
+        btn.disabled = true;
+        try {
+          await rhSalvarConfigPonto({ intervalo_minimo_min: intervalo, almoco_inicio_minimo: inicio, controle_ponto_inicio: document.getElementById("rp-controle").value, autor: session.name });
+          configPonto = await rhCarregarConfigPonto();
+          showToast("Regras de ponto salvas.", "success");
+        } catch (err) {
+          showToast(rhErroMigracao22(err), "error");
+        } finally {
+          btn.disabled = false;
+        }
+      });
     }
 
     function contaHtml() {
@@ -446,6 +499,7 @@
       try {
         if (souAdmin) await refrescarUsuarios();
         if (session.employeeId) meuPerfilCompleto = await rhCarregarPerfilColaborador(session.employeeId);
+        configPonto = await rhCarregarConfigPonto();
       } catch (err) {
         rhShowFatalError(rhMensagemErroSupabase(err));
         return;

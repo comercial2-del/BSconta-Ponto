@@ -377,14 +377,14 @@ async function logout() {
 async function rhNavBadges() {
   try {
     const [geraisRes, feriasRes, docsRes, colabRes, feriasTodasRes] = await Promise.all([
-      sb.from("solicitacoes").select("id", { count: "exact", head: true }).in("status", ["PENDENTE", "EM_ANALISE"]),
+      sb.from("solicitacoes").select("id", { count: "exact", head: true }).in("status", ["PENDENTE", "EM_ANALISE"]).eq("arquivado", false),
       sb.from("ferias_solicitacoes").select("id", { count: "exact", head: true }).in("status", ["PENDENTE", "EM_ANALISE"]),
       sb.from("documentos").select("id", { count: "exact", head: true }).in("status", ["PENDENTE", "AGUARDANDO_IMPORTACAO"]),
       // Item "Lembrete de férias": colaboradores com o período aquisitivo
       // vigente perto de vencer (ou já vencido) e ainda sem férias
       // programadas — ver rhContarAvisosFerias abaixo.
       sb.from("colaboradores").select("id, nome, admissao").neq("status", "INATIVO"),
-      sb.from("ferias_solicitacoes").select("colaborador_id, inicio, status").in("status", ["APROVADA", "PENDENTE", "EM_ANALISE"]),
+      sb.from("ferias_solicitacoes").select("colaborador_id, inicio, status").in("status", ["APROVADA", "PRE_APROVADA", "PENDENTE", "EM_ANALISE"]),
     ]);
     if (geraisRes.error) throw geraisRes.error;
     if (feriasRes.error) throw feriasRes.error;
@@ -392,7 +392,16 @@ async function rhNavBadges() {
     if (colabRes.error) throw colabRes.error;
     if (feriasTodasRes.error) throw feriasTodasRes.error;
     const avisosFerias = rhContarAvisosFerias(colabRes.data || [], feriasTodasRes.data || []);
+    // Abonos pendentes (migração 22) — consulta separada: se a tabela ainda
+    // não existir, só este contador fica de fora.
+    let abonosPendentes = 0;
+    try {
+      const abonosRes = await sb.from("colaborador_abonos").select("id", { count: "exact", head: true }).eq("status", "PENDENTE");
+      if (!abonosRes.error) abonosPendentes = abonosRes.count || 0;
+    } catch (e) { /* sem migração 22 */ }
     return {
+      // Abonos ficam dentro de Jornada / Ponto — o contador aparece nesse item.
+      "ponto.html": abonosPendentes,
       "solicitacoes.html": (geraisRes.count || 0) + (feriasRes.count || 0),
       "ferias.html": (feriasRes.count || 0) + avisosFerias,
       "documentos.html": docsRes.count || 0,

@@ -56,6 +56,8 @@
   <script src="../js/rh-ferias-data.js"></script>
   <script src="../js/rh-solicitacoes-data.js"></script>
   <script src="../js/rh-documentos-data.js"></script>
+  <script src="../js/rh-historia-data.js"></script>
+  <script src="../js/rh-ocorrencias-data.js"></script>
   <script>
 (async function () {
     const session = await requireRoleReal("RH");
@@ -77,6 +79,9 @@
       { id: "solicitacoes", nome: "Solicitações", desc: "Volume, status e categorias das solicitações ao RH.", icon: "messageSquare", tone: "amber" },
       { id: "documentos", nome: "Documentos", desc: "Holerites e documentos enviados, pendentes e assinados.", icon: "fileText", tone: "violet" },
       { id: "ponto", nome: "Jornada / Ponto", desc: "Situação do ponto de hoje e banco de horas.", icon: "clock", tone: "teal" },
+      { id: "faltas", nome: "Faltas e justificativas", desc: "Faltas justificadas e não justificadas, com o motivo de cada uma.", icon: "xCircle", tone: "red" },
+      { id: "abonos", nome: "Abonos, atestados e férias", desc: "Ocorrências registradas pelo RH e o status de cada uma.", icon: "clipboardCheck", tone: "violet" },
+      { id: "personalizado", nome: "Pesquisa personalizada", desc: "Escolha os critérios (colaborador, departamento, tipo, período...) e gere só o que precisa.", icon: "filter", tone: "indigo" },
     ];
 
     // Dados reais carregados uma vez ao abrir a tela (recarregados sempre
@@ -125,7 +130,33 @@
           return { nome: c.nome, status, saldoBanco: saldoPorId[c.id] || 0 };
         });
 
-      base = { colaboradores, ferias, solicitacoes, documentos, pontoHoje, pontoRegistros: pontoRegistrosRows || [] };
+      base = { colaboradores, ferias, solicitacoes, documentos, pontoHoje, pontoRegistros: pontoRegistrosRows || [], ocorrencias: [], ocorrenciasInicio: null, ocorrenciasErro: "" };
+      await carregarOcorrencias(umAnoAtrasIso());
+    }
+
+    // Ocorrências consolidadas (faltas, atrasos, abonos, férias, ajustes) —
+    // ver js/rh-ocorrencias-data.js. Carregadas para o último ano; a
+    // Pesquisa Personalizada recarrega se o período pedido for mais antigo.
+    function umAnoAtrasIso() {
+      const d = new Date();
+      d.setFullYear(d.getFullYear() - 1);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+    async function carregarOcorrencias(inicioIso) {
+      try {
+        const r = await rhCarregarOcorrencias({ inicio: inicioIso, fim: rhTodayIso() });
+        base.ocorrencias = r.linhas;
+        base.ocorrenciasInicio = inicioIso;
+        base.ocorrenciasControle = r.controleInicio;
+        base.ocorrenciasErro = "";
+      } catch (err) {
+        base.ocorrencias = [];
+        base.ocorrenciasErro = rhMensagemErroSupabase(err);
+      }
+    }
+    function tabelaOcorrencias(linhas, colunas) {
+      const cols = RH_OCORRENCIA_COLUNAS.filter((c) => colunas.includes(c.id));
+      return { headers: cols.map((c) => c.label), rows: linhas.map((l) => cols.map((c) => c.valor(l))) };
     }
 
     // ------------------------------------------------------------------
@@ -296,6 +327,50 @@
           };
         },
       };
+      geradores.faltas = () => {
+        const faltas = base.ocorrencias.filter((l) => l.categoria === "FALTA" && l.data >= inicioPeriodo);
+        const just = faltas.filter((l) => l.justificacao === "JUSTIFICADA").length;
+        const naoJust = faltas.filter((l) => l.justificacao === "NAO_JUSTIFICADA").length;
+        const emAnalise = faltas.filter((l) => l.justificacao === "EM_ANALISE").length;
+        const porColab = {};
+        faltas.forEach((l) => {
+          const k = l.colaborador;
+          porColab[k] = porColab[k] || { j: 0, n: 0, a: 0, depto: l.departamento };
+          if (l.justificacao === "JUSTIFICADA") porColab[k].j++; else if (l.justificacao === "EM_ANALISE") porColab[k].a++; else porColab[k].n++;
+        });
+        return {
+          titulo: "Relatório de Faltas e Justificativas",
+          meta: `${metaPadrao}${base.ocorrenciasControle ? ` · Dias sem registro contam como falta a partir de ${fmtDate(base.ocorrenciasControle)}` : ""}`,
+          kpis: [
+            { label: "Faltas no período", value: faltas.length, tone: "red", icon: ICONS.xCircle },
+            { label: "Justificadas", value: just, tone: "green", icon: ICONS.checkCircle },
+            { label: "Não justificadas", value: naoJust, tone: "amber", icon: ICONS.alertCircle },
+            { label: "Aguardando abono", value: emAnalise, tone: "violet", icon: ICONS.hourglass },
+          ],
+          secoes: [
+            { titulo: "Por colaborador", tabela: { headers: ["Colaborador", "Departamento", "Justificadas", "Não justificadas", "Aguardando abono"], rows: Object.entries(porColab).sort((a, b) => (b[1].n - a[1].n) || a[0].localeCompare(b[0], "pt-BR")).map(([n, v]) => [n, v.depto || "—", String(v.j), String(v.n), String(v.a)]) }, vazio: base.ocorrenciasErro || "Nenhuma falta no período." },
+            { titulo: "Detalhe", tabela: tabelaOcorrencias(faltas, ["data", "colaborador", "situacao", "justificacao", "motivo"]), vazio: base.ocorrenciasErro || "Nenhuma falta no período." },
+          ],
+        };
+      };
+      geradores.abonos = () => {
+        const linhas = base.ocorrencias.filter((l) => ["ABONO", "ATESTADO", "FERIAS"].includes(l.categoria) && l.dataFim >= inicioPeriodo);
+        const atestados = linhas.filter((l) => l.categoria === "ATESTADO");
+        return {
+          titulo: "Relatório de Abonos, Atestados e Férias",
+          meta: metaPadrao,
+          kpis: [
+            { label: "Ocorrências no período", value: linhas.length, tone: "indigo", icon: ICONS.clipboardCheck },
+            { label: "Atestados", value: atestados.length, tone: "red", icon: ICONS.fileText },
+            { label: "Abonos aprovados", value: linhas.filter((l) => l.categoria !== "FERIAS" && l.status === "APROVADO").length, tone: "green", icon: ICONS.checkCircle },
+            { label: "Pendentes / pré-aprovados", value: linhas.filter((l) => l.status === "PENDENTE" || l.status === "PRE_APROVADO").length, tone: "amber", icon: ICONS.hourglass },
+          ],
+          secoes: [
+            { titulo: "Ocorrências", tabela: tabelaOcorrencias(linhas, ["data", "colaborador", "departamento", "situacao", "justificacao", "motivo", "dias", "status"]), vazio: base.ocorrenciasErro || "Nenhuma ocorrência no período." },
+          ],
+        };
+      };
+      geradores.personalizado = () => relPersonalizado || { titulo: "Pesquisa personalizada", meta: "Defina os critérios acima e clique em Gerar relatório.", kpis: [], secoes: [] };
       return (geradores[id] || (() => ({ titulo: "Relatório indisponível", meta: "", kpis: [], secoes: [] })))();
     }
 
@@ -317,7 +392,7 @@
         .map((s) => {
           const rows = s.tabela?.rows || [];
           const tabelaHtml = rows.length
-            ? `<div class="table-scroll report-table-wrap"><table><thead><tr>${s.tabela.headers.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`
+            ? `<div class="table-scroll report-table-wrap"><table class="table-cards"><thead><tr>${s.tabela.headers.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c, i) => `<td data-label="${esc(s.tabela.headers[i] || "")}">${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`
             : emptyStateHtml({ icon: ICONS.reports, title: s.vazio || "Sem dados", desc: "" });
           return `<div class="report-section"><h3 class="report-section-title">${esc(s.titulo)}</h3>${tabelaHtml}</div>`;
         })
@@ -395,7 +470,130 @@
       );
     }
 
+    // ------------------------------------------------------------------
+    // Pesquisa personalizada — o RH escolhe os critérios e as colunas, e o
+    // relatório é gerado só com aquilo. A estrutura de relatórios acima foi
+    // apenas ampliada (mesmo formato título/indicadores/seções).
+    // ------------------------------------------------------------------
+    let relPersonalizado = null;
+    let linhasPersonalizado = [];
+    const filtroPers = {
+      inicio: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`; })(),
+      fim: rhTodayIso(), colaboradorId: "", codigo: "", departamento: "", cargo: "", categorias: ["FALTA"], justificacao: "", status: "", busca: "",
+      colunas: RH_OCORRENCIA_COLUNAS.filter((c) => c.padrao).map((c) => c.id),
+    };
+
+    function builderHtml() {
+      const deptos = [...new Set(base.colaboradores.map((c) => c.departamento).filter(Boolean))].sort();
+      const cargos = [...new Set((base.ocorrencias || []).map((l) => l.cargo).filter(Boolean))].sort();
+      return `
+        <div class="report-head" style="margin-bottom:1rem">
+          <div><h2>Pesquisa personalizada</h2><p class="report-meta">Selecione os critérios desejados e gere o relatório somente com essas informações.</p></div>
+        </div>
+        <div class="report-builder">
+          <div class="field"><label>Data inicial</label><input type="date" id="rp-inicio" value="${filtroPers.inicio}" /></div>
+          <div class="field"><label>Data final</label><input type="date" id="rp-fim" value="${filtroPers.fim}" /></div>
+          <div class="field"><label>Colaborador</label><select id="rp-colab"><option value="">Todos</option>${base.colaboradores.map((c) => `<option value="${c.id}" ${c.id === filtroPers.colaboradorId ? "selected" : ""}>${esc(c.nome)}</option>`).join("")}</select></div>
+          <div class="field"><label>Código</label><input type="text" id="rp-codigo" value="${esc(filtroPers.codigo)}" placeholder="Ex.: 001" /></div>
+          <div class="field"><label>Departamento</label><select id="rp-depto"><option value="">Todos</option>${deptos.map((d) => `<option ${d === filtroPers.departamento ? "selected" : ""}>${esc(d)}</option>`).join("")}</select></div>
+          <div class="field"><label>Cargo</label><select id="rp-cargo"><option value="">Todos</option>${cargos.map((d) => `<option ${d === filtroPers.cargo ? "selected" : ""}>${esc(d)}</option>`).join("")}</select></div>
+          <div class="field"><label>Justificação</label><select id="rp-just"><option value="">Todas</option>${Object.entries(RH_JUSTIFICACAO).map(([k, v]) => `<option value="${k}" ${k === filtroPers.justificacao ? "selected" : ""}>${v}</option>`).join("")}</select></div>
+          <div class="field"><label>Status</label><select id="rp-status"><option value="">Todos</option>${Object.entries(RH_OCORRENCIA_STATUS).map(([k, v]) => `<option value="${k}" ${k === filtroPers.status ? "selected" : ""}>${v}</option>`).join("")}</select></div>
+          <div class="field" style="grid-column:1/-1"><label>Tipo de ocorrência</label>
+            <div class="report-cols">${Object.entries(RH_OCORRENCIA_CATEGORIAS).map(([k, v]) => `<label class="check-row"><input type="checkbox" data-rp-cat="${k}" ${filtroPers.categorias.includes(k) ? "checked" : ""} /> ${v}</label>`).join("")}</div>
+          </div>
+          <div class="field" style="grid-column:1/-1"><label>Colunas do relatório</label>
+            <div class="report-cols">${RH_OCORRENCIA_COLUNAS.map((c) => `<label class="check-row"><input type="checkbox" data-rp-col="${c.id}" ${filtroPers.colunas.includes(c.id) ? "checked" : ""} /> ${c.label}</label>`).join("")}</div>
+          </div>
+          <div class="field" style="grid-column:1/-1"><label>Busca livre (nome, motivo)</label><input type="text" id="rp-busca" value="${esc(filtroPers.busca)}" placeholder="Opcional" /></div>
+        </div>
+        <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-top:1rem">
+          <button type="button" class="btn-primary auto" id="rp-gerar">${ICONS.reports}<span>Gerar relatório</span></button>
+          <button type="button" class="btn-ghost" style="width:auto" id="rp-csv" ${linhasPersonalizado.length ? "" : "disabled"}>${ICONS.download}<span>Exportar planilha (.csv)</span></button>
+          <button type="button" class="btn-ghost" style="width:auto" id="rp-limpar">${ICONS.refresh}<span>Limpar filtros</span></button>
+        </div>
+        <div id="rp-resultado" style="margin-top:1.4rem">${relPersonalizado ? relatorioParaHtml(relPersonalizado) : ""}</div>`;
+    }
+
+    function lerFiltrosPers() {
+      const v = (id) => document.getElementById(id).value;
+      Object.assign(filtroPers, {
+        inicio: v("rp-inicio"), fim: v("rp-fim"), colaboradorId: v("rp-colab"), codigo: v("rp-codigo").trim(), departamento: v("rp-depto"),
+        cargo: v("rp-cargo"), justificacao: v("rp-just"), status: v("rp-status"), busca: v("rp-busca"),
+        categorias: [...document.querySelectorAll("[data-rp-cat]:checked")].map((i) => i.dataset.rpCat),
+        colunas: [...document.querySelectorAll("[data-rp-col]:checked")].map((i) => i.dataset.rpCol),
+      });
+    }
+
+    async function gerarPersonalizado() {
+      lerFiltrosPers();
+      if (!filtroPers.colunas.length) { showToast("Selecione pelo menos uma coluna.", "error"); return; }
+      if (filtroPers.inicio && filtroPers.fim && filtroPers.fim < filtroPers.inicio) { showToast("A data final não pode ser anterior à inicial.", "error"); return; }
+      const btn = document.getElementById("rp-gerar");
+      btn.disabled = true;
+      try {
+        if (filtroPers.inicio && (!base.ocorrenciasInicio || filtroPers.inicio < base.ocorrenciasInicio)) await carregarOcorrencias(filtroPers.inicio);
+        linhasPersonalizado = rhFiltrarOcorrencias(base.ocorrencias, filtroPers);
+        const colab = base.colaboradores.find((c) => c.id === filtroPers.colaboradorId);
+        const criterios = [
+          `Período: ${fmtDate(filtroPers.inicio)} a ${fmtDate(filtroPers.fim)}`,
+          colab && `Colaborador: ${colab.nome}`, filtroPers.codigo && `Código: ${filtroPers.codigo}`,
+          filtroPers.departamento && `Departamento: ${filtroPers.departamento}`, filtroPers.cargo && `Cargo: ${filtroPers.cargo}`,
+          filtroPers.categorias.length && `Tipo: ${filtroPers.categorias.map((c) => RH_OCORRENCIA_CATEGORIAS[c]).join(", ")}`,
+          filtroPers.justificacao && `Justificação: ${RH_JUSTIFICACAO[filtroPers.justificacao]}`,
+          filtroPers.status && `Status: ${RH_OCORRENCIA_STATUS[filtroPers.status]}`,
+        ].filter(Boolean);
+        const TITULOS = { FALTA: "Relatório de faltas", ATRASO: "Relatório de atrasos", ATESTADO: "Relatório de atestados", ABONO: "Relatório de abonos", FERIAS: "Relatório de férias", AJUSTE: "Relatório de ajustes de ponto" };
+        const mesRef = filtroPers.inicio && filtroPers.fim && filtroPers.inicio.slice(0, 7) === filtroPers.fim.slice(0, 7)
+          ? ` — ${new Date(filtroPers.inicio + "T00:00:00").toLocaleDateString("pt-BR", { month: "long", year: "numeric" }).replace(/^./, (c) => c.toUpperCase()).replace(" de ", "/")}`
+          : "";
+        relPersonalizado = {
+          titulo: (filtroPers.categorias.length === 1 ? TITULOS[filtroPers.categorias[0]] : "Relatório personalizado") + mesRef,
+          meta: `${criterios.join(" · ")} · Gerado em ${new Date().toLocaleDateString("pt-BR")} por ${session.name}`,
+          kpis: [
+            { label: "Registros encontrados", value: linhasPersonalizado.length, tone: "indigo", icon: ICONS.reports },
+            { label: "Colaboradores", value: new Set(linhasPersonalizado.map((l) => l.colaboradorId)).size, tone: "teal", icon: ICONS.users },
+            { label: "Justificadas", value: linhasPersonalizado.filter((l) => l.justificacao === "JUSTIFICADA").length, tone: "green", icon: ICONS.checkCircle },
+            { label: "Não justificadas", value: linhasPersonalizado.filter((l) => l.justificacao === "NAO_JUSTIFICADA").length, tone: "red", icon: ICONS.xCircle },
+          ],
+          secoes: [{ titulo: "Resultado", tabela: tabelaOcorrencias(linhasPersonalizado, filtroPers.colunas), vazio: base.ocorrenciasErro || "Nenhum registro encontrado com esses critérios." }],
+        };
+        selecionado = { id: "personalizado", nome: "Pesquisa personalizada", rel: relPersonalizado };
+        mostrarBuilder();
+      } finally {
+        const b = document.getElementById("rp-gerar");
+        if (b) b.disabled = false;
+      }
+    }
+
+    function mostrarBuilder() {
+      document.getElementById("resultado-wrap").style.display = "";
+      document.getElementById("resultado-conteudo").innerHTML = builderHtml();
+      document.getElementById("rp-gerar").addEventListener("click", gerarPersonalizado);
+      document.getElementById("rp-limpar").addEventListener("click", () => {
+        Object.assign(filtroPers, { colaboradorId: "", codigo: "", departamento: "", cargo: "", categorias: [], justificacao: "", status: "", busca: "" });
+        relPersonalizado = null; linhasPersonalizado = [];
+        mostrarBuilder();
+      });
+      document.getElementById("rp-csv").addEventListener("click", () => {
+        const blob = new Blob([rhOcorrenciasParaCsv(linhasPersonalizado, filtroPers.colunas)], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `relatorio-personalizado-${rhTodayIso()}.csv`;
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+        showToast("Planilha exportada.", "success");
+      });
+    }
+
     function mostrarResultado(id, nome) {
+      if (id === "personalizado") {
+        selecionado = { id, nome, rel: gerarRelatorio(id) };
+        mostrarBuilder();
+        document.getElementById("resultado-wrap").scrollIntoView({ behavior: "smooth", block: "nearest" });
+        return;
+      }
       selecionado = { id, nome, rel: gerarRelatorio(id) };
       document.getElementById("resultado-wrap").style.display = "";
       document.getElementById("resultado-conteudo").innerHTML = relatorioParaHtml(selecionado.rel);

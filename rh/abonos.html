@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Abonos — BSconta+ RH</title>
+  <link rel="icon" type="image/png" href="../assets/bsconta-icon.png" />
+  <link rel="stylesheet" href="../css/styles.css" />
+  <link rel="stylesheet" href="../css/theme-v2.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div id="app-header"></div>
+    <div class="app-content">
+      <main class="main">
+        <div id="top-header" class="top-header"></div>
+        <div id="content"><div class="loading-wrap"><div class="spinner"></div></div></div>
+      </main>
+    </div>
+  </div>
+
+  <script>window.BASE_PATH = "../";</script>
+  <script src="../js/demo-data.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/supabase-client.js"></script>
+  <script src="../js/rh-supabase-auth.js"></script>
+  <script src="../js/rh-historia-data.js"></script>
+  <script src="../js/rh-historia-ui.js"></script>
+  <script>
+(async function () {
+    const session = await requireRoleReal("RH");
+    if (!session) return;
+
+    let colaboradores = [];
+    let abonos = [];
+    let ajustesPendentes = 0;
+    let erro = "";
+    const selecionados = new Set();
+    const f = { status: "ABERTOS", colaborador: "", tipo: "", justificacao: "", de: "", ate: "" };
+
+    async function refrescar() {
+      erro = "";
+      try {
+        abonos = await rhListarAbonos();
+      } catch (err) {
+        abonos = [];
+        erro = rhErroMigracao22(err);
+      }
+      selecionados.clear();
+    }
+
+    function filtrados() {
+      return abonos.filter((a) => {
+        if (f.status === "ABERTOS" && !["PENDENTE", "PRE_APROVADO"].includes(a.status)) return false;
+        if (f.status && f.status !== "ABERTOS" && f.status !== "TODOS" && a.status !== f.status) return false;
+        if (f.status !== "ARQUIVADO" && f.status !== "TODOS" && a.status === "ARQUIVADO") return false;
+        if (f.colaborador && a.colaborador_id !== f.colaborador) return false;
+        if (f.tipo && a.tipo !== f.tipo) return false;
+        if (f.justificacao === "sim" && !a.justificada) return false;
+        if (f.justificacao === "nao" && a.justificada) return false;
+        if (f.de && a.data_fim < f.de) return false;
+        if (f.ate && a.data_inicio > f.ate) return false;
+        return true;
+      });
+    }
+
+    function render() {
+      const mes = rhTodayIsoLocal().slice(0, 7);
+      const abertos = abonos.filter((a) => ["PENDENTE", "PRE_APROVADO"].includes(a.status)).length;
+      const aprovadosMes = abonos.filter((a) => a.status === "APROVADO" && (a.data_inicio.startsWith(mes) || a.data_fim.startsWith(mes)));
+      const diasMes = aprovadosMes.reduce((t, a) => t + (a.dias || 0), 0);
+      const naoJustificadas = abonos.filter((a) => a.status !== "ARQUIVADO" && !a.justificada && (a.data_inicio.startsWith(mes) || a.data_fim.startsWith(mes))).length;
+
+      document.getElementById("content").innerHTML = `
+        <div class="space-y">
+          <div class="row-between">
+            <div>
+              <h1 class="page-title">Abonos</h1>
+              <p class="page-sub">Atestados, faltas justificadas e não justificadas, folgas e ausências autorizadas. Abonos aprovados deixam de contar como falta na jornada.</p>
+            </div>
+            <button type="button" class="btn-primary auto" id="btn-novo">${ICONS.plus}<span>Novo abono</span></button>
+          </div>
+
+          ${rhSubnavJornadaHtml("abonos", { ajustesPendentes })}
+
+          ${erro ? `<div class="notice">${esc(erro)}</div>` : ""}
+
+          <div id="kpi-grid"></div>
+
+          <div class="card card-p">
+            <div class="seg-tabs" style="margin-bottom:1rem">
+              ${[["ABERTOS", "Em aberto", abonos.filter((a) => ["PENDENTE", "PRE_APROVADO"].includes(a.status)).length], ["APROVADO", "Aceitos", abonos.filter((a) => a.status === "APROVADO").length], ["RECUSADO", "Recusados", abonos.filter((a) => a.status === "RECUSADO").length], ["ARQUIVADO", "Arquivados", abonos.filter((a) => a.status === "ARQUIVADO").length], ["TODOS", "Todos", abonos.length]]
+                .map(([k, l, n]) => `<button type="button" data-seg="${k}" class="${f.status === k ? "active" : ""}">${l}<span class="count">${n}</span></button>`).join("")}
+            </div>
+            <div class="hist-filters" style="margin-bottom:1rem">
+              <div class="field"><label>Colaborador</label><select id="f-colaborador">${rhOpcoesColaboradoresHtml(colaboradores, f.colaborador, { incluirVazio: true, labelVazio: "Todos" })}</select></div>
+              <div class="field"><label>Tipo</label><select id="f-tipo"><option value="">Todos</option>${rhOpcoesHtml(RH_TIPOS_ABONO, f.tipo)}</select></div>
+              <div class="field"><label>Classificação</label><select id="f-just"><option value="">Todas</option><option value="sim">Justificada</option><option value="nao">Não justificada</option></select></div>
+              <div class="field"><label>De</label><input type="date" id="f-de" value="${f.de}" /></div>
+              <div class="field"><label>Até</label><input type="date" id="f-ate" value="${f.ate}" /></div>
+            </div>
+            <div id="lista"></div>
+          </div>
+        </div>`;
+
+      renderKpiGrid(document.getElementById("kpi-grid"), [
+        { label: "Em aberto", value: abertos, tone: "amber", icon: ICONS.hourglass },
+        { label: "Aprovados no mês", value: aprovadosMes.length, tone: "green", icon: ICONS.checkCircle },
+        { label: "Dias abonados no mês", value: diasMes, tone: "indigo", icon: ICONS.calendar },
+        { label: "Não justificadas no mês", value: naoJustificadas, tone: "red", icon: ICONS.xCircle },
+      ]);
+
+      document.getElementById("f-just").value = f.justificacao;
+      document.querySelectorAll("[data-seg]").forEach((b) => b.addEventListener("click", () => { f.status = b.dataset.seg; selecionados.clear(); render(); }));
+      const bind = (id, key) => document.getElementById(id).addEventListener("change", (e) => { f[key] = e.target.value; selecionados.clear(); renderLista(); });
+      bind("f-colaborador", "colaborador"); bind("f-tipo", "tipo"); bind("f-just", "justificacao"); bind("f-de", "de"); bind("f-ate", "ate");
+      document.getElementById("btn-novo").addEventListener("click", () => rhAbrirModalAbono({ colaboradores: colaboradores.filter((c) => c.status !== "INATIVO"), session, onSaved: async () => { await refrescar(); render(); } }));
+      renderLista();
+    }
+
+    function renderLista() {
+      const rows = filtrados();
+      const selecionaveis = rows.filter((a) => ["PENDENTE", "PRE_APROVADO"].includes(a.status));
+      const wrap = document.getElementById("lista");
+      if (!rows.length) {
+        wrap.innerHTML = emptyStateHtml({ icon: ICONS.clipboardCheck, title: "Nenhum abono neste filtro", desc: "Ajuste os filtros ou registre um novo abono." });
+        return;
+      }
+      wrap.innerHTML = `
+        ${selecionaveis.length ? `
+        <div class="bulk-bar">
+          <label class="check-row"><input type="checkbox" id="sel-todos" /> Selecionar todos em aberto (${selecionaveis.length})</label>
+          <div style="display:flex;align-items:center;gap:.6rem">
+            <span class="count" id="sel-count">${selecionados.size} selecionado(s)</span>
+            <button type="button" class="btn-primary auto" id="btn-aprovar-lote" ${selecionados.size ? "" : "disabled"}>${ICONS.check}<span>Aprovar selecionados</span></button>
+          </div>
+        </div>` : ""}
+        <div class="abono-lista abono-lista-simples">
+          <div class="abono-row abono-head" aria-hidden="true"><span></span><span>Colaborador</span><span>Ocorrência</span><span>Status</span><span></span></div>
+          ${rows.map((a) => `
+          <div class="abono-row" data-abrir="${a.id}" tabindex="0" role="button" aria-label="Ver abono de ${esc(a.colaborador?.nome || "")}">
+            <span class="ab-check">${["PENDENTE", "PRE_APROVADO"].includes(a.status) ? `<input type="checkbox" data-sel="${a.id}" ${selecionados.has(a.id) ? "checked" : ""} aria-label="Selecionar" />` : ""}</span>
+            <div class="ab-pessoa"><span class="avatar avatar-sm ${avatarColorClass(a.colaborador?.nome)}">${initials(a.colaborador?.nome)}</span><div><strong>${esc(a.colaborador?.nome || "—")}</strong><small>${esc(a.colaborador?.departamento || "")}</small></div></div>
+            <div class="ab-ocorr"><strong>${esc(RH_TIPOS_ABONO[a.tipo]?.label || a.tipo)}${a.anexo_path ? `<span class="ab-clip" title="Tem documento anexado">${ICONS.fileText}</span>` : ""}</strong><small>${ICONS.calendar}${rhAbonoPeriodoTexto(a)} · ${a.dias} dia${a.dias > 1 ? "s" : ""}</small></div>
+            <div class="ab-status">${statusBadgeHtml(a.status, RH_STATUS_ABONO)}</div>
+            <div class="ab-acoes"><button type="button" class="btn-ghost doc-icon-btn" data-ver="${a.id}" title="Ver detalhes" aria-label="Ver detalhes">${ICONS.eye}</button></div>
+          </div>`).join("")}
+        </div>`;
+
+      const atualizarContagem = () => {
+        const c = document.getElementById("sel-count");
+        if (c) c.textContent = `${selecionados.size} selecionado(s)`;
+        const btn = document.getElementById("btn-aprovar-lote");
+        if (btn) btn.disabled = !selecionados.size;
+        const todos = document.getElementById("sel-todos");
+        if (todos) todos.checked = selecionaveis.length > 0 && selecionaveis.every((a) => selecionados.has(a.id));
+      };
+      wrap.querySelectorAll("[data-sel]").forEach((cb) => cb.addEventListener("change", () => { cb.checked ? selecionados.add(cb.dataset.sel) : selecionados.delete(cb.dataset.sel); atualizarContagem(); }));
+      document.getElementById("sel-todos")?.addEventListener("change", (e) => {
+        selecionaveis.forEach((a) => (e.target.checked ? selecionados.add(a.id) : selecionados.delete(a.id)));
+        wrap.querySelectorAll("[data-sel]").forEach((cb) => (cb.checked = selecionados.has(cb.dataset.sel)));
+        atualizarContagem();
+      });
+      atualizarContagem();
+      document.getElementById("btn-aprovar-lote")?.addEventListener("click", aprovarLote);
+
+      wrap.querySelectorAll("[data-sel]").forEach((cb) => cb.addEventListener("click", (e) => e.stopPropagation()));
+      wrap.querySelectorAll("[data-abrir]").forEach((row) => {
+        row.addEventListener("click", (e) => { if (e.target.closest(".ab-check")) return; abrirDetalhe(row.dataset.abrir); });
+        row.addEventListener("keydown", (e) => { if (e.key === "Enter") abrirDetalhe(row.dataset.abrir); });
+      });
+    }
+
+    // ------------------------------------------------------------------
+    // Card de detalhe do abono (abre no olhinho / clique na linha): todas
+    // as informações, o documento (PDF ou imagem) e as decisões do RH.
+    // ------------------------------------------------------------------
+    async function abrirDetalhe(id) {
+      const a = abonos.find((x) => x.id === id);
+      if (!a) return;
+      let overlay = document.getElementById("modal-abono-detalhe");
+      if (!overlay) {
+        overlay = document.createElement("div");
+        overlay.className = "modal-overlay";
+        overlay.id = "modal-abono-detalhe";
+        overlay.innerHTML = '<div class="modal abono-detalhe"></div>';
+        document.body.appendChild(overlay);
+        overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.classList.remove("open"); });
+        document.addEventListener("keydown", (e) => { if (e.key === "Escape") overlay.classList.remove("open"); });
+      }
+      const aberto = ["PENDENTE", "PRE_APROVADO"].includes(a.status);
+      const info = (label, valor) => `<div class="ad-info"><span>${label}</span><strong>${valor}</strong></div>`;
+      const ehImagem = /\.(png|jpe?g|webp|gif|heic)$/i.test(a.anexo_nome || a.anexo_path || "");
+      overlay.querySelector(".modal").innerHTML = `
+        <div class="modal-header">
+          <div class="ad-head">
+            <span class="avatar ${avatarColorClass(a.colaborador?.nome)}" style="width:42px;height:42px">${initials(a.colaborador?.nome)}</span>
+            <div><h3>${esc(a.colaborador?.nome || "—")}</h3><p class="page-sub" style="margin:.15rem 0 0">${esc(RH_TIPOS_ABONO[a.tipo]?.label || a.tipo)} · ${rhAbonoPeriodoTexto(a)}</p></div>
+            ${statusBadgeHtml(a.status, RH_STATUS_ABONO)}
+          </div>
+          <button type="button" class="modal-close" data-fechar aria-label="Fechar">${ICONS.x}</button>
+        </div>
+        <div class="modal-body">
+          <div class="ad-grid">
+            ${info("Período", `${rhAbonoPeriodoTexto(a)} · ${a.dias} dia${a.dias > 1 ? "s" : ""}`)}
+            ${info("Classificação", rhJustificacaoPillHtml(a.justificada))}
+            ${info("Departamento", esc(a.colaborador?.departamento || "—"))}
+            ${info("Lançado por", `${esc(a.responsavel_nome || "—")} · ${new Date(a.created_at).toLocaleDateString("pt-BR")}`)}
+          </div>
+          <div class="ad-bloco"><span>Motivo</span><p>${esc(a.motivo || "—")}</p>${a.descricao ? `<p class="ad-desc">${esc(a.descricao)}</p>` : ""}</div>
+          ${a.observacao ? `<div class="ad-bloco"><span>Observações</span><p class="ad-obs">${esc(a.observacao)}</p></div>` : ""}
+          <div class="ad-bloco"><span>Documento</span>
+            ${a.anexo_path
+              ? `<div class="ad-doc">
+                  <div class="ad-doc-bar">${ICONS.fileText}<strong>${esc(a.anexo_nome || "Documento")}</strong>
+                    <button type="button" class="btn-ghost" style="width:auto;padding:.3rem .6rem" data-abrir-aba>${ICONS.eye}<span>Abrir em nova aba</span></button>
+                    <button type="button" class="btn-ghost danger" style="width:auto;padding:.3rem .6rem" data-excluir-doc>${ICONS.trash}<span>Excluir</span></button>
+                  </div>
+                  <div class="ad-doc-view" id="ad-doc-view"><div class="loading-wrap"><div class="spinner"></div></div></div>
+                </div>`
+              : `<div class="notice-soft">${ICONS.alertCircle}<span>O colaborador não anexou documento.${aberto ? ` <button type="button" class="link-btn" data-pedir-doc>Pedir documento</button>` : ""}</span></div>`}
+          </div>
+          ${aberto ? `<div class="ad-bloco"><span>Parecer do RH <em>(motivo do sim ou do não — vai para o colaborador)</em></span><textarea id="ad-parecer" rows="2" placeholder="Ex.: Atestado válido. / Documento ilegível, envie outro."></textarea></div>` : ""}
+        </div>
+        <div class="modal-footer ad-footer">
+          <div class="ad-footer-sec">
+            <button type="button" class="btn-ghost" style="width:auto" data-editar>${ICONS.edit}<span>Editar</span></button>
+            ${a.status !== "ARQUIVADO" ? `<button type="button" class="btn-ghost" style="width:auto" data-decisao="ARQUIVADO">${ICONS.archive}<span>Arquivar</span></button>` : ""}
+          </div>
+          ${aberto ? `<div class="ad-footer-main">
+            ${a.status === "PENDENTE" ? `<button type="button" class="btn-ghost" style="width:auto;color:var(--violet-600)" data-decisao="PRE_APROVADO">${ICONS.hourglass}<span>Pré-aprovar</span></button>` : ""}
+            <button type="button" class="btn-danger auto" data-decisao="RECUSADO">${ICONS.xCircle}<span>Recusar</span></button>
+            <button type="button" class="btn-primary auto" data-decisao="APROVADO">${ICONS.checkCircle}<span>Aprovar</span></button>
+          </div>` : `<button type="button" class="btn-primary auto" data-fechar>Fechar</button>`}
+        </div>`;
+      const $ = (sel) => overlay.querySelector(sel);
+      overlay.querySelectorAll("[data-fechar]").forEach((b) => b.addEventListener("click", () => overlay.classList.remove("open")));
+      requestAnimationFrame(() => overlay.classList.add("open"));
+
+      let urlDoc = null;
+      if (a.anexo_path) {
+        try {
+          urlDoc = await rhUrlAnexoAbono(a.anexo_path);
+          const view = $("#ad-doc-view");
+          if (view) view.innerHTML = ehImagem ? `<img src="${esc(urlDoc)}" alt="Documento do abono" />` : `<iframe src="${esc(urlDoc)}" title="Documento do abono"></iframe>`;
+        } catch (err) {
+          const view = $("#ad-doc-view");
+          if (view) view.innerHTML = `<p class="hint" style="padding:1rem">Não foi possível carregar o documento: ${esc(rhErroMigracao22(err))}</p>`;
+        }
+      }
+      $("[data-abrir-aba]")?.addEventListener("click", () => { if (urlDoc) window.open(urlDoc, "_blank", "noopener"); });
+      $("[data-editar]").addEventListener("click", () => {
+        overlay.classList.remove("open");
+        rhAbrirModalAbono({ colaboradores, abono: a, session, onSaved: async () => { await refrescar(); render(); } });
+      });
+      $("[data-pedir-doc]")?.addEventListener("click", async (e) => {
+        e.target.disabled = true;
+        try { await rhPedirDocumentoAbono(a, session.name); showToast(`Pedido de documento enviado para ${a.colaborador?.nome || "o colaborador"}.`, "success"); await refrescar(); render(); abrirDetalhe(a.id); }
+        catch (err) { showToast(rhErroMigracao22(err), "error"); e.target.disabled = false; }
+      });
+      $("[data-excluir-doc]")?.addEventListener("click", async () => {
+        const ok = await confirmDialog({ title: "Excluir documento", message: `Excluir o arquivo "${a.anexo_nome || "documento"}"? O abono continua registrado (sem documento) e a exclusão fica anotada nas observações.`, confirmLabel: "Excluir documento", danger: true });
+        if (!ok) return;
+        try { await rhExcluirDocumentoAbono(a, session.name); showToast("Documento excluído.", "success"); await refrescar(); render(); abrirDetalhe(a.id); }
+        catch (err) { showToast(rhErroMigracao22(err), "error"); }
+      });
+      overlay.querySelectorAll("[data-decisao]").forEach((b) => b.addEventListener("click", async () => {
+        const st = b.dataset.decisao;
+        const parecer = $("#ad-parecer")?.value.trim() || "";
+        if (st === "RECUSADO" && !parecer) { showToast("Informe o motivo da recusa no parecer.", "error"); $("#ad-parecer")?.focus(); return; }
+        const feito = await decidir(a.id, st, b, parecer);
+        if (feito) overlay.classList.remove("open");
+      }));
+    }
+
+    async function decidir(id, novoStatus, botao, parecer = "") {
+      const a = abonos.find((x) => x.id === id);
+      if (!a) return false;
+      if (novoStatus === "APROVADO") {
+        const ok = await confirmDialog({
+          title: a.anexo_path ? "Validar documento e aceitar abono" : "Aceitar abono sem documento",
+          message: `${a.anexo_path ? "" : "Este abono não tem documento anexado. "}O abono de ${a.colaborador?.nome} (${rhAbonoPeriodoTexto(a)}) será aceito e o dia deixa de contar como falta. O colaborador será informado.`,
+          confirmLabel: "Aceitar abono",
+        });
+        if (!ok) return false;
+      }
+      if (novoStatus === "ARQUIVADO" || novoStatus === "RECUSADO") {
+        const ok = await confirmDialog({
+          title: novoStatus === "ARQUIVADO" ? "Arquivar abono" : "Recusar abono",
+          message: novoStatus === "ARQUIVADO"
+            ? `O abono de ${a.colaborador?.nome} sai da lista principal, mas continua guardado (filtro "Arquivado"). Um abono arquivado deixa de abonar o dia na jornada.`
+            : `Recusar o abono de ${a.colaborador?.nome} (${rhAbonoPeriodoTexto(a)})? O colaborador será informado.`,
+          confirmLabel: novoStatus === "ARQUIVADO" ? "Arquivar" : "Recusar",
+          danger: novoStatus === "RECUSADO",
+          icon: novoStatus === "ARQUIVADO" ? ICONS.archive : undefined,
+        });
+        if (!ok) return false;
+      }
+      if (botao) botao.disabled = true;
+      try {
+        await rhDecidirAbono(a, novoStatus, session.name, { parecer });
+        showToast(`Abono ${(RH_STATUS_ABONO[novoStatus] || novoStatus).toLowerCase()}.`, novoStatus === "RECUSADO" ? "error" : "success");
+        await refrescar();
+        render();
+        return true;
+      } catch (err) {
+        showToast(rhErroMigracao22(err), "error");
+        if (botao) botao.disabled = false;
+        return false;
+      }
+    }
+
+    async function aprovarLote() {
+      const ids = [...selecionados];
+      const itens = abonos.filter((a) => ids.includes(a.id) && ["PENDENTE", "PRE_APROVADO"].includes(a.status));
+      if (!itens.length) return;
+      const ok = await confirmDialog({
+        title: "Aprovar abonos em lote",
+        message: `Aprovar ${itens.length} abono(s) selecionado(s)? Somente abonos pendentes ou pré-aprovados são alterados; cada colaborador será informado.`,
+        confirmLabel: `Aprovar ${itens.length}`,
+      });
+      if (!ok) return;
+      let okCount = 0, falhas = 0;
+      for (const a of itens) {
+        try { await rhDecidirAbono(a, "APROVADO", session.name); okCount++; } catch (e) { falhas++; console.error(e); }
+      }
+      showToast(`${okCount} abono(s) aprovado(s)${falhas ? ` · ${falhas} falha(s)` : ""}.`, falhas ? "error" : "success");
+      await refrescar();
+      render();
+    }
+
+    renderShell(session, withBadges(NAV_RH, await rhNavBadges()));
+    renderTopHeader(document.getElementById("top-header"), session, { notifications: [] });
+    try {
+      colaboradores = await rhListarColaboradoresBasico();
+      const { count } = await sb.from("solicitacoes").select("id", { count: "exact", head: true }).eq("categoria", "Ajuste de ponto").eq("status", "PENDENTE");
+      ajustesPendentes = count || 0;
+      await refrescar();
+      render();
+    } catch (err) {
+      rhShowFatalError(rhMensagemErroSupabase(err));
+    }
+})();
+</script>
+  <script src="../js/ui-effects.js"></script>
+</body>
+</html>

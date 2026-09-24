@@ -45,14 +45,64 @@ function rhMapComunicado(row, lidoSet) {
 /** Visão do colaborador — RLS já entrega só o que ele pode ver; aqui só
  * juntamos com as leituras dele pra saber o que já foi marcado como lido. */
 async function rhCarregarComunicadosColaborador(colaboradorId) {
-  const [{ data: comRows, error: comErr }, { data: leituraRows, error: leituraErr }] = await Promise.all([
+  const [{ data: comRows, error: comErr }, leituraRows] = await Promise.all([
     sb.from("comunicados").select("*").order("publicado_em", { ascending: false }),
-    sb.from("comunicados_leituras").select("comunicado_id").eq("colaborador_id", colaboradorId),
+    rhCarregarMinhasLeituras(colaboradorId),
   ]);
   if (comErr) throw comErr;
-  if (leituraErr) throw leituraErr;
-  const lidoSet = new Set((leituraRows || []).map((r) => r.comunicado_id));
-  return (comRows || []).map((row) => rhMapComunicado(row, lidoSet));
+  const lidoSet = new Set(leituraRows.map((r) => r.comunicado_id));
+  const porId = new Map(leituraRows.map((r) => [r.comunicado_id, r]));
+  return (comRows || []).map((row) => ({
+    ...rhMapComunicado(row, lidoSet),
+    lidoEm: porId.get(row.id)?.lido_em || null,
+    arquivado: porId.get(row.id)?.arquivado === true,
+  }));
+}
+
+/** Leituras do próprio colaborador. Tenta trazer também a coluna
+ * `arquivado` (migração 22); se ela ainda não existir, cai para a consulta
+ * antiga — a tela continua funcionando igual a antes. */
+async function rhCarregarMinhasLeituras(colaboradorId) {
+  let r = await sb.from("comunicados_leituras").select("comunicado_id, lido_em, arquivado").eq("colaborador_id", colaboradorId);
+  if (r.error) r = await sb.from("comunicados_leituras").select("comunicado_id, lido_em").eq("colaborador_id", colaboradorId);
+  if (r.error) throw r.error;
+  return r.data || [];
+}
+
+/** Colaborador arquiva (ou desarquiva) um comunicado SÓ PARA ELE — o
+ * comunicado continua existindo para todo mundo e nada é excluído.
+ * Arquivar um comunicado ainda não visto também o registra como visto. */
+async function rhArquivarComunicadoColaborador(comunicadoId, colaboradorId, arquivar) {
+  const { error } = await sb
+    .from("comunicados_leituras")
+    .upsert(
+      { comunicado_id: comunicadoId, colaborador_id: colaboradorId, arquivado: !!arquivar, arquivado_em: arquivar ? new Date().toISOString() : null },
+      { onConflict: "comunicado_id,colaborador_id" }
+    );
+  if (error) throw error;
+  return true;
+}
+
+/** RH: todas as leituras (quem viu cada comunicado e quando). */
+async function rhCarregarLeiturasComunicadosRH() {
+  const { data, error } = await sb.from("comunicados_leituras").select("comunicado_id, colaborador_id, lido_em");
+  if (error) throw error;
+  return data || [];
+}
+
+/** RH: colaboradores ativos com departamento — para saber quem é o
+ * público de cada comunicado (e, portanto, quem ainda falta visualizar). */
+async function rhListarColaboradoresPublico() {
+  const { data, error } = await sb.from("colaboradores").select("id, nome, departamento, status").neq("status", "INATIVO").order("nome");
+  if (error) throw error;
+  return data || [];
+}
+
+/** Quem deve ver um comunicado, conforme o público escolhido. */
+function rhPublicoDoComunicado(c, colaboradores) {
+  if (c.publicoTipo === "COLABORADOR") return colaboradores.filter((x) => x.id === c.publicoColaboradorId);
+  if (c.publicoTipo === "DEPARTAMENTO") return colaboradores.filter((x) => x.departamento === c.publicoDepartamento);
+  return colaboradores;
 }
 
 /** Marca um comunicado como lido pelo colaborador logado — grava de
