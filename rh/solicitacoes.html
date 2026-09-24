@@ -50,6 +50,7 @@
   <script src="../js/rh-ponto-data.js"></script>
   <script src="../js/rh-ferias-data.js"></script>
   <script src="../js/rh-solicitacoes-data.js"></script>
+  <script src="../js/rh-historia-data.js"></script>
   <script>
 (async function () {
     const session = await requireRoleReal("RH");
@@ -57,7 +58,7 @@
     document.querySelector("#modal-responder .modal-close").innerHTML = ICONS.x;
 
     let cacheSolicitacoes = [];
-    let state = { categoria: "", status: "", prioridade: "" };
+    let state = { categoria: "", status: "", prioridade: "", visao: "TODAS" };
     let respondendoId = null;
 
     async function refrescarSolicitacoes() {
@@ -70,6 +71,12 @@
 
     function filtered() {
       return cacheSolicitacoes.filter((s) => {
+        // Arquivadas não aparecem na lista principal — só na visão "Arquivadas".
+        if (state.visao === "ARQUIVADAS") { if (!s.arquivado) return false; }
+        else if (s.arquivado) return false;
+        if (state.visao === "PENDENTES" && !["PENDENTE", "EM_ANALISE"].includes(statusFiltro(s))) return false;
+        if (state.visao === "APROVADAS" && statusFiltro(s) !== "RESOLVIDA") return false;
+        if (state.visao === "RECUSADAS" && statusFiltro(s) !== "RECUSADA") return false;
         if (state.categoria && s.categoria !== state.categoria) return false;
         if (state.status && statusFiltro(s) !== state.status) return false;
         if (state.prioridade && s.prioridade !== state.prioridade) return false;
@@ -84,10 +91,12 @@
     }
 
     function render() {
-      const abertas = cacheSolicitacoes.filter((s) => statusFiltro(s) !== "RESOLVIDA").length;
-      const emAnalise = cacheSolicitacoes.filter((s) => statusFiltro(s) === "EM_ANALISE").length;
-      const altaPrioridade = cacheSolicitacoes.filter((s) => s.prioridade === "alta" && statusFiltro(s) !== "RESOLVIDA").length;
-      const resolvidas = cacheSolicitacoes.filter((s) => statusFiltro(s) === "RESOLVIDA").length;
+      const ativas = cacheSolicitacoes.filter((s) => !s.arquivado);
+      const abertas = ativas.filter((s) => statusFiltro(s) !== "RESOLVIDA").length;
+      const emAnalise = ativas.filter((s) => statusFiltro(s) === "EM_ANALISE").length;
+      const altaPrioridade = ativas.filter((s) => s.prioridade === "alta" && statusFiltro(s) !== "RESOLVIDA").length;
+      const resolvidas = ativas.filter((s) => statusFiltro(s) === "RESOLVIDA").length;
+      const arquivadas = cacheSolicitacoes.filter((s) => s.arquivado).length;
       const categorias = [...new Set(cacheSolicitacoes.map((s) => s.categoria))];
 
       document.getElementById("content").innerHTML = `
@@ -102,6 +111,10 @@
           <div id="kpi-grid"></div>
 
           <div class="card card-p">
+            <div class="period-buttons" style="margin-bottom:.8rem;width:fit-content;max-width:100%">
+              ${[["TODAS", "Todas"], ["PENDENTES", "Pendentes"], ["APROVADAS", "Aprovadas"], ["RECUSADAS", "Recusadas"], ["ARQUIVADAS", `Arquivadas${arquivadas ? ` (${arquivadas})` : ""}`]]
+                .map(([v, l]) => `<button type="button" data-visao="${v}" class="${state.visao === v ? "active" : ""}">${l}</button>`).join("")}
+            </div>
             <div class="filters-row" style="margin-bottom:1rem">
               <select id="f-categoria"><option value="">Todas as categorias</option>${categorias.map((c) => `<option>${esc(c)}</option>`).join("")}</select>
               <select id="f-status"><option value="">Todos os status</option><option value="PENDENTE">Pendente</option><option value="EM_ANALISE">Em análise</option><option value="RESOLVIDA">Resolvida</option></select>
@@ -119,6 +132,14 @@
         { label: "Resolvidas", value: resolvidas, tone: "green", icon: ICONS.checkCircle },
       ]);
 
+      document.querySelectorAll("[data-visao]").forEach((b) => b.addEventListener("click", () => {
+        state.visao = b.dataset.visao;
+        document.querySelectorAll("[data-visao]").forEach((x) => x.classList.toggle("active", x === b));
+        renderList();
+      }));
+      document.getElementById("f-categoria").value = state.categoria;
+      document.getElementById("f-status").value = state.status;
+      document.getElementById("f-prioridade").value = state.prioridade;
       document.getElementById("f-categoria").addEventListener("change", (e) => { state.categoria = e.target.value; renderList(); });
       document.getElementById("f-status").addEventListener("change", (e) => { state.status = e.target.value; renderList(); });
       document.getElementById("f-prioridade").addEventListener("change", (e) => { state.prioridade = e.target.value; renderList(); });
@@ -144,6 +165,7 @@
               <div style="display:flex;align-items:center;gap:0.5rem">
                 ${prioridadeBadge(s.prioridade)}
                 ${statusBadgeHtml(s.status, STATUS_LABELS)}
+                ${s.arquivado ? `<span class="status-badge status-ARQUIVADO" title="${s.arquivadoPor ? "Arquivada por " + esc(s.arquivadoPor) : ""}">${ICONS.archive}Arquivada</span>` : ""}
               </div>
             </div>
             <p style="margin:0.6rem 0 0;font-size:0.85rem;color:var(--text-muted)">${esc(s.descricao)}</p>
@@ -157,7 +179,7 @@
             <div style="margin-top:0.7rem;display:flex;justify-content:flex-end;align-items:center;gap:0.5rem">
               ${
                 s.origem === "ferias"
-                  ? s.status === "PENDENTE" || s.status === "EM_ANALISE"
+                  ? s.status === "PENDENTE" || s.status === "EM_ANALISE" || s.status === "PRE_APROVADA"
                     ? `<div class="approve-reject">
                     <button type="button" class="approve" data-aprovar-ferias="${s.id}" aria-label="Aprovar">${ICONS.check}</button>
                     <button type="button" class="reject" data-recusar-ferias="${s.id}" aria-label="Recusar">${ICONS.x}</button>
@@ -167,6 +189,7 @@
                   ? `<button type="button" class="btn-primary auto" data-responder="${s.id}">${ICONS.send}<span>Responder</span></button>`
                   : ""
               }
+              <button type="button" class="btn-ghost" style="width:auto;padding:0.4rem 0.7rem" data-arquivar="${s.id}" data-arquivar-origem="${s.origem}" data-arquivar-acao="${s.arquivado ? "0" : "1"}">${s.arquivado ? ICONS.refresh : ICONS.archive}<span>${s.arquivado ? "Desarquivar" : "Arquivar"}</span></button>
               <button type="button" class="btn-ghost danger" style="width:auto;padding:0.4rem 0.7rem" data-excluir="${s.id}" data-excluir-origem="${s.origem}">${ICONS.trash || ""}<span>Excluir</span></button>
             </div>
           </div>`
@@ -176,6 +199,32 @@
 
       document.querySelectorAll("[data-aprovar-ferias]").forEach((b) => b.addEventListener("click", () => resolverFeriasNaFila(b.dataset.aprovarFerias, true, b)));
       document.querySelectorAll("[data-recusar-ferias]").forEach((b) => b.addEventListener("click", () => resolverFeriasNaFila(b.dataset.recusarFerias, false, b)));
+
+      document.querySelectorAll("[data-arquivar]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          const arquivar = b.dataset.arquivarAcao === "1";
+          const s = cacheSolicitacoes.find((x) => x.id === b.dataset.arquivar);
+          if (arquivar) {
+            const ok = await confirmDialog({
+              title: "Arquivar solicitação",
+              message: `A solicitação ${s?.protocolo || ""} de ${s?.colaborador || "colaborador"} sai da lista principal, mas NÃO é excluída — continua disponível em "Arquivadas" e pode ser desarquivada.`,
+              confirmLabel: "Arquivar",
+              icon: ICONS.archive,
+            });
+            if (!ok) return;
+          }
+          b.disabled = true;
+          try {
+            await rhArquivarSolicitacao(b.dataset.arquivar, b.dataset.arquivarOrigem, arquivar, session.name);
+            await refrescarSolicitacoes();
+            showToast(arquivar ? "Solicitação arquivada." : "Solicitação desarquivada.", "success");
+            render();
+          } catch (err) {
+            showToast(rhErroMigracao22(err), "error");
+            b.disabled = false;
+          }
+        })
+      );
 
       document.querySelectorAll("[data-excluir]").forEach((b) =>
         b.addEventListener("click", async () => {

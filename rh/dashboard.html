@@ -28,6 +28,7 @@
   <script src="../js/rh-ponto-data.js"></script>
   <script src="../js/rh-ferias-data.js"></script>
   <script src="../js/rh-solicitacoes-data.js"></script>
+  <script src="../js/rh-historia-data.js"></script>
   <script>
 (async function () {
     const session = await requireRoleReal("RH");
@@ -98,13 +99,17 @@
       // (dias_trabalho) em vez de contar como falta.
       const pontoPorId = {};
       (pontoHojeRows || []).forEach((r) => { pontoPorId[r.colaborador_id] = r; });
+      // Abonos aprovados de hoje (migração 22): quem está abonado não conta como falta.
+      let abonosHoje = [];
+      try { abonosHoje = await rhListarAbonos({ status: "APROVADO", inicio: hojeIso, fim: hojeIso }); } catch (e) { abonosHoje = []; }
       dash.pontoHoje = colaboradores
         .filter((c) => c.status !== "INATIVO")
         .map((c) => {
           const row = pontoPorId[c.id];
           const entrada = row ? rhHoraCurta(row.entrada) : null;
           const config = rhConfigJornada(c);
-          const status = c.status === "AFASTADO" ? "afastado" : rhClassificarStatusHoje({ entradaReal: entrada, config, dataIso: hojeIso });
+          let status = c.status === "AFASTADO" ? "afastado" : rhClassificarStatusHoje({ entradaReal: entrada, config, dataIso: hojeIso });
+          if (status === "falta" && rhAbonoDoDia(abonosHoje, c.id, hojeIso)) status = "abonado";
           return { nome: c.nome, status, local: row?.local || null };
         });
 

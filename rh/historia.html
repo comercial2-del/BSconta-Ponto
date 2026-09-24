@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>História do Colaborador — BSconta+ RH</title>
+  <link rel="icon" type="image/png" href="../assets/bsconta-icon.png" />
+  <link rel="stylesheet" href="../css/styles.css" />
+  <link rel="stylesheet" href="../css/theme-v2.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div id="app-header"></div>
+    <div class="app-content">
+      <main class="main">
+        <div id="top-header" class="top-header"></div>
+        <div id="content"><div class="loading-wrap"><div class="spinner"></div></div></div>
+      </main>
+    </div>
+  </div>
+
+  <script>window.BASE_PATH = "../";</script>
+  <script src="../js/demo-data.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/supabase-client.js"></script>
+  <script src="../js/rh-supabase-auth.js"></script>
+  <script src="../js/rh-historia-data.js"></script>
+  <script src="../js/rh-historia-ui.js"></script>
+  <script>
+(async function () {
+    const session = await requireRoleReal("RH");
+    if (!session) return;
+
+    // Usa SEMPRE os colaboradores já existentes em rh.colaboradores — não há
+    // uma "área por pessoa": a mesma tela mostra a trajetória de quem for
+    // selecionado (?id= na URL permite link direto a partir de Colaboradores).
+    let colaboradores = [];
+    let catalogoBeneficios = [];
+    let selecionadoId = new URLSearchParams(location.search).get("id") || "";
+    let aba = "timeline";
+    let eventos = [];
+    let concessoes = [];
+    let abonos = [];
+    let auditoria = [];
+    let salarioAtual = null;
+    let erroCarga = "";
+    const filtros = { de: "", ate: "", tipo: "", departamento: "", cargo: "", arquivados: false };
+
+    const selecionado = () => colaboradores.find((c) => c.id === selecionadoId) || null;
+
+    async function carregarColaborador() {
+      const c = selecionado();
+      if (!c) return;
+      erroCarga = "";
+      const [ev, cb, ab, au, dp] = await Promise.allSettled([
+        rhCarregarHistoria(c),
+        rhListarConcessoes(c.id),
+        rhListarAbonos({ colaboradorId: c.id }),
+        rhListarAuditoriaColaborador(c.id),
+        sb.rpc("colaboradores_dados_pessoais", { p_colaborador_id: c.id }),
+      ]);
+      eventos = ev.status === "fulfilled" ? ev.value : [];
+      concessoes = cb.status === "fulfilled" ? cb.value : [];
+      abonos = ab.status === "fulfilled" ? ab.value : [];
+      auditoria = au.status === "fulfilled" ? au.value : [];
+      salarioAtual = dp.status === "fulfilled" && dp.value?.data?.[0] ? dp.value.data[0].salario ?? null : null;
+      if (ev.status === "rejected") erroCarga = rhErroMigracao22(ev.reason);
+    }
+
+    function tempoDeCasa(admissao, fim) {
+      if (!admissao) return "—";
+      const a = new Date(admissao + "T00:00:00");
+      const b = fim ? new Date(fim + "T00:00:00") : new Date();
+      let meses = (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth());
+      if (b.getDate() < a.getDate()) meses--;
+      if (meses < 0) return "—";
+      const anos = Math.floor(meses / 12), m = meses % 12;
+      return [anos ? `${anos} ano${anos > 1 ? "s" : ""}` : "", m ? `${m} ${m > 1 ? "meses" : "mês"}` : ""].filter(Boolean).join(" e ") || "Menos de 1 mês";
+    }
+
+    function eventosFiltrados() {
+      return eventos.filter((e) => {
+        if (!filtros.arquivados && e.arquivado) return false;
+        if (filtros.de && e.data_evento < filtros.de) return false;
+        if (filtros.ate && e.data_evento > filtros.ate) return false;
+        if (filtros.tipo && e.tipo_evento !== filtros.tipo) return false;
+        if (filtros.departamento && (e.departamento || "") !== filtros.departamento) return false;
+        if (filtros.cargo && (e.cargo || "") !== filtros.cargo) return false;
+        return true;
+      });
+    }
+
+    function render() {
+      const c = selecionado();
+      document.getElementById("content").innerHTML = `
+        <div class="space-y">
+          <div class="row-between">
+            <div>
+              <h1 class="page-title">História do Colaborador</h1>
+              <p class="page-sub">Trajetória profissional completa: entrada, cargos, departamentos, salários, benefícios, promoções e ocorrências.</p>
+            </div>
+            ${c ? `<button type="button" class="btn-primary auto" id="btn-novo-evento">${ICONS.plus}<span>Registrar evento</span></button>` : ""}
+          </div>
+
+          ${rhSubnavJornadaHtml("historia")}
+
+          <div class="card card-p">
+            <div class="hist-select-bar">
+              <div class="field">
+                <label>Colaborador</label>
+                <select id="sel-colaborador">${rhOpcoesColaboradoresHtml(colaboradores, selecionadoId, { incluirVazio: true, labelVazio: "Selecione um colaborador..." })}</select>
+              </div>
+            </div>
+          </div>
+
+          ${c ? headerHtml(c) + corpoHtml() : emptyStateHtml({ icon: ICONS.timeline, title: "Selecione um colaborador", desc: "Escolha alguém da lista para ver toda a trajetória na empresa." })}
+        </div>`;
+
+      document.getElementById("sel-colaborador").addEventListener("change", async (e) => {
+        selecionadoId = e.target.value;
+        history.replaceState(null, "", selecionadoId ? `?id=${selecionadoId}` : location.pathname);
+        document.getElementById("content").insertAdjacentHTML("beforeend", "");
+        if (selecionadoId) {
+          try { await carregarColaborador(); } catch (err) { showToast(rhErroMigracao22(err), "error"); }
+        }
+        render();
+      });
+      if (!c) return;
+
+      document.getElementById("btn-novo-evento").addEventListener("click", () =>
+        rhAbrirModalEvento({
+          colaborador: c,
+          cargos: colaboradores.map((x) => x.cargo),
+          departamentos: colaboradores.map((x) => x.departamento),
+          session,
+          onSaved: recarregar,
+        })
+      );
+      document.querySelectorAll("[data-aba]").forEach((b) => b.addEventListener("click", () => { aba = b.dataset.aba; render(); }));
+      wireAba(c);
+    }
+
+    function headerHtml(c) {
+      const promocoes = eventos.filter((e) => !e.arquivado && e.tipo_evento === "PROMOCAO").length;
+      const ativos = eventos.filter((e) => !e.arquivado).length;
+      return `
+        <div class="card card-p">
+          <div class="hist-header">
+            <div class="hist-header-person">
+              <div class="avatar-lg ${avatarColorClass(c.nome)}">${c.foto_url ? `<img src="${esc(c.foto_url)}" alt="" />` : initials(c.nome)}</div>
+              <div style="min-width:0">
+                <p class="hist-header-name">${esc(c.nome)}</p>
+                <p class="hist-header-meta">
+                  ${c.codigo ? `<span class="hist-code">Cód. ${esc(c.codigo)}</span>` : ""}
+                  <span>${esc(c.cargo || "Sem cargo")}</span><span class="sep">·</span><span>${esc(c.departamento || "Sem departamento")}</span>
+                  ${statusBadgeHtml(c.status, STATUS_LABELS)}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div class="hist-stats">
+            <div class="hist-stat"><p class="lbl">Na empresa desde</p><p class="val">${fmtDate(c.admissao)}</p></div>
+            <div class="hist-stat"><p class="lbl">Tempo de casa</p><p class="val">${esc(tempoDeCasa(c.admissao, c.data_desligamento))}</p></div>
+            <div class="hist-stat"><p class="lbl">Promoções</p><p class="val">${promocoes}</p></div>
+            <div class="hist-stat"><p class="lbl">Salário atual</p><p class="val">${salarioAtual != null ? rhBrl(salarioAtual) : "—"}</p></div>
+          </div>
+          <p class="hint" style="margin:.8rem 0 0">${ativos} evento(s) na linha do tempo · ${concessoes.filter((b) => b.status === "ATIVO").length} benefício(s) ativo(s) · ${abonos.filter((a) => a.status === "APROVADO").length} abono(s) aprovado(s)</p>
+        </div>`;
+    }
+
+    function corpoHtml() {
+      return `
+        <div class="card card-p">
+          <div class="tabs" style="margin-bottom:1rem">
+            <button type="button" class="tab-btn ${aba === "timeline" ? "active" : ""}" data-aba="timeline">${ICONS.timeline}<span style="margin-left:.4rem">Linha do tempo</span></button>
+            <button type="button" class="tab-btn ${aba === "beneficios" ? "active" : ""}" data-aba="beneficios">${ICONS.heart}<span style="margin-left:.4rem">Benefícios</span></button>
+            <button type="button" class="tab-btn ${aba === "abonos" ? "active" : ""}" data-aba="abonos">${ICONS.clipboardCheck}<span style="margin-left:.4rem">Abonos</span></button>
+            <button type="button" class="tab-btn ${aba === "alteracoes" ? "active" : ""}" data-aba="alteracoes">${ICONS.edit}<span style="margin-left:.4rem">Histórico de alterações</span></button>
+          </div>
+          <div id="aba-conteudo">${abaHtml()}</div>
+        </div>`;
+    }
+
+    function abaHtml() {
+      if (erroCarga && aba === "timeline") return `<div class="notice">${esc(erroCarga)}</div>`;
+      if (aba === "beneficios") {
+        return `
+          <div class="row-between" style="margin-bottom:.9rem">
+            <p class="page-sub" style="margin:0">Benefícios concedidos a este colaborador, com valor, periodicidade e desconto.</p>
+            <button type="button" class="btn-primary auto" id="btn-nova-concessao">${ICONS.plus}<span>Registrar benefício</span></button>
+          </div>
+          ${concessoes.length ? `<div class="mini-list">${concessoes.map((b) => rhConcessaoCardHtml(b, { podeEditar: true })).join("")}</div>` : emptyStateHtml({ icon: ICONS.heart, title: "Nenhum benefício individual registrado", desc: "Benefícios do catálogo atribuídos a todos continuam aparecendo em Benefícios." })}`;
+      }
+      if (aba === "abonos") {
+        return `
+          <div class="row-between" style="margin-bottom:.9rem">
+            <p class="page-sub" style="margin:0">Atestados, faltas justificadas/não justificadas, folgas e ausências autorizadas.</p>
+            <button type="button" class="btn-primary auto" id="btn-novo-abono">${ICONS.plus}<span>Novo abono</span></button>
+          </div>
+          ${abonos.length ? `<div class="table-scroll"><table class="table-cards"><thead><tr><th>Período</th><th>Tipo</th><th class="cell-num">Dias</th><th>Classificação</th><th>Motivo</th><th>Status</th></tr></thead><tbody>
+            ${abonos.map((a) => `<tr>
+              <td data-label="Período">${rhAbonoPeriodoTexto(a)}</td>
+              <td data-label="Tipo">${esc(RH_TIPOS_ABONO[a.tipo]?.label || a.tipo)}</td>
+              <td data-label="Dias" class="cell-num">${a.dias}</td>
+              <td data-label="Classificação">${rhJustificacaoPillHtml(a.justificada)}</td>
+              <td data-label="Motivo">${esc(a.motivo || "—")}</td>
+              <td data-label="Status">${statusBadgeHtml(a.status, RH_STATUS_ABONO)}</td>
+            </tr>`).join("")}
+          </tbody></table></div>` : emptyStateHtml({ icon: ICONS.clipboardCheck, title: "Nenhum abono registrado", desc: "Registre atestados e ausências justificadas para que não contem como falta." })}`;
+      }
+      if (aba === "alteracoes") {
+        return auditoria.length
+          ? `<div class="table-scroll"><table class="table-cards"><thead><tr><th>Data e hora</th><th>Responsável</th><th>Área</th><th>Alteração</th><th>Antes</th><th>Depois</th></tr></thead><tbody>
+            ${auditoria.map((l) => `<tr>
+              <td data-label="Data e hora">${new Date(l.created_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</td>
+              <td data-label="Responsável">${esc(l.usuario_nome || "—")}</td>
+              <td data-label="Área">${esc(ROTULO_TABELA[l.tabela] || l.tabela)}</td>
+              <td data-label="Alteração">${esc({ INSERT: "Criação", UPDATE: "Alteração", DELETE: "Exclusão" }[l.acao] || l.acao)}</td>
+              <td data-label="Antes" style="max-width:260px">${resumoJson(l.dados_anteriores)}</td>
+              <td data-label="Depois" style="max-width:260px">${resumoJson(l.dados_novos)}</td>
+            </tr>`).join("")}
+          </tbody></table></div>`
+          : emptyStateHtml({ icon: ICONS.edit, title: "Nenhuma alteração registrada ainda", desc: "A partir da atualização, toda alteração relevante feita pelo RH (quem, quando, antes e depois) aparece aqui." });
+      }
+      // timeline
+      const tipos = Object.fromEntries(Object.entries(RH_TIPOS_EVENTO).map(([k, v]) => [k, v.label]));
+      const deptos = [...new Set(eventos.map((e) => e.departamento).filter(Boolean))];
+      const cargos = [...new Set(eventos.map((e) => e.cargo).filter(Boolean))];
+      return `
+        <div class="hist-filters" style="margin-bottom:1.1rem">
+          <div class="field"><label>De</label><input type="date" id="f-de" value="${filtros.de}" /></div>
+          <div class="field"><label>Até</label><input type="date" id="f-ate" value="${filtros.ate}" /></div>
+          <div class="field"><label>Tipo de evento</label><select id="f-tipo"><option value="">Todos</option>${rhOpcoesHtml(tipos, filtros.tipo)}</select></div>
+          <div class="field"><label>Departamento</label><select id="f-depto"><option value="">Todos</option>${deptos.map((d) => `<option ${d === filtros.departamento ? "selected" : ""}>${esc(d)}</option>`).join("")}</select></div>
+          <div class="field"><label>Cargo</label><select id="f-cargo"><option value="">Todos</option>${cargos.map((d) => `<option ${d === filtros.cargo ? "selected" : ""}>${esc(d)}</option>`).join("")}</select></div>
+          <label class="check-row" style="margin-bottom:.55rem"><input type="checkbox" id="f-arquivados" ${filtros.arquivados ? "checked" : ""} /> Mostrar arquivados</label>
+        </div>
+        ${rhTimelineHtml(eventosFiltrados(), { podeEditar: true })}`;
+    }
+
+    const ROTULO_TABELA = {
+      colaboradores: "Cadastro", colaborador_historico: "História", colaborador_beneficios: "Benefícios", colaborador_abonos: "Abonos",
+      ferias_solicitacoes: "Férias", ferias_saldos: "Saldo de férias", solicitacoes: "Solicitações", ponto_registros: "Ponto",
+    };
+    const ROTULO_CAMPO = {
+      cargo: "Cargo", departamento: "Departamento", status: "Status", salario_enc: "Salário", admissao: "Admissão", nome: "Nome", email: "E-mail",
+      horario_entrada: "Entrada prevista", horario_saida: "Saída prevista", horas_semanais: "Horas semanais", dias_trabalho: "Dias de trabalho",
+      arquivado: "Arquivado", entrada: "Entrada", saida: "Saída", intervalo_saida: "Saída intervalo", intervalo_volta: "Retorno intervalo",
+    };
+    function resumoJson(obj) {
+      if (!obj) return '<span class="muted">—</span>';
+      const ignorar = ["id", "colaborador_id", "created_at", "updated_at", "responsavel_id", "geo", "alterado_pelo_rh", "pendente_ajuste"];
+      const partes = Object.entries(obj).filter(([k]) => !ignorar.includes(k)).slice(0, 6).map(([k, v]) => {
+        const val = v === null ? "—" : typeof v === "object" ? JSON.stringify(v) : String(v);
+        return `<span style="display:block;font-size:.78rem"><strong>${esc(ROTULO_CAMPO[k] || k)}:</strong> ${esc(val.length > 60 ? val.slice(0, 60) + "…" : val)}</span>`;
+      });
+      return partes.join("") || '<span class="muted">—</span>';
+    }
+
+    function wireAba(c) {
+      const on = (id, ev, fn) => document.getElementById(id)?.addEventListener(ev, fn);
+      on("f-de", "change", (e) => { filtros.de = e.target.value; render(); });
+      on("f-ate", "change", (e) => { filtros.ate = e.target.value; render(); });
+      on("f-tipo", "change", (e) => { filtros.tipo = e.target.value; render(); });
+      on("f-depto", "change", (e) => { filtros.departamento = e.target.value; render(); });
+      on("f-cargo", "change", (e) => { filtros.cargo = e.target.value; render(); });
+      on("f-arquivados", "change", (e) => { filtros.arquivados = e.target.checked; render(); });
+      on("btn-nova-concessao", "click", () => rhAbrirModalConcessao({ colaboradores, catalogo: catalogoBeneficios, colaboradorFixoId: c.id, session, onSaved: recarregar }));
+      on("btn-novo-abono", "click", () => rhAbrirModalAbono({ colaboradores, colaboradorFixoId: c.id, session, onSaved: recarregar }));
+      document.querySelectorAll("[data-editar-concessao]").forEach((b) =>
+        b.addEventListener("click", () => rhAbrirModalConcessao({ colaboradores, catalogo: catalogoBeneficios, concessao: concessoes.find((x) => x.id === b.dataset.editarConcessao), session, onSaved: recarregar }))
+      );
+      document.querySelectorAll("[data-arquivar-evento]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          const ok = await confirmDialog({ title: "Arquivar evento", message: "O evento sai da linha do tempo, mas continua guardado no banco e pode ser restaurado a qualquer momento (use 'Mostrar arquivados').", confirmLabel: "Arquivar", icon: ICONS.archive });
+          if (!ok) return;
+          try { await rhArquivarEventoHistoria(b.dataset.arquivarEvento, true); showToast("Evento arquivado.", "success"); await recarregar(); } catch (err) { showToast(rhErroMigracao22(err), "error"); }
+        })
+      );
+      document.querySelectorAll("[data-restaurar-evento]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          try { await rhArquivarEventoHistoria(b.dataset.restaurarEvento, false); showToast("Evento restaurado.", "success"); await recarregar(); } catch (err) { showToast(rhErroMigracao22(err), "error"); }
+        })
+      );
+    }
+
+    async function recarregar() {
+      try {
+        colaboradores = await rhListarColaboradoresBasico();
+        await carregarColaborador();
+      } catch (err) {
+        showToast(rhErroMigracao22(err), "error");
+      }
+      render();
+    }
+
+    renderShell(session, withBadges(NAV_RH, await rhNavBadges()));
+    renderTopHeader(document.getElementById("top-header"), session, { notifications: [] });
+    try {
+      colaboradores = await rhListarColaboradoresBasico();
+      const { data: cat } = await sb.from("beneficios").select("id, nome").order("nome");
+      catalogoBeneficios = cat || [];
+      if (!selecionadoId && colaboradores.length) selecionadoId = colaboradores.find((c) => c.status !== "INATIVO")?.id || colaboradores[0].id;
+      if (selecionadoId) await carregarColaborador();
+      render();
+    } catch (err) {
+      rhShowFatalError(rhMensagemErroSupabase(err));
+    }
+})();
+</script>
+  <script src="../js/ui-effects.js"></script>
+</body>
+</html>

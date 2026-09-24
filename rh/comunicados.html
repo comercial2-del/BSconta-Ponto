@@ -67,6 +67,55 @@
     let cacheDepartamentos = [];
     let cacheColaboradores = [];
     let comunicadoEditandoId = null;
+    // Quem visualizou cada comunicado (rh.comunicados_leituras) e quem é o
+    // público dele — carregado à parte: se falhar, a lista continua igual.
+    let cacheLeituras = [];
+    let cachePublico = [];
+    async function refrescarVisualizacoes() {
+      try {
+        [cacheLeituras, cachePublico] = await Promise.all([rhCarregarLeiturasComunicadosRH(), rhListarColaboradoresPublico()]);
+      } catch (e) { cacheLeituras = []; cachePublico = []; }
+    }
+    function visualizacoes(c) {
+      const publico = rhPublicoDoComunicado(c, cachePublico);
+      const leituras = new Map(cacheLeituras.filter((l) => l.comunicado_id === c.id).map((l) => [l.colaborador_id, l.lido_em]));
+      const viram = publico.filter((p) => leituras.has(p.id)).map((p) => ({ ...p, lidoEm: leituras.get(p.id) }))
+        .sort((a, b) => String(b.lidoEm).localeCompare(String(a.lidoEm)));
+      const faltam = publico.filter((p) => !leituras.has(p.id));
+      return { total: publico.length, viram, faltam };
+    }
+    function abrirVisualizacoes(id) {
+      const c = cacheComunicados.find((x) => x.id === id);
+      if (!c) return;
+      const v = visualizacoes(c);
+      const pessoa = (p, extra) => `<div class="person-cell" style="justify-content:space-between;width:100%;padding:.45rem 0;border-bottom:1px solid var(--surface-2)"><span style="display:flex;align-items:center;gap:.55rem"><span class="avatar avatar-sm ${avatarColorClass(p.nome)}">${initials(p.nome)}</span>${esc(p.nome)}<span class="hint">${esc(p.departamento || "")}</span></span>${extra}</div>`;
+      let overlay = document.getElementById("modal-visualizacoes");
+      if (!overlay) {
+        overlay = document.createElement("div");
+        overlay.className = "modal-overlay";
+        overlay.id = "modal-visualizacoes";
+        overlay.innerHTML = '<div class="modal" style="max-width:620px"></div>';
+        document.body.appendChild(overlay);
+        overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.classList.remove("open"); });
+      }
+      overlay.querySelector(".modal").innerHTML = `
+        <div class="modal-header"><div><h3>Quem visualizou</h3><p class="page-sub" style="margin:.2rem 0 0">${esc(c.titulo)}</p></div><button type="button" class="modal-close" data-fechar>${ICONS.x}</button></div>
+        <div class="modal-body">
+          <div class="tabs" style="margin-bottom:.8rem">
+            <button type="button" class="tab-btn active" data-vtab="viram">${ICONS.checkCircle}<span style="margin-left:.4rem">Visualizaram (${v.viram.length})</span></button>
+            <button type="button" class="tab-btn" data-vtab="faltam">${ICONS.hourglass}<span style="margin-left:.4rem">Faltam visualizar (${v.faltam.length})</span></button>
+          </div>
+          <div data-vpanel="viram">${v.viram.length ? v.viram.map((p) => pessoa(p, `<span class="hint">${new Date(p.lidoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</span>`)).join("") : '<p class="hint">Ninguém visualizou ainda.</p>'}</div>
+          <div data-vpanel="faltam" hidden>${v.faltam.length ? v.faltam.map((p) => pessoa(p, '<span class="badge badge-red">Não visualizou</span>')).join("") : '<p class="hint">Todos já visualizaram.</p>'}</div>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn-primary auto" data-fechar>Fechar</button></div>`;
+      overlay.querySelectorAll("[data-fechar]").forEach((b) => b.addEventListener("click", () => overlay.classList.remove("open")));
+      overlay.querySelectorAll("[data-vtab]").forEach((b) => b.addEventListener("click", () => {
+        overlay.querySelectorAll("[data-vtab]").forEach((x) => x.classList.toggle("active", x === b));
+        overlay.querySelectorAll("[data-vpanel]").forEach((pnl) => (pnl.hidden = pnl.dataset.vpanel !== b.dataset.vtab));
+      }));
+      requestAnimationFrame(() => overlay.classList.add("open"));
+    }
 
     async function refrescarComunicados() {
       [cacheComunicados, cacheDepartamentos, cacheColaboradores] = await Promise.all([
@@ -178,7 +227,16 @@
             </div>
             <p style="margin:0.4rem 0 0;font-size:0.83rem;color:var(--text-faint)">${esc(descricaoPublico(c))} · ${fmtDate(c.data)}</p>
             <p style="margin:0.6rem 0 0;font-size:0.85rem;color:var(--text-muted)">${esc(c.conteudo)}</p>
-            <div style="margin-top:0.7rem;display:flex;justify-content:flex-end;gap:0.5rem">
+            <div style="margin-top:0.7rem;display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap">
+              ${(() => {
+                if (c.status === "AGENDADO") return '<span class="hint">Ainda não publicado</span>';
+                const v = visualizacoes(c);
+                const pct = v.total ? Math.round((v.viram.length / v.total) * 100) : 0;
+                return `<button type="button" class="btn-ghost" style="width:auto;padding:.4rem .75rem" data-visualizacoes="${c.id}" title="Ver quem visualizou e quem falta">${ICONS.eye}<span>Visualizado por <strong>${v.viram.length}</strong> de ${v.total}${v.faltam.length ? ` · faltam ${v.faltam.length}` : " · todos viram"}</span></button>
+                  <span style="flex:1;min-width:80px;max-width:180px;height:6px;border-radius:99px;background:var(--surface-2);overflow:hidden"><span style="display:block;height:100%;width:${pct}%;background:var(--emerald-500)"></span></span>`;
+              })()}
+              <span style="flex:1"></span>
+              <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
               <button type="button" class="btn-ghost" style="width:auto;padding:0.4rem 0.7rem" data-editar="${c.id}">${ICONS.edit}<span>Editar</span></button>
               ${
                 c.status !== "ARQUIVADO"
@@ -186,6 +244,7 @@
                   : ""
               }
               <button type="button" class="btn-ghost danger" style="width:auto;padding:0.4rem 0.7rem" data-excluir="${c.id}">${ICONS.trash || ""}<span>Excluir</span></button>
+              </div>
             </div>
           </div>`
             )
@@ -193,6 +252,7 @@
         : emptyStateHtml({ icon: ICONS.megaphone, title: "Nenhum comunicado ainda", desc: "Publique o primeiro comunicado para a equipe." });
 
       document.querySelectorAll("[data-editar]").forEach((b) => b.addEventListener("click", () => abrirModalEditar(b.dataset.editar)));
+      document.querySelectorAll("[data-visualizacoes]").forEach((b) => b.addEventListener("click", () => abrirVisualizacoes(b.dataset.visualizacoes)));
       document.querySelectorAll("[data-arquivar]").forEach((b) =>
         b.addEventListener("click", async () => {
           b.disabled = true;
@@ -236,7 +296,7 @@
       renderTopHeader(document.getElementById("top-header"), session, { notifications: [] });
       document.getElementById("content").innerHTML = `<div class="loading-wrap"><div class="spinner"></div></div>`;
       try {
-        await refrescarComunicados();
+        await Promise.all([refrescarComunicados(), refrescarVisualizacoes()]);
         render();
         wireModalClosers();
       } catch (err) {
