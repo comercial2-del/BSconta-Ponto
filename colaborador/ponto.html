@@ -65,6 +65,7 @@
 .history-month-cell.falta{background:#fff1f1;color:#d92d20;border-color:#ffd9d9}.history-month-cell.falta .dot{background:#ef4444}
 .history-month-cell.extra{background:#f5f3ff;color:#6d42c7;border-color:#e9e2ff}.history-month-cell.extra .dot{background:#8b5cf6}
 .history-month-cell.futuro{color:#98a2b3;border-style:dashed}
+.history-month-cell.abonado{background:#f7f3ff;color:#7c3aed;border-color:#e3d9fc}.history-month-cell.abonado .dot{background:#8b5cf6}
 .history-month-cell.pendente{background:#f8f5ff;color:#7c3aed;border-color:#ded2fb;border-style:dashed}.history-month-cell.pendente .dot{background:#8b5cf6}
 .history-month-cell.hoje{box-shadow:0 0 0 2px #2f5bea}
 .history-month-cell.selected{border-color:#2f5bea;box-shadow:0 0 0 2px rgba(47,91,234,.1)}
@@ -131,6 +132,8 @@
   <script src="../js/supabase-client.js"></script>
   <script src="../js/rh-supabase-auth.js"></script>
   <script src="../js/rh-ponto-data.js"></script>
+  <script src="../js/rh-historia-data.js"></script>
+  <script src="../js/rh-historia-ui.js"></script>
   <script>
 (async function () {
     const session = await requireRoleReal("COLABORADOR");
@@ -147,10 +150,22 @@
     // — antes era um objeto de exemplo único, igual para qualquer pessoa;
     // depois passou a ser localStorage por colaborador; agora é o banco.
     let pendentesMap = {};
+    // Regras de intervalo (rh.configuracoes_ponto) e abonos aprovados do
+    // próprio colaborador — ambos da migração 22. Sem a migração, ficam no
+    // padrão (intervalo mínimo de 60 min, sem horário mínimo) / vazios.
+    let configPonto = { ...RH_CONFIG_PONTO_PADRAO };
+    let meusAbonos = [];
+    let meusAbonosTodos = [];
     async function carregarTudo() {
       DEMO.ponto = await rhCarregarPonto(session.employeeId);
       pendentesMap = await rhDiasComAjustePendente(session.employeeId);
       aplicarPendentes();
+      configPonto = await rhCarregarConfigPonto();
+      try { meusAbonosTodos = await rhListarAbonos({ colaboradorId: session.employeeId }); } catch (e) { meusAbonosTodos = []; }
+      meusAbonos = meusAbonosTodos.filter((a) => a.status === "APROVADO");
+    }
+    function abonoDoDia(iso) {
+      return rhAbonoDoDia(meusAbonos, session.employeeId, iso);
     }
     function aplicarPendentes() {
       const p = DEMO.ponto;
@@ -254,6 +269,7 @@
             <div class="tabs" style="border-bottom:none">
               <button type="button" class="tab-btn ${abaAtiva === "hoje" ? "active" : ""}" data-aba="hoje">${ICONS.clock}<span style="margin-left:0.4rem">Hoje</span></button>
               <button type="button" class="tab-btn ${abaAtiva === "historico" ? "active" : ""}" data-aba="historico">${ICONS.calendar}<span style="margin-left:0.4rem">Histórico</span></button>
+              <button type="button" class="tab-btn ${abaAtiva === "abonos" ? "active" : ""}" data-aba="abonos">${ICONS.clipboardCheck}<span style="margin-left:0.4rem">Abonos</span>${faltasParaJustificar().length ? `<span class="badge badge-red" style="margin-left:0.4rem">${faltasParaJustificar().length}</span>` : ""}</button>
             </div>
           </div>
 
@@ -269,12 +285,166 @@
       );
 
       if (abaAtiva === "hoje") renderHoje(steps, nextStep);
+      else if (abaAtiva === "abonos") renderAbonos();
       else renderHistorico();
     }
 
     // ------------------------------------------------------------------
     // Aba "Hoje" — tela principal de bater ponto
     // ------------------------------------------------------------------
+    // ------------------------------------------------------------------
+    // Aba "Abonos" — o colaborador justifica as próprias faltas (atestado,
+    // falta justificada, compromisso externo...) e acompanha a análise do
+    // RH. O pedido sempre nasce PENDENTE; só o RH aprova (e, aprovado, o
+    // dia deixa de contar como falta).
+    // ------------------------------------------------------------------
+    const TIPOS_ABONO_COLABORADOR = ["ATESTADO", "FALTA_JUSTIFICADA", "AUSENCIA_AUTORIZADA", "COMPROMISSO_EXTERNO", "FOLGA", "OUTRO"];
+
+    function faltasParaJustificar() {
+      if (!DEMO.ponto) return [];
+      return rhFaltasSemJustificativa({ historico: DEMO.ponto.historico, diasTrabalho: DEMO.ponto.diasTrabalho, admissao: session.admissao, abonos: meusAbonosTodos });
+    }
+
+    function renderAbonos() {
+      const faltas = faltasParaJustificar();
+      const fmtDia = (iso) => new Date(iso + "T00:00:00").toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" });
+      document.getElementById("aba-conteudo").innerHTML = `
+        <div class="space-y">
+          <div class="card card-p">
+            <div class="row-between" style="margin-bottom:.9rem;flex-wrap:wrap;gap:.7rem">
+              <div>
+                <h2 style="margin:0">Faltas para justificar</h2>
+                <p class="page-sub" style="margin:.25rem 0 0">Dias de trabalho sem registro de ponto. Envie a justificativa (e o atestado, se tiver) para o RH analisar.</p>
+              </div>
+              <button type="button" class="btn-ghost" style="width:auto" id="btn-abono-livre">${ICONS.plus}<span>Solicitar abono</span></button>
+            </div>
+            ${faltas.length
+              ? `<div class="mini-list">${faltas.map((d) => `
+                  <div class="mini-card" style="align-items:center">
+                    <div><p class="t" style="text-transform:capitalize">${esc(fmtDia(d))}</p><p class="s">Sem registro de ponto</p></div>
+                    <button type="button" class="btn-primary auto" data-justificar="${d}">${ICONS.edit}<span>Justificar</span></button>
+                  </div>`).join("")}</div>`
+              : emptyStateHtml({ icon: ICONS.checkCircle, title: "Nenhuma falta pendente de justificativa", desc: "Se precisar avisar uma ausência futura (consulta, compromisso), use “Solicitar abono”." })}
+          </div>
+
+          <div class="card card-p">
+            <h2 style="margin:0 0 .8rem">Meus abonos</h2>
+            ${(() => {
+              const lista = meusAbonosTodos.filter((a) => a.status !== "ARQUIVADO");
+              if (!lista.length) return `<p class="hint">Você ainda não enviou nenhuma justificativa.</p>`;
+              return `<div class="mini-list">${lista.map((a) => `
+                <div class="abono-card">
+                  <div>
+                    <p class="t">${esc(RH_TIPOS_ABONO[a.tipo]?.label || a.tipo)} ${statusBadgeHtml(a.status, RH_STATUS_ABONO)}</p>
+                    <p class="s">${rhAbonoPeriodoTexto(a)} · ${a.dias} dia(s)${a.motivo ? ` · ${esc(a.motivo)}` : ""}</p>
+                  </div>
+                  <div class="doc-row" style="grid-column:auto;justify-content:flex-end">
+                    ${a.anexo_path
+                      ? `<span class="doc-chip" style="cursor:default">${ICONS.fileText}<span>${esc(a.anexo_nome || "Documento enviado")}</span></span>`
+                      : a.status === "PENDENTE"
+                      ? `<span class="doc-missing">${ICONS.alertCircle}<span>Sem documento</span></span><button type="button" class="btn-ghost" style="width:auto;padding:.35rem .7rem" data-anexar="${a.id}">${ICONS.upload}<span>Anexar</span></button>`
+                      : `<span class="hint">Sem documento</span>`}
+                  </div>
+                </div>`).join("")}</div>`;
+            })()}
+          </div>
+        </div>`;
+      document.querySelectorAll("[data-anexar]").forEach((b) => b.addEventListener("click", () => abrirModalAnexar(meusAbonosTodos.find((x) => x.id === b.dataset.anexar))));
+      document.getElementById("btn-abono-livre").addEventListener("click", () => abrirModalJustificar(todayIso()));
+      document.querySelectorAll("[data-justificar]").forEach((b) => b.addEventListener("click", () => abrirModalJustificar(b.dataset.justificar)));
+    }
+
+    function abrirModalJustificar(dataIso) {
+      let overlay = document.getElementById("modal-justificar");
+      if (!overlay) {
+        overlay = document.createElement("div");
+        overlay.className = "modal-overlay";
+        overlay.id = "modal-justificar";
+        overlay.innerHTML = '<div class="modal" style="max-width:560px"></div>';
+        document.body.appendChild(overlay);
+        overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.classList.remove("open"); });
+      }
+      overlay.querySelector(".modal").innerHTML = `
+        <div class="modal-header"><div><h3>Justificar falta / solicitar abono</h3><p class="page-sub" style="margin:.2rem 0 0">O RH vai analisar e você acompanha o status aqui.</p></div><button type="button" class="modal-close" data-fechar>${ICONS.x}</button></div>
+        <form id="form-justificar">
+          <div class="modal-body">
+            <div class="form-grid">
+              <div class="field full"><label>Tipo</label><select id="jf-tipo" required>${TIPOS_ABONO_COLABORADOR.map((t) => `<option value="${t}">${esc(RH_TIPOS_ABONO[t].label)}</option>`).join("")}</select></div>
+              <div class="field"><label>Data inicial</label><input type="date" id="jf-inicio" required value="${dataIso}" /></div>
+              <div class="field"><label>Data final</label><input type="date" id="jf-fim" required value="${dataIso}" /></div>
+              <div class="field full"><label>Motivo</label><input type="text" id="jf-motivo" required placeholder="Ex.: Consulta médica" /></div>
+              <div class="field full"><label>Descrição (opcional)</label><textarea id="jf-descricao" rows="2" placeholder="Algum detalhe para o RH?"></textarea></div>
+              <div class="field full"><label>Atestado / documento</label>${rhDropzoneHtml("jf-anexo", { titulo: "Anexe o atestado ou comprovante" })}</div>
+            </div>
+            <div class="notice-soft" id="jf-aviso" style="margin-top:.8rem">${ICONS.alertCircle}<span>Sem documento anexado. O pedido vai ao RH mesmo assim, marcado como <strong>sem documento</strong> — você pode anexar depois em “Meus abonos”.</span></div>
+          </div>
+          <div class="modal-footer"><button type="button" class="btn-ghost" data-fechar>Cancelar</button><button type="submit" class="btn-primary auto" id="jf-enviar">${ICONS.send}<span>Enviar ao RH</span></button></div>
+        </form>`;
+      overlay.querySelectorAll("[data-fechar]").forEach((b) => b.addEventListener("click", () => overlay.classList.remove("open")));
+      const anexoJf = rhWireDropzone(overlay, "jf-anexo", (f) => { overlay.querySelector("#jf-aviso").hidden = !!f; });
+      overlay.querySelector("#jf-inicio").addEventListener("change", (e) => { const f = overlay.querySelector("#jf-fim"); if (!f.value || f.value < e.target.value) f.value = e.target.value; });
+      overlay.querySelector("#form-justificar").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const btn = overlay.querySelector("#jf-enviar");
+        btn.disabled = true;
+        try {
+          await rhSolicitarAbonoColaborador({
+            colaboradorId: session.employeeId,
+            colaboradorNome: session.name,
+            tipo: overlay.querySelector("#jf-tipo").value,
+            dataInicio: overlay.querySelector("#jf-inicio").value,
+            dataFim: overlay.querySelector("#jf-fim").value,
+            motivo: overlay.querySelector("#jf-motivo").value,
+            descricao: overlay.querySelector("#jf-descricao").value.trim(),
+            arquivo: anexoJf.arquivo(),
+          });
+          meusAbonosTodos = await rhListarAbonos({ colaboradorId: session.employeeId });
+          meusAbonos = meusAbonosTodos.filter((a) => a.status === "APROVADO");
+          overlay.classList.remove("open");
+          showToast("Justificativa enviada ao RH.", "success");
+          render();
+        } catch (err) {
+          showToast(typeof rhErroMigracao22 === "function" ? rhErroMigracao22(err) : (err?.message || err), "error");
+          btn.disabled = false;
+        }
+      });
+      requestAnimationFrame(() => overlay.classList.add("open"));
+    }
+
+    function abrirModalAnexar(abono) {
+      if (!abono) return;
+      let overlay = document.getElementById("modal-anexar");
+      if (!overlay) {
+        overlay = document.createElement("div");
+        overlay.className = "modal-overlay";
+        overlay.id = "modal-anexar";
+        overlay.innerHTML = '<div class="modal" style="max-width:480px"></div>';
+        document.body.appendChild(overlay);
+        overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.classList.remove("open"); });
+      }
+      overlay.querySelector(".modal").innerHTML = `
+        <div class="modal-header"><div><h3>Anexar documento</h3><p class="page-sub" style="margin:.2rem 0 0">${esc(RH_TIPOS_ABONO[abono.tipo]?.label || "")} · ${rhAbonoPeriodoTexto(abono)}</p></div><button type="button" class="modal-close" data-fechar>${ICONS.x}</button></div>
+        <div class="modal-body">${rhDropzoneHtml("an-anexo", { titulo: "Anexe o atestado ou comprovante" })}</div>
+        <div class="modal-footer"><button type="button" class="btn-ghost" data-fechar>Cancelar</button><button type="button" class="btn-primary auto" id="an-enviar" disabled>${ICONS.send}<span>Enviar documento</span></button></div>`;
+      overlay.querySelectorAll("[data-fechar]").forEach((b) => b.addEventListener("click", () => overlay.classList.remove("open")));
+      const dz = rhWireDropzone(overlay, "an-anexo", (f) => { overlay.querySelector("#an-enviar").disabled = !f; });
+      overlay.querySelector("#an-enviar").addEventListener("click", async (e) => {
+        const btn = e.currentTarget;
+        btn.disabled = true;
+        try {
+          await rhAnexarDocumentoAbono(abono, dz.arquivo());
+          meusAbonosTodos = await rhListarAbonos({ colaboradorId: session.employeeId });
+          overlay.classList.remove("open");
+          showToast("Documento enviado ao RH.", "success");
+          render();
+        } catch (err) {
+          showToast(rhErroMigracao22(err), "error");
+          btn.disabled = false;
+        }
+      });
+      requestAnimationFrame(() => overlay.classList.add("open"));
+    }
+
     function saudacaoPorHora() {
       const h = new Date().getHours();
       if (h < 12) return "Bom dia";
@@ -367,9 +537,15 @@
           <p class="ponto-cta-hint" id="cta-hint">Jornada de hoje concluída. Bom descanso!</p>`;
       } else {
         const variant = nextStep.key === "intervaloSaida" ? "pause-variant" : "";
+        const avisoIntervalo = rhValidarBatidaIntervalo(nextStep.key, horaAgora(), p.hoje, configPonto);
+        const dicaIntervalo = nextStep.key === "intervaloVolta" && p.hoje.intervaloSaida && Number(configPonto.intervalo_minimo_min) > 0
+          ? `Intervalo mínimo de ${configPonto.intervalo_minimo_min} min.`
+          : nextStep.key === "intervaloSaida" && configPonto.almoco_inicio_minimo
+          ? `O intervalo pode começar a partir das ${configPonto.almoco_inicio_minimo}.`
+          : "";
         ctaHtml = `
           <button type="button" class="ponto-cta-btn ${variant}" id="btn-bater">${ICONS.clock}<span>${nextStep.ctaLabel}</span>${ICONS.chevronRight.replace("<svg ", '<svg class="arrow" ')}</button>
-          <p class="ponto-cta-hint" id="cta-hint">Clique no botão para registrar seu ponto no horário atual.</p>`;
+          <p class="ponto-cta-hint${avisoIntervalo ? " is-error" : ""}" id="cta-hint">${esc(avisoIntervalo || [dicaIntervalo, "Clique no botão para registrar seu ponto no horário atual."].filter(Boolean).join(" "))}</p>`;
       }
 
       document.getElementById("aba-conteudo").innerHTML = `
@@ -547,6 +723,18 @@
             if (res.ok) geo = { lat: res.lat, lng: res.lng, precisao: res.precisao };
           }
           const hora = horaAgora();
+          // Regra do intervalo (mínimo de 60 min por padrão e, se o RH
+          // configurou, horário mínimo para iniciar o almoço). A mesma regra
+          // também é garantida no banco (trigger), então não dá para burlar.
+          const bloqueio = rhValidarBatidaIntervalo(nextStep.key, hora, p.hoje, configPonto);
+          if (bloqueio) {
+            if (btn) { btn.disabled = false; btn.classList.remove("is-saving"); }
+            showToast(bloqueio, "error");
+            render();
+            const h = document.getElementById("cta-hint");
+            if (h) { h.textContent = bloqueio; h.classList.add("is-error"); }
+            return;
+          }
           if (geo) p.hoje.geo = geo;
           if (nextStep.key === "intervaloSaida") p.hoje.intervaloSaida = hora;
           else if (nextStep.key === "intervaloVolta") p.hoje.intervaloVolta = hora;
@@ -1027,6 +1215,12 @@
       } else if (isWeekend) {
         bucket = "fimdesemana"; statusLabel = "Fim de semana";
       }
+      // Abono aprovado pelo RH: o dia aparece como "Abonado", não como falta.
+      const abono = (!rec || rec.status === "falta" || rec.status === "futuro") && !rec?.pendenteAjuste ? abonoDoDia(iso) : null;
+      if (abono) {
+        bucket = "abonado"; statusLabel = "Abonado";
+        metaLabel = RH_TIPOS_ABONO[abono.tipo]?.label || "Abono";
+      }
 
       const classes = ["history-day-card", bucket];
       if (rec?.alteradoPeloRH) classes.push("corrigido");
@@ -1093,7 +1287,9 @@
         const isToday = iso === hoje;
         const isSelected = iso === diaSelecionado;
         const tituloCell = rec?.pendenteAjuste ? "Ajuste pendente — aguardando aprovação do RH" : rec?.alteradoPeloRH ? "Alterado pelo RH — " + esc(rec.alteradoPeloRH.motivo) : "Selecionar dia";
-        cells += `<div class="history-month-cell clickable ${diaClasse(rec, isToday)}${isSelected ? " selected" : ""}" data-dia="${iso}" title="${tituloCell}"><span>${d}</span>${rec && rec.status !== "futuro" ? '<span class="dot"></span>' : ""}</div>`;
+        const abonoCell = (!rec || rec.status === "falta" || rec.status === "futuro") && !rec?.pendenteAjuste ? abonoDoDia(iso) : null;
+        const classeCell = abonoCell ? `abonado${isToday ? " hoje" : ""}` : diaClasse(rec, isToday);
+        cells += `<div class="history-month-cell clickable ${classeCell}${isSelected ? " selected" : ""}" data-dia="${iso}" title="${abonoCell ? "Abonado — " + esc(RH_TIPOS_ABONO[abonoCell.tipo]?.label || "") : tituloCell}"><span>${d}</span>${rec && rec.status !== "futuro" ? '<span class="dot"></span>' : ""}</div>`;
       }
       wrap.innerHTML = `
         <div class="history-month-head"><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span><span>Dom</span></div>

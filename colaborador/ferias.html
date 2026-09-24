@@ -179,6 +179,7 @@
       if (status === "APROVADA") return ["filled approve", "filled approve", "filled approve"];
       if (status === "RECUSADA") return ["filled reject", "filled reject", ""];
       if (status === "EM_ANALISE") return ["filled", "filled", ""];
+      if (status === "PRE_APROVADA") return ["filled", "filled approve", ""];
       return ["filled", "", ""];
     }
 

@@ -52,9 +52,10 @@
           </div>
           <div class="card card-p">
             <div class="period-buttons" style="margin-bottom:1rem">
-              <button type="button" data-f="TODOS" class="active">Todos</button>
-              <button type="button" data-f="NAO_LIDOS">Não lidos</button>
-              <button type="button" data-f="URGENTES">Urgentes</button>
+              <button type="button" data-f="TODOS" class="${filtro === "TODOS" ? "active" : ""}">Todos</button>
+              <button type="button" data-f="NAO_LIDOS" class="${filtro === "NAO_LIDOS" ? "active" : ""}">Não vistos</button>
+              <button type="button" data-f="URGENTES" class="${filtro === "URGENTES" ? "active" : ""}">Urgentes</button>
+              <button type="button" data-f="ARQUIVADOS" class="${filtro === "ARQUIVADOS" ? "active" : ""}">Arquivados${cacheComunicados.some((c) => c.arquivado) ? ` (${cacheComunicados.filter((c) => c.arquivado).length})` : ""}</button>
             </div>
             <div id="list-wrap"></div>
           </div>
@@ -72,7 +73,11 @@
     }
 
     function renderList() {
-      const rows = cacheComunicados.filter((c) => (filtro === "NAO_LIDOS" ? !c.lido : filtro === "URGENTES" ? c.urgente : true));
+      // Arquivados saem da lista principal e ficam só no filtro "Arquivados".
+      const rows = cacheComunicados.filter((c) =>
+        filtro === "ARQUIVADOS" ? c.arquivado : !c.arquivado && (filtro === "NAO_LIDOS" ? !c.lido : filtro === "URGENTES" ? c.urgente : true)
+      );
+      const vistoEm = (c) => (c.lidoEm ? ` em ${new Date(c.lidoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}` : "");
       document.getElementById("list-wrap").innerHTML = rows.length
         ? rows
             .map(
@@ -88,11 +93,32 @@
             <span class="announcement-date">${fmtDate(c.data)}</span>
           </div>
           <p class="announcement-body">${esc(c.conteudo)}</p>
-          ${!c.lido ? `<button type="button" class="btn-ghost" style="width:auto;margin-top:0.75rem" data-marcar="${c.id}">${ICONS.check}<span>Marcar como lido</span></button>` : `<span class="hint" style="display:flex;align-items:center;gap:0.35rem;margin-top:0.6rem">${ICONS.check}Lido</span>`}
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:.6rem;flex-wrap:wrap;margin-top:0.75rem">
+            ${!c.lido
+              ? `<button type="button" class="btn-primary auto" data-marcar="${c.id}">${ICONS.check}<span>Marcar como visto</span></button>`
+              : `<span class="hint" style="display:flex;align-items:center;gap:0.35rem;color:var(--emerald-700)">${ICONS.checkCircle}Visto${vistoEm(c)}</span>`}
+            <button type="button" class="btn-ghost" style="width:auto;padding:.4rem .75rem" data-arquivar-com="${c.id}" data-acao="${c.arquivado ? "0" : "1"}">${c.arquivado ? ICONS.refresh : ICONS.archive}<span>${c.arquivado ? "Desarquivar" : "Arquivar"}</span></button>
+          </div>
         </div>`
             )
             .join("")
-        : emptyStateHtml({ icon: ICONS.megaphone, title: "Nada por aqui", desc: "Nenhum comunicado corresponde a este filtro." });
+        : emptyStateHtml({ icon: ICONS.megaphone, title: "Nada por aqui", desc: filtro === "ARQUIVADOS" ? "Você ainda não arquivou nenhum comunicado." : "Nenhum comunicado corresponde a este filtro." });
+
+      document.querySelectorAll("[data-arquivar-com]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          const arquivar = b.dataset.acao === "1";
+          b.disabled = true;
+          try {
+            await rhArquivarComunicadoColaborador(b.dataset.arquivarCom, session.employeeId, arquivar);
+            await refrescarComunicados();
+            render();
+            showToast(arquivar ? "Comunicado arquivado. Ele continua disponível em Arquivados." : "Comunicado voltou para a lista.", "success");
+          } catch (err) {
+            showToast(rhMensagemErroSupabase(err), "error");
+            b.disabled = false;
+          }
+        })
+      );
 
       document.querySelectorAll("[data-marcar]").forEach((b) =>
         b.addEventListener("click", async () => {
@@ -100,9 +126,9 @@
           try {
             await rhMarcarComunicadoLido(b.dataset.marcar, session.employeeId);
             const c = cacheComunicados.find((x) => x.id === b.dataset.marcar);
-            if (c) c.lido = true;
+            if (c) { c.lido = true; c.lidoEm = new Date().toISOString(); }
             renderList();
-            showToast("Comunicado marcado como lido.", "success");
+            showToast("Comunicado marcado como visto.", "success");
           } catch (err) {
             showToast(rhMensagemErroSupabase(err), "error");
             b.disabled = false;
