@@ -527,7 +527,7 @@
           ${employee.dataDesligamento ? `<div class="field"><label>Data de desligamento</label><div class="field-static">${fmt(employee.dataDesligamento)}</div></div>` : ""}
           <div class="field"><label>Jornada</label><div class="field-static">${formatSchedule(employee)}</div></div>
           <div class="field"><label>Dias de trabalho</label><div class="field-static">${esc(formatWorkDays(employee.diasTrabalho))}</div></div>
-          <div class="field"><label>Horas semanais</label><div class="field-static">${employee.horasSemanais != null ? esc(String(employee.horasSemanais).replace('.', ',')) + ' h/semana' : 'Não definido'}</div></div>
+          <div class="field"><label>Horas semanais</label><div class="field-static">${employee.horasSemanais != null ? fmtDuracao(employee.horasSemanais) + ' por semana' : 'Não definido'}</div></div>
         </div>
         ${employee.emailProvisorio ? `<div class="notice" style="margin-top:1rem">Este e-mail é provisório (a planilha original não tinha e-mail corporativo desta pessoa) — esta pessoa ainda não tem login no sistema.<br><br><button type="button" class="btn-primary auto" id="btn-gerar-login-provisorio" style="margin-top:.5rem">Gerar login automático (uso interno)</button></div>` : ""}
       `;

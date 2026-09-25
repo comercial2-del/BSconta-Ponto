@@ -350,7 +350,7 @@
               { label: "Banco de horas negativo", value: negativo, tone: "violet", icon: ICONS.clock },
             ],
             secoes: [
-              { titulo: "Detalhe por colaborador", tabela: { headers: ["Colaborador", "Status hoje", "Banco de horas"], rows: base.pontoHoje.map((r) => [r.nome, r.status, `${r.saldoBanco >= 0 ? "+" : ""}${r.saldoBanco.toFixed(1)}h`]) }, vazio: "Nenhum colaborador ativo cadastrado." },
+              { titulo: "Detalhe por colaborador", tabela: { headers: ["Colaborador", "Status hoje", "Banco de horas"], rows: base.pontoHoje.map((r) => [r.nome, r.status, fmtDuracao(r.saldoBanco, { sinal: true })]) }, vazio: "Nenhum colaborador ativo cadastrado." },
             ],
           };
         },

@@ -183,14 +183,8 @@
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     }
     function isoOf(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
-    function fmtHoras(h) {
-      if (h === null || h === undefined) return "—";
-      const sinal = h < 0 ? "-" : "";
-      const abs = Math.abs(h);
-      const hh = Math.floor(abs);
-      const mm = Math.round((abs - hh) * 60);
-      return `${sinal}${hh}h${mm.toString().padStart(2, "0")}`;
-    }
+    // Formato único (1:30h / 0:30m) — ver fmtDuracao em js/ui.js.
+    function fmtHoras(h, opts) { return fmtDuracao(h, opts); }
     async function refrescarHistorico(nome) {
       const id = idPorNome(nome);
       if (!id) { cacheHistorico[nome] = []; return; }
@@ -512,7 +506,7 @@
                 <td>${statusPill(r.status)}${r.abonoTipo ? ` <span class="hint">${esc(r.abonoTipo)}</span>` : ""}</td>
                 <td>${r.entrada || "—"}</td>
                 <td>${r.local ? localBadgeHtml(r.local) : '<span class="muted">—</span>'}</td>
-                <td class="cell-num ${r.saldoBanco < 0 ? "" : "cell-green"}" style="color:${r.saldoBanco < 0 ? "var(--red-600)" : ""}">${r.saldoBanco >= 0 ? "+" : ""}${r.saldoBanco.toFixed(1).replace(".", ",")}h</td>
+                <td class="cell-num ${r.saldoBanco < 0 ? "" : "cell-green"}" style="color:${r.saldoBanco < 0 ? "var(--red-600)" : ""}">${fmtDuracao(r.saldoBanco, { sinal: true })}</td>
                 <td style="text-align:right"><button type="button" class="btn-ghost" style="width:auto;padding:0.4rem 0.7rem" data-detalhe="${esc(r.nome)}">Ver histórico</button></td>
               </tr>`
                 )
@@ -713,8 +707,8 @@
       const statusInfo = (rec) => {
         if (!rec) return { cls: "", label: "Previsto", dot: "", hours: "" };
         if (rec.status === "falta") return { cls: "status-falta", label: "Falta", dot: "absent", hours: "" };
-        if (rec.status === "atraso") return { cls: "status-atraso", label: "Atraso", dot: "delay", hours: rec.atrasoMin ? `${rec.atrasoMin} min` : "" };
-        if (rec.horasExtras > 0) return { cls: "status-extra", label: "Hora extra", dot: "extra", hours: `+${fmtHoras(rec.horasExtras)}` };
+        if (rec.status === "atraso") return { cls: "status-atraso", label: "Atraso", dot: "delay", hours: rec.atrasoMin ? fmtMinutos(-rec.atrasoMin) : "" };
+        if (rec.horasExtras > 0) return { cls: "status-extra", label: "Hora extra", dot: "extra", hours: fmtDuracao(rec.horasExtras, { sinal: true }) };
         if (rec.status === "hoje") return { cls: "status-completo", label: "Em andamento", dot: "complete", hours: rec.entrada ? `${rec.entrada} • em andamento` : "" };
         return { cls: "status-completo", label: "Trabalhado", dot: "complete", hours: rec.horasTrabalhadas != null ? fmtHoras(rec.horasTrabalhadas) : "" };
       };
@@ -860,8 +854,8 @@
               <td>${h.saida || (h.status === "hoje" ? "Em andamento" : "—")}</td>
               <td>${h.intervaloSaida && h.intervaloVolta ? `${h.intervaloSaida}–${h.intervaloVolta}` : "—"}</td>
               <td class="cell-num">${h.horasTrabalhadas != null ? fmtHoras(h.horasTrabalhadas) : "—"}</td>
-              <td class="cell-num">${h.horasExtras ? fmtHoras(h.horasExtras) : "—"}</td>
-              <td class="cell-num">${h.atrasoMin ? `${h.atrasoMin} min` : "—"}</td>
+              <td class="cell-num">${h.horasExtras ? fmtDuracao(h.horasExtras, { sinal: true }) : "—"}</td>
+              <td class="cell-num">${h.atrasoMin ? fmtMinutos(-h.atrasoMin) : "—"}</td>
               <td>${localBadgeHtml(h.local)}${geoLinkForPonto(h.geo, h.data)}</td>
               <td>${statusPillPonto(h.status)}</td>
               <td>${h.alteradoPeloRH ? `<span class="badge-alterado" title="${esc(h.alteradoPeloRH.motivo)} — ${fmtDate(h.alteradoPeloRH.em.slice(0,10))}">${ICONS.edit}Alterado</span>` : "—"}</td>
