@@ -109,6 +109,8 @@ select.bf-inp:focus,input.bf-inp:focus{border-color:var(--blue-500);box-shadow:0
 .bf-modal-body{padding:1.2rem 1.3rem;overflow-y:auto;flex:1;min-height:0}
 .bf-modal-foot{padding:.85rem 1.3rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;align-items:center;gap:.6rem;flex-shrink:0;background:#fff}
 .bf-modal-foot .bf-hint{margin-right:auto;font-size:.78rem;color:var(--text-faint)}
+.bnf .bf-values-mes{font-size:.85rem;color:var(--text-soft)}
+.bnf .bf-values-mes b{color:var(--text)}
 .bf-sec{margin-bottom:1.3rem}
 .bf-sec-title{display:flex;align-items:center;gap:.5rem;margin:0 0 .7rem;font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-soft)}
 .bf-sec-title .bf-dot{width:6px;height:6px;border-radius:50%;background:var(--pink-500)}
@@ -262,6 +264,7 @@ table.bf-tbl{width:100%;border-collapse:collapse;font-size:.83rem}
     <div class="bf-modal-foot">
       <span class="bf-hint" id="form-hint"></span>
       <button type="button" class="bf-btn bf-btn-ghost" data-close="ov-form">Cancelar</button>
+      <button type="button" class="bf-btn bf-btn-launch" id="btn-lancar-mes" style="border:1px solid #abefc6"></button>
       <button type="button" class="bf-btn bf-btn-primary" id="btn-salvar"></button>
     </div>
   </div>
@@ -650,17 +653,17 @@ function wireHistorico(root, onFiltro) { root.querySelector("#hist-filtro")?.add
 let form = null; // rascunho — só vira "real" ao salvar
 function abrirForm(id, aba = "info", mes = null) {
   const base = id ? clone(BENEFICIOS.find((x) => x.id === id)) : { id: null, nome: "", categoria: "ALIMENTACAO", icon: "heart", tone: "blue", status: "ATIVO", descricao: "", publico: "TODOS", colaboradores: [], fixos: {}, valores: {} };
-  form = { b: base, aba: id ? aba : "info", mes: mes || ui.mes, busca: "", abertos: {}, filtroHist: "", erros: {} };
+  form = { b: base, aba: id ? (aba === "historico" ? "valores" : aba) : "info", mes: COMPETENCIA_ATUAL, busca: "", abertos: {}, filtroHist: "", erros: {} };
   document.getElementById("form-title").textContent = id ? `Editar benefício` : "Novo benefício";
   document.getElementById("form-sub").textContent = id ? `${base.nome} — altere as informações, quem recebe e os valores por competência.` : "Cadastre o benefício, escolha quem recebe e informe o valor de cada colaborador.";
   document.getElementById("btn-salvar").innerHTML = `${I.check}<span>Salvar benefício</span>`;
+  document.getElementById("btn-lancar-mes").innerHTML = `${I.send}<span>Lançar ${MESES[Number(COMPETENCIA_ATUAL.split("-")[1]) - 1]}</span>`;
   renderForm();
   abrir("ov-form");
   setTimeout(() => document.getElementById("ff-nome")?.focus(), 60);
 }
 function renderForm() {
   const abas = [["info", "Informações"], ["publico", "Para quem é"], ["valores", "Valores por colaborador"]];
-  if (form.b.id) abas.push(["historico", "Histórico"]);
   document.getElementById("form-tabs").innerHTML = abas.map(([k, t], i) => `<button type="button" class="${form.aba === k ? "bf-active" : ""}" data-ftab="${k}"><span class="bf-n">${i + 1}</span>${t}</button>`).join("");
   document.querySelectorAll("[data-ftab]").forEach((x) => x.addEventListener("click", () => { form.aba = x.dataset.ftab; renderForm(); }));
   const body = document.getElementById("form-body");
@@ -686,8 +689,7 @@ function formInfo(body) {
           <div class="bf-seg" role="radiogroup"><button type="button" class="bf-on ${b.status === "ATIVO" ? "bf-active" : ""}" data-st="ATIVO"><i></i>Ativo</button><button type="button" class="bf-off ${b.status === "INATIVO" ? "bf-active" : ""}" data-st="INATIVO"><i></i>Inativo</button></div>
         </div>
       </div>
-    </div>
-    <div class="bf-note">${I.info}<span>Sem data de término: o benefício fica ativo até o RH desativá-lo. Desativar não apaga o histórico.</span></div>`;
+    </div>`;
   body.querySelector("#ff-nome").addEventListener("input", (e) => { b.nome = e.target.value; if (form.erros.nome && b.nome.trim()) { form.erros.nome = false; e.target.classList.remove("bf-invalid"); body.querySelector(".bf-err").classList.remove("bf-show"); } });
   const pintarPrev = () => { const v = visual(b); body.querySelector("#ff-prev").innerHTML = `<div class="bf-b-ico" style="background:${v.bg};color:${v.fg}">${v.icon}</div><div><b>${esc(b.nome || "Nome do benefício")}</b><small>${esc((CATEGORIAS[b.categoria] || CATEGORIAS.OUTROS).label)}</small></div>`; };
   pintarPrev();
@@ -717,8 +719,7 @@ function formPublico(body) {
       </div>
       <div class="bf-err ${form.erros.publico ? "bf-show" : ""}">Selecione pelo menos um colaborador.</div>
       <p style="font-size:.78rem;color:var(--text-soft);margin:.6rem 0 0"><b>${b.colaboradores.length}</b> selecionado(s)</p>` : ""}
-    </div>
-    <div class="bf-note">${I.info}<span>Depois de escolher, vá em <b>Valores por colaborador</b> para informar quanto cada pessoa recebe em cada mês.</span></div>`;
+    </div>`;
   body.querySelectorAll("[data-pub]").forEach((x) => x.addEventListener("click", () => { b.publico = x.dataset.pub; form.erros.publico = false; renderForm(); }));
   body.querySelector("#ff-busca")?.addEventListener("input", (e) => { form.busca = e.target.value; const pos = e.target.selectionStart; formPublico(body); const i = body.querySelector("#ff-busca"); i.focus(); i.setSelectionRange(pos, pos); });
   body.querySelector("#ff-todos")?.addEventListener("click", () => { b.colaboradores = b.colaboradores.length === COLABS.length ? [] : COLABS.map((c) => c.id); form.erros.publico = false; renderForm(); });
@@ -736,8 +737,7 @@ function formValores(body) {
   const eAtual = k === COMPETENCIA_ATUAL;
   body.innerHTML = `
     <div class="bf-values-bar">
-      ${monthNavHtml(k, "form")}
-      <button type="button" class="bf-btn bf-btn-launch bf-btn-sm" id="ff-lancar-todos" style="border:1px solid #abefc6" title="Marcar todos os valores de ${rotuloMes(k)} como lançados/pagos">${I.send}<span>Lançar todos de ${MESES[Number(k.split("-")[1]) - 1]}</span></button>
+      <span class="bf-values-mes">Competência <b>${rotuloMes(k)}</b></span>
       <span class="bf-spacer"></span>
       <div class="bf-apply-all"><div class="bf-money" style="width:120px"><span>R$</span><input class="bf-inp" id="ff-aplicar" inputmode="decimal" placeholder="0,00" style="height:36px" /></div><button type="button" class="bf-btn bf-btn-ghost bf-btn-sm" id="ff-aplicar-btn">Aplicar a todos</button></div>
     </div>
@@ -747,15 +747,6 @@ function formValores(body) {
     <div style="display:flex;gap:.5rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.8rem" id="ff-totais">${totaisBadges(t)}</div>`
     : `<div class="bf-empty"><div class="bf-e-ico">${I.users}</div><b>Nenhum colaborador selecionado</b><p>Volte em “Para quem é” e escolha os colaboradores.</p></div>`}`;
 
-  body.querySelectorAll('[data-mes="form"]').forEach((x) => x.addEventListener("click", () => { form.mes = addMes(form.mes, Number(x.dataset.d)); renderForm(); }));
-  body.querySelector("#ff-lancar-todos").addEventListener("click", () => {
-    const alvo = ids.filter((id) => { const l = lanc(b, id, k); return l && !l.lancado && (l.valor || 0) > 0; });
-    if (!alvo.length) { toast(`Nada pendente para lançar em ${rotuloMes(k)}.`, "error"); return; }
-    if (k > COMPETENCIA_ATUAL) { toast(`${rotuloMes(k)} ainda não chegou — lance quando o mês começar.`, "error"); return; }
-    alvo.forEach((id) => { lancReal(b, id, k).lancado = true; });
-    toast(`${alvo.length} valor(es) marcados como lançados. Clique em “Salvar benefício” para confirmar.`, "success");
-    renderForm();
-  });
   body.querySelector("#ff-aplicar-btn").addEventListener("click", () => {
     const v = num(body.querySelector("#ff-aplicar").value);
     if (v === null || v < 0) { toast("Informe um valor válido para aplicar.", "error"); return; }
@@ -850,6 +841,16 @@ function validar() {
   }
   return true;
 }
+// "Lançar [mês]" no rodapé: marca como pagos os valores pendentes do mês
+// atual e segue para a confirmação de salvar.
+document.getElementById("btn-lancar-mes").addEventListener("click", () => {
+  const b = form.b, k = COMPETENCIA_ATUAL;
+  const alvo = idsDo(b).filter((id) => { const l = lanc(b, id, k); return l && !l.lancado && (l.valor || 0) > 0; });
+  if (!alvo.length) { toast(`Nada pendente para lançar em ${rotuloMes(k)}.`, "error"); return; }
+  alvo.forEach((id) => { lancReal(b, id, k).lancado = true; });
+  if (form.aba === "valores") renderForm();
+  document.getElementById("btn-salvar").click();
+});
 document.getElementById("btn-salvar").addEventListener("click", () => {
   if (!validar()) return;
   const b = form.b, ids = idsDo(b), t = totaisDoMes(b, form.mes), semValor = ids.filter((id) => !lanc(b, id, form.mes)).length;
