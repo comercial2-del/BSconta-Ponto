@@ -197,9 +197,26 @@ async function requireRoleReal(expectedRole) {
     return null;
   }
 
+  if (querPortalRH) await rhCarregarFotosColaboradores();
+
   const session = { role: querPortalRH ? "RH" : "COLABORADOR", roleReal: perfilCompleto.role, userId: authSession.user.id, ...perfilCompleto };
   rhWriteCachedSession(session);
   return session;
+}
+
+/** RH: carrega nome → foto_url de todos os colaboradores com foto, para as
+ * telas do RH mostrarem a foto no lugar das iniciais (avatarInner, js/ui.js).
+ * Falha aqui nunca bloqueia a página — só ficam as iniciais. */
+async function rhCarregarFotosColaboradores() {
+  try {
+    const { data, error } = await sb.from("colaboradores").select("nome, foto_url").not("foto_url", "is", null);
+    if (error) throw error;
+    const mapa = {};
+    (data || []).forEach((c) => { if (c.foto_url && typeof rhNomeChaveFoto === "function") mapa[rhNomeChaveFoto(c.nome)] = c.foto_url; });
+    window.RH_FOTOS_POR_NOME = mapa;
+  } catch (e) {
+    console.warn("rhCarregarFotosColaboradores:", e);
+  }
 }
 
 /** Se já existir uma sessão real válida, manda direto pro portal certo.

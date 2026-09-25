@@ -157,6 +157,26 @@ function withBadges(navItems, badgeMap) {
   return navItems.map((item) => (item.href && badgeMap[item.href] ? { ...item, badge: badgeMap[item.href] } : item));
 }
 
+// ---------------------------------------------------------------------------
+// Fotos dos colaboradores nas telas do RH. O mapa é preenchido uma vez por
+// página (rhCarregarFotosColaboradores, em js/rh-supabase-auth.js) logo
+// depois do login do RH; avatarInner() mostra a foto quando existir e as
+// iniciais quando não houver (ou se a imagem falhar ao carregar).
+// ---------------------------------------------------------------------------
+window.RH_FOTOS_POR_NOME = window.RH_FOTOS_POR_NOME || {};
+function rhNomeChaveFoto(nome) {
+  return String(nome || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/\s+/g, " ");
+}
+function fotoColaborador(nome) {
+  return window.RH_FOTOS_POR_NOME[rhNomeChaveFoto(nome)] || null;
+}
+function avatarInner(nome, fotoUrl) {
+  const url = fotoUrl || fotoColaborador(nome);
+  const ini = initials(nome);
+  if (!url) return ini;
+  return `<img src="${esc(url)}" alt="" loading="lazy" data-ini="${esc(ini)}" onerror="this.parentNode&&(this.parentNode.textContent=this.dataset.ini)" />`;
+}
+
 function avatarColorClass(name) {
   const n = (name || "").split("").reduce((a, c) => a + c.charCodeAt(0), 0);
   return `c-${(n % 6) + 1}`;
