@@ -94,21 +94,21 @@
         overlay = document.createElement("div");
         overlay.className = "modal-overlay";
         overlay.id = "modal-visualizacoes";
-        overlay.innerHTML = '<div class="modal" style="max-width:620px"></div>';
+        overlay.innerHTML = '<div class="modal" style="max-width:620px;max-height:85vh;display:flex;flex-direction:column"></div>';
         document.body.appendChild(overlay);
         overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.classList.remove("open"); });
+        document.addEventListener("keydown", (e) => { if (e.key === "Escape") overlay.classList.remove("open"); });
       }
       overlay.querySelector(".modal").innerHTML = `
         <div class="modal-header"><div><h3>Quem visualizou</h3><p class="page-sub" style="margin:.2rem 0 0">${esc(c.titulo)}</p></div><button type="button" class="modal-close" data-fechar>${ICONS.x}</button></div>
-        <div class="modal-body">
+        <div class="modal-body" style="overflow-y:auto;flex:1;min-height:0">
           <div class="tabs" style="margin-bottom:.8rem">
             <button type="button" class="tab-btn active" data-vtab="viram">${ICONS.checkCircle}<span style="margin-left:.4rem">Visualizaram (${v.viram.length})</span></button>
             <button type="button" class="tab-btn" data-vtab="faltam">${ICONS.hourglass}<span style="margin-left:.4rem">Faltam visualizar (${v.faltam.length})</span></button>
           </div>
           <div data-vpanel="viram">${v.viram.length ? v.viram.map((p) => pessoa(p, `<span class="hint">${new Date(p.lidoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</span>`)).join("") : '<p class="hint">Ninguém visualizou ainda.</p>'}</div>
           <div data-vpanel="faltam" hidden>${v.faltam.length ? v.faltam.map((p) => pessoa(p, '<span class="badge badge-red">Não visualizou</span>')).join("") : '<p class="hint">Todos já visualizaram.</p>'}</div>
-        </div>
-        <div class="modal-footer"><button type="button" class="btn-primary auto" data-fechar>Fechar</button></div>`;
+        </div>`;
       overlay.querySelectorAll("[data-fechar]").forEach((b) => b.addEventListener("click", () => overlay.classList.remove("open")));
       overlay.querySelectorAll("[data-vtab]").forEach((b) => b.addEventListener("click", () => {
         overlay.querySelectorAll("[data-vtab]").forEach((x) => x.classList.toggle("active", x === b));
