@@ -15,11 +15,10 @@
 // O que continua aqui é só o que ainda é usado de verdade por outras telas:
 //   - assetPath(): monta o caminho de assets/ (logo, ícone) relativo à
 //     página atual — não é dado fictício, é utilitário de caminho.
-//   - EMPRESA_INFO: endereço/coordenadas REAIS da sede, usados só para
-//     SUGERIR automaticamente "Home Office" ou "Presencial" quando o
-//     navegador consegue localização no momento de bater o ponto (ver
-//     capturarLocalizacao() em js/ui.js) — o colaborador sempre confirma ou
-//     corrige antes de salvar; isto nunca é a única fonte de verdade.
+//   - EMPRESA_INFO: endereço/coordenadas REAIS da sede. No primeiro ponto
+//     do dia, "Na empresa" só fica liberado se a localização do navegador
+//     estiver dentro do raio da sede (ver abrirModalLocalPonto() em
+//     js/ui.js); fora do raio, ou sem localização, só "Home Office".
 //   - DEMO: mantido como um objeto vazio, de propósito — colaborador/
 //     ponto.html usa `DEMO.ponto` como uma "gaveta" em memória para guardar
 //     os dados REAIS do dia carregados de rh.ponto_registros
@@ -33,12 +32,20 @@ function assetPath(name) {
 }
 
 // Endereço/coordenadas da sede — ver explicação acima.
+// Global Tower — R. Queluzita, 34, Sala 1701-1712, Fernão Dias, BH/MG.
+// Coordenadas tiradas do Google Maps (plus code 435F+QP Fernão Dias).
+// raioPresencialMetros: distância máxima até a sede para o colaborador
+// poder marcar "Na empresa" no primeiro ponto do dia (trava em js/ui.js).
 const EMPRESA_INFO = {
-  nome: "BSconta+ — Sede",
-  endereco: "Av. Presidente Antônio Carlos, 1200 — Bairro Sion, Belo Horizonte/MG",
-  lat: -19.9227,
-  lng: -43.9451,
-  raioPresencialMetros: 150,
+  nome: "BSconta — Global Tower",
+  endereco: "R. Queluzita, 34 — Sala 1701-1712, Fernão Dias, Belo Horizonte/MG, 31910-252",
+  lat: -19.8730016,
+  lng: -43.9256631,
+  raioPresencialMetros: 200,
+  // Tolerância extra pela imprecisão do GPS (dentro de prédio a precisão
+  // costuma cair). Só usamos até este teto, pra uma leitura muito
+  // imprecisa (ex.: ±3 km) não liberar "Na empresa" de longe.
+  toleranciaPrecisaoMaxMetros: 100,
 };
 
 // Gaveta em memória para dados reais carregados em runtime — ver explicação

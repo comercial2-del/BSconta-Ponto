@@ -727,11 +727,28 @@ function geoLinkForPonto(geo, iso) {
 }
 
 /**
+ * Verifica se uma leitura de localização está dentro da área da empresa.
+ * Considera a imprecisão do GPS até o teto EMPRESA_INFO.toleranciaPrecisaoMaxMetros.
+ */
+function avaliarLocalEmpresa(geo) {
+  const dist = Math.round(distanciaMetros(geo.lat, geo.lng, EMPRESA_INFO.lat, EMPRESA_INFO.lng));
+  const tolerancia = Math.min(Number(geo.precisao) || 0, EMPRESA_INFO.toleranciaPrecisaoMaxMetros ?? 100);
+  return { dist, naEmpresa: dist - tolerancia <= EMPRESA_INFO.raioPresencialMetros };
+}
+
+function fmtDistancia(m) {
+  return m >= 1000 ? `${(m / 1000).toFixed(1).replace(".", ",")} km` : `${m} m`;
+}
+
+/**
  * Abre (criando se preciso) o modal de "onde você está registrando o
- * ponto" — chamado no PRIMEIRO ponto do dia. Tenta geolocalização real do
- * navegador e SUGERE Home Office/Presencial comparando com o endereço da
- * empresa (EMPRESA_INFO); o colaborador sempre confirma ou troca antes de
- * salvar. `onConfirm(local, geo)` é chamado ao confirmar.
+ * ponto" — chamado no PRIMEIRO ponto do dia.
+ *
+ * TRAVA DE LOCALIZAÇÃO: "Na empresa" só fica liberado quando o navegador
+ * devolve uma localização dentro do raio da sede (EMPRESA_INFO). Fora do
+ * raio, com permissão negada ou sem GPS, o botão fica bloqueado e só dá pra
+ * registrar como Home Office — evita marcar "Na empresa" por engano.
+ * Home Office é sempre permitido. `onConfirm(local, geo)` ao confirmar.
  */
 function abrirModalLocalPonto(onConfirm) {
   let overlay = document.getElementById("modal-local-ponto");
@@ -743,11 +760,12 @@ function abrirModalLocalPonto(onConfirm) {
       <div class="modal modal-sm">
         <div class="modal-header"><h3>Onde você está registrando o ponto?</h3></div>
         <div class="modal-body">
-          <div id="local-ponto-status" class="local-status"><span class="spinner spinner-sm"></span> Obtendo sua localização…</div>
+          <div id="local-ponto-status" class="local-status"></div>
           <div class="local-choice-grid">
             <button type="button" class="local-choice" data-local="HOME_OFFICE">${ICONS.home}<span>Home Office</span></button>
-            <button type="button" class="local-choice" data-local="PRESENCIAL">${ICONS.building}<span>Na empresa</span></button>
+            <button type="button" class="local-choice" data-local="PRESENCIAL">${ICONS.building}<span>Na empresa</span><small class="local-lock-note"></small></button>
           </div>
+          <p class="local-empresa-end">${ICONS.mapPin}<span>${esc(EMPRESA_INFO.nome)} · ${esc(EMPRESA_INFO.endereco)}</span></p>
         </div>
       </div>
     `;
@@ -756,26 +774,75 @@ function abrirModalLocalPonto(onConfirm) {
   overlay.classList.add("open");
   const statusEl = overlay.querySelector("#local-ponto-status");
   const choices = overlay.querySelectorAll(".local-choice");
-  choices.forEach((b) => b.classList.remove("suggested"));
-  statusEl.innerHTML = `<span class="spinner spinner-sm"></span> Obtendo sua localização…`;
+  const btnEmpresa = overlay.querySelector('[data-local="PRESENCIAL"]');
+  const noteEmpresa = btnEmpresa.querySelector(".local-lock-note");
 
   let geoResult = null;
-  capturarLocalizacao().then((res) => {
-    if (res.ok) {
+  let empresaLiberada = false;
+  let tentativa = 0;
+
+  function bloquearEmpresa(nota) {
+    empresaLiberada = false;
+    btnEmpresa.disabled = true;
+    btnEmpresa.classList.add("locked");
+    btnEmpresa.setAttribute("aria-disabled", "true");
+    noteEmpresa.textContent = nota;
+  }
+
+  function obterLocalizacao() {
+    const minha = ++tentativa;
+    geoResult = null;
+    choices.forEach((b) => b.classList.remove("suggested"));
+    bloquearEmpresa("Verificando…");
+    statusEl.className = "local-status";
+    statusEl.innerHTML = `<span class="spinner spinner-sm"></span> Obtendo sua localização…`;
+    capturarLocalizacao(12000).then((res) => {
+      if (minha !== tentativa || !overlay.classList.contains("open")) return;
+      if (!res.ok) {
+        bloquearEmpresa("Precisa da localização");
+        statusEl.className = "local-status warn";
+        statusEl.innerHTML = `${ICONS.alertCircle}<span>${esc(res.motivo)} Para marcar <strong>Na empresa</strong>, permita a localização no navegador. <button type="button" class="local-retry">${ICONS.refresh}Tentar de novo</button></span>`;
+        overlay.querySelector('[data-local="HOME_OFFICE"]').classList.add("suggested");
+        return;
+      }
       geoResult = { lat: res.lat, lng: res.lng, precisao: res.precisao };
-      const dist = Math.round(distanciaMetros(res.lat, res.lng, EMPRESA_INFO.lat, EMPRESA_INFO.lng));
-      const sugestao = dist <= EMPRESA_INFO.raioPresencialMetros ? "PRESENCIAL" : "HOME_OFFICE";
-      statusEl.innerHTML = `${ICONS.mapPin} Localização obtida — parece que você está <strong>${dist <= EMPRESA_INFO.raioPresencialMetros ? "na empresa" : "fora da empresa"}</strong> (precisão ~${res.precisao}m). Confirme abaixo:`;
-      overlay.querySelector(`[data-local="${sugestao}"]`)?.classList.add("suggested");
-    } else {
-      statusEl.innerHTML = `${ICONS.alertCircle} ${esc(res.motivo)} Selecione manualmente:`;
-    }
-  });
+      const { dist, naEmpresa } = avaliarLocalEmpresa(geoResult);
+      if (naEmpresa) {
+        empresaLiberada = true;
+        btnEmpresa.disabled = false;
+        btnEmpresa.classList.remove("locked");
+        btnEmpresa.removeAttribute("aria-disabled");
+        noteEmpresa.textContent = "";
+        btnEmpresa.classList.add("suggested");
+        statusEl.className = "local-status ok";
+        statusEl.innerHTML = `${ICONS.mapPin}<span>Você está <strong>na empresa</strong> (a ~${fmtDistancia(dist)}, precisão ~${res.precisao} m). Confirme abaixo:</span>`;
+      } else {
+        bloquearEmpresa("Fora da empresa");
+        overlay.querySelector('[data-local="HOME_OFFICE"]').classList.add("suggested");
+        statusEl.className = "local-status warn";
+        statusEl.innerHTML = `${ICONS.alertCircle}<span>Você está a <strong>~${fmtDistancia(dist)}</strong> da empresa (precisão ~${res.precisao} m). "Na empresa" só pode ser marcado dentro de ${EMPRESA_INFO.raioPresencialMetros} m da sede. <button type="button" class="local-retry">${ICONS.refresh}Verificar de novo</button></span>`;
+      }
+    });
+  }
+
+  if (!overlay.dataset.wired) {
+    overlay.dataset.wired = "1";
+    overlay.addEventListener("click", (e) => {
+      if (e.target.closest(".local-retry")) overlay._retry?.();
+    });
+  }
+  overlay._retry = obterLocalizacao;
+  obterLocalizacao();
 
   const handler = (e) => {
     const btn = e.target.closest(".local-choice");
     if (!btn) return;
+    if (btn.dataset.local === "PRESENCIAL" && !empresaLiberada) {
+      showToast("Para marcar \u201cNa empresa\u201d você precisa estar no local e com a localização permitida.", "error");
+      return;
+    }
     overlay.classList.remove("open");
+    tentativa++;
     choices.forEach((b) => b.removeEventListener("click", handler));
     onConfirm(btn.dataset.local, geoResult);
   };
