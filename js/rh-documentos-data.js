@@ -54,6 +54,7 @@ function rhMapDocumentoRow(row) {
     prazo: row.prazo,
     metodoAssinatura: row.metodo_assinatura,
     arquivadoEm: row.arquivado_colab_em || null,
+    arquivadoRhEm: row.arquivado_rh_em || null,
     removidoEm: row.removido_colab_em || null,
     data: row.enviado_em ? String(row.enviado_em).slice(0, 10) : row.created_at?.slice(0, 10),
   };
@@ -142,8 +143,10 @@ async function rhColaboradorMarcarAguardandoImportacao(documentoId) {
  * documento novo, não apagar o antigo. Remove a linha da tabela e o(s)
  * arquivo(s) do Storage. */
 async function rhExcluirDocumentoRH(documento) {
-  if (documento.status === "ASSINADO" || documento.status === "PUBLICADO") {
-    throw new Error("Documentos já assinados ou publicados não podem ser excluídos (ficam como registro). Envie um documento novo se for o caso.");
+  // Assinado/publicado é registro oficial: só pode ser excluído depois de
+  // arquivado pelo RH (dupla etapa — ver 25_documentos_arquivar_rh.sql).
+  if ((documento.status === "ASSINADO" || documento.status === "PUBLICADO") && !documento.arquivadoRhEm) {
+    throw new Error("Arquive o documento antes de excluí-lo (documentos assinados ou publicados só podem ser excluídos a partir da aba Arquivados).");
   }
   const caminhos = [documento.arquivoPath, documento.arquivoAssinadoPath].filter(Boolean);
   if (caminhos.length) {
@@ -227,4 +230,15 @@ function rhErroMigracao24(err) {
     return "Arquivar/excluir ainda não está ativo no banco. O RH precisa rodar db/supabase/24_documentos_arquivar_colaborador.sql no Supabase.";
   }
   return rhMensagemErroSupabase(err);
+}
+
+/** RH: arquiva/desarquiva um documento na Gestão de Documentos (coluna
+ * arquivado_rh_em — ver db/supabase/25_documentos_arquivar_rh.sql). Não
+ * muda nada na tela do colaborador. */
+async function rhArquivarDocumentoRH(documentoId, arquivar) {
+  const { error } = await sb.from("documentos").update({ arquivado_rh_em: arquivar ? new Date().toISOString() : null }).eq("id", documentoId);
+  if (error) {
+    if (/arquivado_rh_em/i.test(String(error.message))) throw new Error("Arquivar ainda não está ativo no banco. Rode db/supabase/25_documentos_arquivar_rh.sql no Supabase.");
+    throw error;
+  }
 }
