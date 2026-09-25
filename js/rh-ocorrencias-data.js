@@ -89,7 +89,7 @@ async function rhCarregarOcorrencias({ inicio, fim }) {
       const diaUtil = rhEhDiaDeTrabalho(c.dias_trabalho, d);
       if (reg && reg.entrada) {
         if ((reg.atraso_min || 0) > (typeof RH_TOLERANCIA_ATRASO_MIN !== "undefined" ? RH_TOLERANCIA_ATRASO_MIN : 15)) {
-          linhas.push({ ...base(c), data: d, dataFim: d, categoria: "ATRASO", situacao: "Atraso", justificacao: null, tipo: `${reg.atraso_min} min`, motivo: reg.alterado_pelo_rh ? "Alterado pelo RH" : "", status: "REGISTRADO", dias: 1 });
+          linhas.push({ ...base(c), data: d, dataFim: d, categoria: "ATRASO", situacao: "Atraso", justificacao: null, tipo: typeof fmtMinutos === "function" ? fmtMinutos(-reg.atraso_min) : `${reg.atraso_min} min`, motivo: reg.alterado_pelo_rh ? "Alterado pelo RH" : "", status: "REGISTRADO", dias: 1 });
         }
       } else if (diaUtil || reg?.status === "falta") {
         const emFerias = ferias.some((f) => f.colaborador_id === c.id && f.status === "APROVADA" && f.inicio <= d && f.fim >= d);

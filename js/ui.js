@@ -95,6 +95,28 @@ function initials(name) {
   return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase();
 }
 
+/**
+ * Formato único de horas em todo o sistema (RH e colaborador):
+ *   1h30 → "1:30h"   ·   30 min → "0:30m"
+ * `sinal: true` mostra "+" no crédito (hora extra / saldo positivo);
+ * valor negativo sempre sai com "-" (horas devendo / atraso).
+ */
+function fmtDuracao(horas, { sinal = false } = {}) {
+  if (horas === null || horas === undefined || horas === "" || Number.isNaN(Number(horas))) return "—";
+  const n = Number(horas);
+  const totalMin = Math.round(Math.abs(n) * 60);
+  const hh = Math.floor(totalMin / 60);
+  const mm = String(totalMin % 60).padStart(2, "0");
+  const corpo = hh >= 1 ? `${hh}:${mm}h` : `0:${mm}m`;
+  const prefixo = totalMin === 0 ? "" : n < 0 ? "-" : sinal ? "+" : "";
+  return prefixo + corpo;
+}
+/** Mesmo formato, recebendo minutos (ex.: atraso_min). */
+function fmtMinutos(min, opts) {
+  if (min === null || min === undefined) return "—";
+  return fmtDuracao(Number(min) / 60, opts);
+}
+
 function esc(s) {
   if (s === null || s === undefined) return "";
   return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
