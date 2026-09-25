@@ -176,8 +176,6 @@
           <button type="button" class="btn-ghost danger" id="btn-regenerar-acesso-perfil">Regenerar acesso</button>
         </div>
         <div style="display:flex;gap:.6rem">
-          <button type="button" class="btn-ghost" data-close-modal>Fechar</button>
-          <button type="button" class="btn-ghost" id="btn-historia-perfil">Ver história</button>
           <button type="button" class="btn-primary auto" id="btn-editar-perfil">Editar colaborador</button>
         </div>
       </div>
@@ -622,7 +620,6 @@
       wireModalClosers();
       document.querySelectorAll(".modal-close").forEach((button) => { button.innerHTML = ICONS.x; });
       document.getElementById("btn-editar-perfil").addEventListener("click", () => { if (perfilEmployeeId) openEditEmployee(perfilEmployeeId); });
-      document.getElementById("btn-historia-perfil")?.addEventListener("click", () => { if (perfilEmployeeId) window.location.href = `historia.html?id=${encodeURIComponent(perfilEmployeeId)}`; });
       document.getElementById("btn-excluir-perfil").addEventListener("click", () => { if (perfilEmployeeId) deleteEmployee(perfilEmployeeId); });
       document.getElementById("btn-regenerar-acesso-perfil")?.addEventListener("click", () => { if (perfilEmployeeId) regenerarAcessoParaColaborador(perfilEmployeeId); });
 
