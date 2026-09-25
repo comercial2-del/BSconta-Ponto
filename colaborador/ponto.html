@@ -232,14 +232,8 @@
         .map((it) => `${it.campoLabel} → ${it.horario}`)
         .join(", ");
     }
-    function fmtHoras(h) {
-      if (h === null || h === undefined) return "—";
-      const sinal = h < 0 ? "-" : "";
-      const abs = Math.abs(h);
-      const hh = Math.floor(abs);
-      const mm = Math.round((abs - hh) * 60);
-      return `${sinal}${hh}h${mm.toString().padStart(2, "0")}`;
-    }
+    // Formato único (1:30h / 0:30m) — ver fmtDuracao em js/ui.js.
+    function fmtHoras(h, opts) { return fmtDuracao(h, opts); }
 
     function passosDeHoje() {
       const p = DEMO.ponto;
@@ -637,7 +631,7 @@
 
             <div class="card card-p ponto-side-card ponto-bank-mini">
               <div class="bank-hours-ring-wrap">${progressRingSvg({ size: 62, stroke: 7, pct: Math.min((p.saldoBancoHoras / 10) * 100, 100), colorVar: "--indigo-500" })}
-                <div class="bank-hours-center"><strong>${p.saldoBancoHoras >= 0 ? "+" : ""}${p.saldoBancoHoras.toFixed(1).replace(".", ",")}h</strong><span>Banco</span></div>
+                <div class="bank-hours-center"><strong>${fmtDuracao(p.saldoBancoHoras, { sinal: true })}</strong><span>Banco</span></div>
               </div>
               <div class="bank-meta">
                 <p class="label">Meta diária</p>
@@ -650,11 +644,11 @@
               <div class="ponto-summary-row" style="margin-top:0.6rem">
                 <div class="ponto-summary-item">
                   <span class="label">Horas devendo</span>
-                  <strong>${horasDevendo > 0 ? fmtHoras(horasDevendo) : "—"}</strong>
+                  <strong${horasDevendo > 0 ? ' style="color:var(--red-600)"' : ""}>${horasDevendo > 0 ? fmtDuracao(-horasDevendo) : "—"}</strong>
                 </div>
                 <div class="ponto-summary-item">
                   <span class="label">Horas acumuladas</span>
-                  <strong>${horasAcumuladas > 0 ? "+" + fmtHoras(horasAcumuladas) : "—"}</strong>
+                  <strong${horasAcumuladas > 0 ? ' style="color:var(--emerald-600)"' : ""}>${horasAcumuladas > 0 ? fmtDuracao(horasAcumuladas, { sinal: true }) : "—"}</strong>
                 </div>
               </div>
             </div>
@@ -1167,7 +1161,7 @@
           <span class="history-summary-chip">Período <strong>${fmtDateBR(rangeInicio)}–${fmtDateBR(rangeFim)}</strong></span>
           <span class="history-summary-chip">Registros <strong>${rows.length}</strong></span>
           <span class="history-summary-chip">Horas <strong>${fmtHoras(totalHoras)}</strong></span>
-          <span class="history-summary-chip">Atrasos <strong>${atrasos ? `${atrasos} min` : "0 min"}</strong></span>
+          <span class="history-summary-chip">Atrasos <strong>${atrasos ? fmtMinutos(-atrasos) : "0:00m"}</strong></span>
         </div>
         ${rows.length ? `<div class="history-week">${rows.map((r) => weekDayCardHtml(r.data, {selected:false})).join("")}</div>` : `<div class="history-empty-range">Nenhum registro encontrado no período selecionado.</div>`}`;
       wrap.querySelectorAll("[data-dia]").forEach((cell) =>
@@ -1201,14 +1195,14 @@
         } else if (rec.status === "atraso") {
           bucket = "atraso"; statusLabel = "Atraso";
           timeLabel = rec.entrada ? (rec.saida ? `${rec.entrada} – ${rec.saida}` : `${rec.entrada} – em andamento`) : "";
-          metaLabel = rec.atrasoMin ? `${rec.atrasoMin} min de atraso` : "";
+          metaLabel = rec.atrasoMin ? `${fmtMinutos(-rec.atrasoMin)} de atraso` : "";
         } else if (rec.status === "completo" || rec.status === "hoje") {
           const isHome = rec.local === "HOME_OFFICE";
           const emAndamento = rec.status === "hoje" && !rec.saida;
           bucket = isHome ? "homeoffice" : "trabalhado";
           statusLabel = emAndamento ? "Em andamento" : "Trabalhado";
           timeLabel = rec.entrada ? (rec.saida ? `${rec.entrada} – ${rec.saida}` : `${rec.entrada} – em andamento`) : "";
-          if (rec.horasExtras) timeLabel += ` · +${fmtHoras(rec.horasExtras)} extra`;
+          if (rec.horasExtras) timeLabel += ` · ${fmtDuracao(rec.horasExtras, { sinal: true })} extra`;
           // Rodapé: total de horas (quando já apurado) + local do registro —
           // mesma informação que a visão mensal já mostra na tabela detalhada.
           metaLabel = [rec.horasTrabalhadas != null ? fmtHoras(rec.horasTrabalhadas) : "", isHome ? "Home office" : "Presencial"].filter(Boolean).join(" · ");
@@ -1340,8 +1334,8 @@
               <td>${h.saida || (h.status === "hoje" ? "Em andamento" : "—")}</td>
               <td>${h.intervaloSaida && h.intervaloVolta ? `${h.intervaloSaida}–${h.intervaloVolta}` : "—"}</td>
               <td class="cell-num">${h.horasTrabalhadas != null ? fmtHoras(h.horasTrabalhadas) : "—"}</td>
-              <td class="cell-num">${h.horasExtras ? fmtHoras(h.horasExtras) : "—"}</td>
-              <td class="cell-num">${h.atrasoMin ? `${h.atrasoMin} min` : "—"}</td>
+              <td class="cell-num">${h.horasExtras ? fmtDuracao(h.horasExtras, { sinal: true }) : "—"}</td>
+              <td class="cell-num">${h.atrasoMin ? fmtMinutos(-h.atrasoMin) : "—"}</td>
               <td>${localBadgeHtml(h.local)}${geoLinkForPonto(h.geo, h.data)}</td>
               <td>${statusPillPonto(h.status)}</td>
               <td>${h.alteradoPeloRH ? `<span class="badge-alterado" title="${esc(h.alteradoPeloRH.motivo)} — ${fmtDate(h.alteradoPeloRH.em.slice(0,10))}">${ICONS.edit}Alterado</span>` : "—"}</td>

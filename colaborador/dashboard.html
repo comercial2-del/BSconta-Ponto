@@ -66,11 +66,8 @@
         .filter((h) => h.data >= inicioIso && h.data <= iso(hoje) && h.horasTrabalhadas)
         .reduce((acc, h) => acc + h.horasTrabalhadas, 0);
     }
-    function fmtHorasCurto(h) {
-      const sinal = h < 0 ? "-" : "";
-      const abs = Math.abs(h);
-      return `${sinal}${Math.floor(abs)}h${Math.round((abs - Math.floor(abs)) * 60).toString().padStart(2, "0")}`;
-    }
+    // Formato único (1:30h / 0:30m) — ver fmtDuracao em js/ui.js.
+    function fmtHorasCurto(h) { return fmtDuracao(h); }
     function proximoHorarioPonto() {
       const p = dados.ponto.hoje;
       const hp = session.horarioPrevisto;
@@ -124,7 +121,7 @@
               <div class="summary-strip" style="margin-top:1.1rem">
                 <div class="summary-left">
                   <span class="summary-icon">${ICONS.clock}</span>
-                  <span>Banco de horas: <strong>${p.saldoBancoHoras >= 0 ? "+" : ""}${p.saldoBancoHoras.toFixed(1).replace(".", ",")}h</strong></span>
+                  <span>Banco de horas: <strong>${fmtDuracao(p.saldoBancoHoras, { sinal: true })}</strong></span>
                 </div>
                 <a href="ponto.html" class="card-link">Ver jornada completa →</a>
               </div>
@@ -227,7 +224,7 @@
         { label: "Status do ponto", value: statusHoje.label, format: "text", tone: statusHoje.tone, icon: ICONS.checkCircle, sub: p.hoje.local ? LOCAL_PONTO_LABELS[p.hoje.local] : "local ainda não informado", chevron: true },
         { label: "Horas trabalhadas hoje", value: horasHojeEstimado != null ? fmtHorasCurto(horasHojeEstimado) : "—", format: "text", tone: "teal", icon: ICONS.clock, sub: p.hoje.saida ? "encerrado hoje" : "estimado, atualiza ao recarregar", chevron: true },
         { label: "Horas na semana", value: fmtHorasCurto(horasSemana), format: "text", tone: "green", icon: ICONS.calendar, sub: "segunda até hoje", chevron: true },
-        { label: "Banco de horas", value: `${p.saldoBancoHoras >= 0 ? "+" : ""}${p.saldoBancoHoras.toFixed(1).replace(".", ",")}h`, format: "text", tone: "indigo", icon: ICONS.hourglass, sub: "acumulado no mês", chevron: true },
+        { label: "Banco de horas", value: fmtDuracao(p.saldoBancoHoras, { sinal: true }), format: "text", tone: "indigo", icon: ICONS.hourglass, sub: "acumulado no mês", chevron: true },
         { label: "Dias de férias disponíveis", value: f.saldo.saldoDias, tone: "green", icon: ICONS.palmTree, sub: `${f.saldo.diasUsados} dias já usados`, chevron: true },
         { label: "Solicitações em aberto", value: pendentesSolic, tone: "amber", icon: ICONS.fileText, sub: "aguardando o RH", chevron: true },
         { label: "Comunicados não lidos", value: naoLidos, tone: "violet", icon: ICONS.megaphone, sub: "do RH", chevron: true },

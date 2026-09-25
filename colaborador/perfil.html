@@ -139,7 +139,7 @@
                 ${infoRow("Departamento", perfil.departamento)}
                 ${infoRow("Data de admissão", fmt(perfil.admissao))}
                 ${infoRow("Gestor responsável", perfil.gestor)}
-                ${infoRow("Regime", perfil.horasSemanais ? `CLT — Jornada ${perfil.horasSemanais}h semanais` : "—")}
+                ${infoRow("Regime", perfil.horasSemanais ? `CLT — Jornada ${fmtDuracao(perfil.horasSemanais)} semanais` : "—")}
                 ${infoRow("Matrícula", perfil.codigo)}
               </div>
               <p class="hint" style="margin-top:1rem">Precisa corrigir alguma informação profissional? Abra uma <a href="solicitacoes.html" class="login-link">solicitação de atualização cadastral</a> para o RH.</p>
