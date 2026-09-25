@@ -7,6 +7,246 @@
   <link rel="icon" type="image/png" href="../assets/bsconta-icon.png" />
   <link rel="stylesheet" href="../css/styles.css" />
   <link rel="stylesheet" href="../css/theme-v2.css" />
+  <style>
+.bnf{--green-50:#ecfdf3;--green-600:#079455;--green-700:#067647;--orange-50:#fff6ed;--orange-600:#e04f16;--red-50:#fef3f2;--red-500:#f04438;--red-600:#d92d20;--pink-500:#e8456b;--violet-50:#f4f3ff;--violet-600:#6941c6;--teal-50:#effcfb;--teal-600:#0e9384;--blue-50:#eef4ff;--blue-100:#dfeaff;--blue-500:#3967e8;--blue-600:#2f5bd3;--blue-700:#2347ad;--shadow-md:0 10px 26px rgba(16,24,40,.06);--shadow-lg:0 22px 55px rgba(16,24,40,.14)}
+.bnf button{font-family:inherit;cursor:pointer}
+.bnf .bf-toolbar .bf-inp{width:auto;margin:0}
+.bnf .bf-toolbar{justify-content:flex-end}
+.bnf .bf-btn{font-size:.85rem;font-weight:700}
+.bnf .bf-btn-sm{font-size:.78rem}
+.bnf input.bf-inp,.bnf select.bf-inp{margin:0;font-size:.88rem}
+.bnf .bf-money input.bf-inp{min-height:0}
+@media (max-width:640px){.bnf .bf-toolbar .bf-inp{flex:1 1 45%}}.bnf svg{display:block}
+.bnf .bf-inp,.bnf select.bf-inp,.bnf input.bf-inp{font:inherit;color:var(--text)}
+
+
+/* ---------- Shell (igual ao sistema) ---------- */
+
+/* ---------- Elementos ---------- */
+.bf-avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:.72rem;font-weight:800;flex-shrink:0}
+.bf-c1{background:#eef4ff;color:#2f5bd3}.bf-c2{background:#ecfdf3;color:#067647}.bf-c3{background:#fff6ed;color:#c4320a}.bf-c4{background:#f4f3ff;color:#5925dc}.bf-c5{background:#fdf2fa;color:#c11574}
+.bf-btn{display:inline-flex;align-items:center;justify-content:center;gap:.45rem;border-radius:10px;font-weight:700;font-size:.85rem;padding:.62rem .95rem;border:1px solid transparent;transition:background .15s,box-shadow .15s,transform .15s,border-color .15s;white-space:nowrap}
+.bf-btn svg{width:16px;height:16px}
+.bf-btn-primary{background:var(--blue-600);color:#fff;box-shadow:0 6px 14px rgba(47,91,211,.18)}
+.bf-btn-primary:hover{background:#294fb8;transform:translateY(-1px)}
+.bf-btn-ghost{background:#fff;border-color:var(--border);color:var(--text)}
+.bf-btn-ghost:hover{background:var(--surface-2);border-color:#d5dbe7}
+.bf-btn-danger-ghost{background:#fff;border-color:#fecdca;color:var(--red-600)}
+.bf-btn-sm{padding:.42rem .7rem;font-size:.78rem;border-radius:9px}
+.bf-icon-btn{width:34px;height:34px;border-radius:9px;border:1px solid var(--border);background:#fff;display:grid;place-items:center;color:var(--text-soft)}
+.bf-icon-btn:hover{background:var(--surface-2);color:var(--blue-600)}
+.bf-icon-btn svg{width:16px;height:16px}
+.bf-badge{display:inline-flex;align-items:center;gap:.3rem;font-size:.7rem;font-weight:700;padding:.22rem .55rem;border-radius:999px}
+.bf-b-green{background:var(--green-50);color:var(--green-700)}.bf-b-gray{background:#f2f4f7;color:#475467}.bf-b-blue{background:var(--blue-50);color:var(--blue-700)}.bf-b-orange{background:var(--orange-50);color:var(--orange-600)}.bf-b-pink{background:#fff0f3;color:#c01048}
+.bf-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm)}
+
+.bf-toolbar{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap}
+.bf-month-nav{display:inline-flex;align-items:center;background:#fff;border:1px solid var(--border);border-radius:11px;height:40px}
+.bf-month-nav button{border:0;background:transparent;width:36px;height:100%;display:grid;place-items:center;color:var(--text-soft)}
+.bf-month-nav button:hover{color:var(--blue-600)}
+.bf-month-nav button svg{width:16px;height:16px}
+.bf-month-nav span{min-width:150px;text-align:center;font-weight:700;font-size:.85rem;display:flex;flex-direction:column;line-height:1.1}
+.bf-month-nav span small{font-size:.63rem;font-weight:700;color:var(--text-faint);text-transform:uppercase;letter-spacing:.05em}
+select.bf-inp,input.bf-inp{height:40px;border:1px solid var(--border);border-radius:10px;background:#fff;padding:0 .75rem;min-width:0;outline:none;transition:border-color .15s,box-shadow .15s}
+select.bf-inp:focus,input.bf-inp:focus{border-color:var(--blue-500);box-shadow:0 0 0 3px rgba(57,103,232,.14)}
+
+.bf-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1rem;margin-bottom:1.2rem}
+.bf-kpi{padding:1rem 1.1rem}
+.bf-kpi-top{display:flex;align-items:center;gap:.6rem;margin-bottom:.55rem}
+.bf-kpi-ico{width:34px;height:34px;border-radius:10px;display:grid;place-items:center}
+.bf-kpi-ico svg{width:17px;height:17px}
+.bf-kpi-label{margin:0;font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-faint)}
+.bf-kpi-value{margin:0;font-size:1.45rem;font-weight:800;letter-spacing:-.01em}
+.bf-kpi-sub{font-size:.75rem;color:var(--text-faint);margin-top:.15rem}
+
+.bf-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:1rem}
+.bf-bcard{display:flex;flex-direction:column;overflow:hidden;cursor:pointer;transition:border-color .15s,box-shadow .15s,transform .15s}
+.bf-bcard:hover{border-color:#c9d6f6;box-shadow:var(--shadow-md);transform:translateY(-1px)}
+.bf-bcard.bf-inactive{opacity:.72}
+.bf-bcard-top{display:flex;gap:.85rem;padding:1.05rem 1.1rem .8rem}
+.bf-b-ico{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;flex-shrink:0}
+.bf-b-ico svg{width:20px;height:20px}
+.bf-bcard h3{margin:0;font-size:1rem;font-weight:800}
+.bf-bcard .bf-desc{margin:.2rem 0 0;color:var(--text-soft);font-size:.82rem;line-height:1.4}
+.bf-bcard-stats{display:grid;grid-template-columns:1fr 1fr;gap:.55rem;padding:0 1.1rem .9rem}
+.bf-stat{background:var(--surface-2);border:1px solid #eef1f6;border-radius:10px;padding:.55rem .7rem}
+.bf-stat small{display:block;font-size:.66rem;font-weight:700;color:var(--text-faint);text-transform:uppercase;letter-spacing:.05em}
+.bf-stat b{font-size:.95rem}
+.bf-foot-actions{display:flex;gap:.4rem;align-items:center;margin-left:auto;flex-wrap:wrap;justify-content:flex-end}
+.bf-bcard-foot .bf-chip{white-space:nowrap}
+.bf-btn-launch{background:var(--green-50);color:var(--green-700);border-color:#abefc6}
+.bf-btn-launch:hover{background:#dcfae6}
+.bf-icon-btn.bf-danger{color:var(--red-600);border-color:#fecdca}
+.bf-icon-btn.bf-danger:hover{background:var(--red-50);color:var(--red-600)}
+.bf-confirm-ico.bf-danger{background:var(--red-50);color:var(--red-600)}
+.bf-confirm-ico.bf-ok{background:var(--green-50);color:var(--green-700)}
+.bf-bcard-foot{margin-top:auto;display:flex;flex-wrap:wrap;row-gap:.5rem;align-items:center;justify-content:space-between;gap:.5rem;padding:.65rem 1.1rem;border-top:1px solid var(--border);background:var(--surface-2)}
+.bf-chip{display:inline-flex;align-items:center;gap:.35rem;font-size:.76rem;font-weight:600;color:var(--text-soft)}
+.bf-chip svg{width:14px;height:14px;color:var(--text-faint)}
+.bf-empty{padding:3rem 1rem;text-align:center;color:var(--text-soft)}
+.bf-empty .bf-e-ico{width:52px;height:52px;border-radius:14px;background:var(--surface-2);border:1px solid var(--border);display:grid;place-items:center;margin:0 auto .8rem;color:var(--text-faint)}
+
+/* ---------- Modal ---------- */
+.bf-overlay{position:fixed;inset:0;background:rgba(16,24,40,.48);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;padding:1.2rem;z-index:50}
+.bf-overlay.bf-open{display:flex;animation:fade .15s ease}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@keyframes pop{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+.bf-modal{background:#fff;border-radius:18px;box-shadow:var(--shadow-lg);width:100%;max-width:940px;max-height:min(90vh,820px);display:flex;flex-direction:column;animation:pop .18s ease;overflow:hidden}
+.bf-modal-sm{max-width:440px}
+.bf-modal-head{padding:1.1rem 1.3rem .9rem;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:.8rem;flex-shrink:0}
+.bf-modal-head h2{margin:0;font-size:1.15rem;font-weight:800}
+.bf-modal-head p{margin:.2rem 0 0;color:var(--text-soft);font-size:.82rem}
+.bf-modal-head .bf-x{margin-left:auto}
+.bf-tabs{display:flex;gap:.25rem;padding:0 1.3rem;border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto}
+.bf-tabs button{border:0;background:transparent;padding:.8rem .2rem;margin-right:1rem;font-weight:700;font-size:.84rem;color:var(--text-soft);border-bottom:2px solid transparent;display:flex;align-items:center;gap:.45rem;white-space:nowrap}
+.bf-tabs button .bf-n{width:20px;height:20px;border-radius:50%;background:#f2f4f7;color:var(--text-soft);display:grid;place-items:center;font-size:.7rem}
+.bf-tabs button.bf-active{color:var(--blue-700);border-bottom-color:var(--blue-600)}
+.bf-tabs button.bf-active .bf-n{background:var(--blue-600);color:#fff}
+.bf-modal-body{padding:1.2rem 1.3rem;overflow-y:auto;flex:1;min-height:0}
+.bf-modal-foot{padding:.85rem 1.3rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;align-items:center;gap:.6rem;flex-shrink:0;background:#fff}
+.bf-modal-foot .bf-hint{margin-right:auto;font-size:.78rem;color:var(--text-faint)}
+.bf-sec{margin-bottom:1.3rem}
+.bf-sec-title{display:flex;align-items:center;gap:.5rem;margin:0 0 .7rem;font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-soft)}
+.bf-sec-title .bf-dot{width:6px;height:6px;border-radius:50%;background:var(--pink-500)}
+.bf-form-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:.9rem}
+.bf-field label{display:block;font-size:.78rem;font-weight:700;color:var(--text-soft);margin-bottom:.35rem}
+.bf-field .bf-inp{width:100%}
+.bf-field.bf-full{grid-column:1/-1}
+.bf-swatches{display:flex;flex-wrap:wrap;gap:.45rem}
+.bf-sw-icon{width:40px;height:40px;border-radius:10px;border:1.5px solid var(--border);background:#fff;display:grid;place-items:center;color:var(--text-soft);transition:border-color .12s,background .12s,color .12s}
+.bf-sw-icon svg{width:18px;height:18px}
+.bf-sw-icon:hover{border-color:#c9d6f6}
+.bf-sw-icon.bf-active{border-color:var(--blue-600);background:var(--blue-50);color:var(--blue-600)}
+.bf-sw-tone{width:32px;height:32px;border-radius:50%;border:2px solid transparent;box-shadow:inset 0 0 0 1px rgba(15,23,42,.06);transition:transform .12s}
+.bf-sw-tone:hover{transform:scale(1.08)}
+.bf-sw-tone.bf-active{border-color:var(--text);box-shadow:0 0 0 2px #fff inset}
+.bf-preview-card{display:flex;gap:.7rem;align-items:center;border:1px dashed var(--border);border-radius:12px;padding:.7rem .85rem;background:var(--surface-2)}
+.bf-preview-card b{display:block;font-size:.9rem}.bf-preview-card small{color:var(--text-faint);font-size:.75rem}
+.bf-seg{display:inline-flex;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:.2rem;height:40px}
+.bf-seg button{border:0;background:transparent;border-radius:8px;padding:0 .9rem;font-weight:700;font-size:.8rem;color:var(--text-soft);display:flex;align-items:center;gap:.4rem}
+.bf-seg button.bf-active{background:#fff;box-shadow:var(--shadow-sm)}
+.bf-seg button.bf-active.bf-on{color:var(--green-700)}.bf-seg button.bf-active.bf-off{color:var(--red-600)}
+.bf-seg button i{width:7px;height:7px;border-radius:50%;background:currentColor}
+.bf-radio-cards{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}
+.bf-rcard{border:1.5px solid var(--border);border-radius:12px;padding:.85rem .95rem;display:flex;gap:.7rem;align-items:flex-start;cursor:pointer;background:#fff;text-align:left;transition:border-color .15s,background .15s}
+.bf-rcard:hover{border-color:#c9d6f6}
+.bf-rcard.bf-active{border-color:var(--blue-600);background:var(--blue-50)}
+.bf-rcard .bf-rd{width:18px;height:18px;border-radius:50%;border:2px solid #d0d5dd;flex-shrink:0;margin-top:.1rem;display:grid;place-items:center}
+.bf-rcard.bf-active .bf-rd{border-color:var(--blue-600)}
+.bf-rcard.bf-active .bf-rd::after{content:"";width:8px;height:8px;border-radius:50%;background:var(--blue-600)}
+.bf-rcard b{display:block;font-size:.88rem}
+.bf-rcard small{color:var(--text-soft);font-size:.76rem;line-height:1.35}
+.bf-picker{margin-top:.8rem;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.bf-picker-head{display:flex;gap:.6rem;align-items:center;padding:.6rem .7rem;background:var(--surface-2);border-bottom:1px solid var(--border)}
+.bf-picker-head .bf-inp{flex:1;height:36px}
+.bf-picker-list{max-height:210px;overflow-y:auto}
+.bf-pick{display:flex;align-items:center;gap:.65rem;padding:.55rem .8rem;border-bottom:1px solid #f2f4f7;cursor:pointer}
+.bf-pick:last-child{border-bottom:0}
+.bf-pick:hover{background:var(--surface-2)}
+.bf-pick input{width:17px;height:17px;accent-color:var(--blue-600)}
+.bf-pick small{color:var(--text-faint);margin-left:auto;font-size:.75rem}
+
+.bf-values-bar{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.8rem}
+.bf-values-bar .bf-spacer{flex:1}
+.bf-apply-all{display:flex;gap:.4rem;align-items:center}
+.bf-money{position:relative;display:flex;align-items:center}
+.bf-money span{position:absolute;left:.6rem;font-size:.78rem;color:var(--text-faint);font-weight:600;pointer-events:none}
+.bf-money input{padding-left:2rem !important;width:100%}
+.bf-money.bf-fixo input{background:var(--blue-50);border-color:#c9d6f6;font-weight:700;color:var(--blue-700)}
+.bf-from-fixo{font-size:.62rem;font-weight:700;color:var(--blue-600);display:block;margin-top:.15rem}
+.bf-fixo-lbl{display:none;font-size:.66rem;font-weight:700;color:var(--text-faint);text-transform:uppercase;margin-bottom:.2rem}
+.bf-colab-list{border:1px solid var(--border);border-radius:12px;max-height:380px;overflow-y:auto;background:#fff}
+.bf-colab-row{padding:.8rem .9rem;border-bottom:1px solid #eef1f6}
+.bf-colab-row:last-child{border-bottom:0}
+.bf-colab-main{display:grid;grid-template-columns:minmax(160px,1.2fr) 112px 104px 104px 110px 112px;gap:.6rem;align-items:center}
+.bf-colab-name{display:flex;gap:.6rem;align-items:center;min-width:0}
+.bf-colab-name b{display:block;font-size:.86rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bf-colab-name small{color:var(--text-faint);font-size:.73rem}
+.bf-colab-main .bf-inp{height:36px;width:100%}
+.bf-recv{font-weight:800;font-size:.92rem}
+.bf-recv small{display:block;font-size:.66rem;font-weight:700;color:var(--text-faint);text-transform:uppercase;letter-spacing:.04em}
+.bf-recv.bf-pos{color:var(--green-700)}.bf-recv.bf-wait{color:var(--text-faint)}
+.bf-toggle{display:inline-flex;align-items:center;gap:.45rem;font-size:.76rem;font-weight:700;color:var(--text-soft);cursor:pointer;user-select:none}
+.bf-toggle input{display:none}
+.bf-toggle .bf-tr{width:34px;height:20px;border-radius:999px;background:#d0d5dd;position:relative;transition:background .15s;flex-shrink:0}
+.bf-toggle .bf-tr::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:transform .15s}
+.bf-toggle input:checked + .bf-tr{background:var(--green-600)}
+.bf-toggle input:checked + .bf-tr::after{transform:translateX(14px)}
+.bf-col-head{display:grid;grid-template-columns:minmax(160px,1.2fr) 112px 104px 104px 110px 112px;gap:.6rem;padding:.55rem .9rem;font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint);background:var(--surface-2);border:1px solid var(--border);border-bottom:0;border-radius:12px 12px 0 0}
+.bf-col-head + .bf-colab-list{border-radius:0 0 12px 12px}
+.bf-next-line{margin-top:.6rem;margin-left:2.6rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;font-size:.78rem;color:var(--text-soft);background:var(--blue-50);border:1px dashed #c9d6f6;border-radius:10px;padding:.45rem .6rem}
+.bf-next-line b{color:var(--blue-700)}
+.bf-next-line .bf-money{width:120px}.bf-next-line .bf-money input{height:32px}
+.bf-hist-link{border:0;background:transparent;color:var(--blue-600);font-weight:700;font-size:.76rem;padding:0;margin-left:auto;display:inline-flex;gap:.3rem;align-items:center}
+.bf-hist-link svg{width:13px;height:13px;transition:transform .15s}
+.bf-hist-link.bf-open svg{transform:rotate(180deg)}
+.bf-hist-box{margin:.6rem 0 0 2.6rem;border-left:2px solid var(--blue-100);padding-left:.8rem;display:grid;gap:.35rem}
+.bf-hist-item{display:flex;gap:.8rem;flex-wrap:wrap;font-size:.78rem;color:var(--text-soft)}
+.bf-hist-item b{color:var(--text);min-width:110px}
+.bf-hist-item .bf-neg{color:var(--red-600)}.bf-hist-item .bf-ok{color:var(--green-700);font-weight:700}
+.bf-note{display:flex;gap:.55rem;align-items:flex-start;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:.65rem .8rem;font-size:.8rem;color:var(--text-soft);margin-bottom:.9rem}
+.bf-note svg{width:16px;height:16px;flex-shrink:0;color:var(--blue-600);margin-top:.05rem}
+.bf-err{color:var(--red-600);font-size:.75rem;font-weight:600;margin-top:.3rem;display:none}
+.bf-err.bf-show{display:block}
+.bf-inp.bf-invalid{border-color:var(--red-500) !important;box-shadow:0 0 0 3px rgba(240,68,56,.12) !important}
+
+table.bf-tbl{width:100%;border-collapse:collapse;font-size:.83rem}
+.bf-tbl th{text-align:left;font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint);padding:.6rem .7rem;background:var(--surface-2);border-bottom:1px solid var(--border);position:sticky;top:0}
+.bf-tbl td{padding:.65rem .7rem;border-bottom:1px solid #eef1f6;vertical-align:middle}
+.bf-tbl td.bf-num,.bf-tbl th.bf-num{text-align:right;white-space:nowrap}
+.bf-tbl-wrap{border:1px solid var(--border);border-radius:12px;overflow:auto;max-height:400px}
+.bf-month-group td{background:#fbfcfe;font-weight:800;color:var(--blue-700);font-size:.78rem}
+
+.bf-confirm-ico{width:52px;height:52px;border-radius:50%;background:var(--blue-50);color:var(--blue-600);display:grid;place-items:center;margin-bottom:.8rem}
+.bf-confirm-ico svg{width:24px;height:24px}
+.bf-sum-list{display:grid;gap:.4rem;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:.8rem .9rem;font-size:.84rem}
+.bf-sum-list div{display:flex;justify-content:space-between;gap:1rem}
+.bf-sum-list span{color:var(--text-soft)}
+
+
+/* ---------- Visão do colaborador ---------- */
+.bf-stat.bf-fixo{background:#fff;border:1.5px solid #c9d6f6}.bf-stat.bf-fixo b{color:var(--blue-700)}
+
+/* ---------- Responsivo ---------- */
+@media (max-width:1100px){.bf-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:900px){
+  .bf-col-head{display:none}
+  .bf-col-head + .bf-colab-list{border-radius:12px}
+  .bf-colab-main{grid-template-columns:1fr 1fr;row-gap:.55rem}
+  .bf-colab-name{grid-column:1/-1}
+  .bf-next-line,.bf-hist-box{margin-left:0}
+  .bf-fixo-lbl{display:block}
+  .bf-colab-main > div:nth-child(2){grid-column:1/-1}
+}
+@media (max-width:640px){
+  .bf-kpis{grid-template-columns:1fr 1fr;gap:.6rem}
+  .bf-kpi-value{font-size:1.15rem}
+  .bf-form-grid,.bf-radio-cards{grid-template-columns:1fr}
+  .bf-toolbar{width:100%}
+  .bf-toolbar > *{flex:1 1 auto}
+  .bf-month-nav span{min-width:0;flex:1}
+  .bf-overlay{padding:0;align-items:flex-end}
+  .bf-modal{max-height:94vh;border-radius:18px 18px 0 0}
+  .bf-modal-foot .bf-hint{display:none}
+  .bf-modal-foot .bf-btn{flex:1}
+  .bf-grid{grid-template-columns:1fr}
+}
+
+.bnf .bf-mine{display:grid;gap:1rem}
+.bnf .bf-mine-card{padding:1.1rem 1.2rem}
+.bnf .bf-mine-head{display:flex;gap:.8rem;align-items:center;margin-bottom:.9rem;flex-wrap:wrap}
+.bnf .bf-mine-head h3{margin:0;font-size:1rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+.bnf .bf-mine-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.6rem}
+.bnf .bf-mine-grid .bf-stat b{font-size:1.02rem}
+.bnf .bf-stat.bf-neg b{color:var(--red-600)}.bnf .bf-stat.bf-pos b{color:var(--green-700)}
+.bnf .bf-stat.bf-next{background:var(--blue-50);border-color:#dbe5fb}.bnf .bf-stat.bf-next b{color:var(--blue-700)}
+.bnf .bf-stat.bf-fixo{background:#fff;border:1.5px solid #c9d6f6}.bnf .bf-stat.bf-fixo b{color:var(--blue-700)}
+.bnf .bf-readonly{margin-left:auto;display:inline-flex;gap:.3rem;align-items:center;font-size:.72rem;font-weight:700;color:var(--text-faint)}
+.bnf .bf-readonly svg{width:13px;height:13px}
+.bnf details summary{cursor:pointer;font-weight:700;font-size:.8rem;color:var(--blue-600);margin-top:.8rem}
+@media (max-width:1100px){.bnf .bf-mine-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:640px){.bnf .bf-mine-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.bnf .bf-readonly{margin-left:0}}
+  </style>
 </head>
 <body>
   <div class="app-shell">
@@ -26,131 +266,97 @@
   <script src="../js/supabase-client.js"></script>
   <script src="../js/rh-supabase-auth.js"></script>
   <script src="../js/rh-beneficios-data.js"></script>
-  <script src="../js/rh-historia-data.js"></script>
-  <script src="../js/rh-historia-ui.js"></script>
   <script>
+/*
+ * Meus benefícios (colaborador) — SOMENTE VISUALIZAÇÃO.
+ * Mostra, por benefício: valor fixo mensal, valor do mês, desconto, quanto
+ * recebeu (quando o RH lançou) e o previsto do próximo mês, com histórico.
+ * Dados: rh.beneficios + rh.beneficio_valores_fixos + rh.beneficio_competencias
+ * (o RLS devolve só as linhas do próprio colaborador).
+ */
 (async function () {
-    const session = await requireRoleReal("COLABORADOR");
-    if (!session) return;
-    const TONE_BG = { orange: "var(--orange-50)", red: "var(--red-50)", indigo: "var(--indigo-50)", teal: "var(--teal-50)", violet: "var(--violet-50)", green: "var(--emerald-50)" };
-    const TONE_FG = { orange: "var(--orange-600)", red: "var(--red-600)", indigo: "var(--indigo-600)", teal: "var(--teal-600)", violet: "var(--violet-600)", green: "var(--emerald-600)" };
+  const session = await requireRoleReal("COLABORADOR");
+  if (!session) return;
+  renderShell(session, NAV_COLABORADOR);
+  renderTopHeader(document.getElementById("top-header"), session, { notifications: [] });
 
-    // Cada benefício vira um card clicável. Quando o RH registrou os
-    // detalhes (rh.colaborador_beneficios), o card mostra valor e desconto
-    // e o clique abre o card de detalhes no meio da tela.
-    let itens = [];
-    function montarItens(meusBeneficios, minhasConcessoes) {
-      const usadas = new Set();
-      const norm = (t) => String(t || "").trim().toLowerCase();
-      const lista = meusBeneficios.map((b) => {
-        const c = minhasConcessoes.find((x) => !usadas.has(x.id) && (x.beneficio_id === b.id || norm(x.beneficio) === norm(b.nome)));
-        if (c) usadas.add(c.id);
-        return { id: "b-" + b.id, nome: b.nome, desc: b.desc, icon: b.icon, tone: b.tone, status: b.status, concessao: c || null };
-      });
-      minhasConcessoes.filter((c) => !usadas.has(c.id)).forEach((c) => lista.push({ id: "c-" + c.id, nome: c.beneficio, desc: c.descricao, icon: "heart", tone: "indigo", status: c.status, concessao: c }));
-      return lista;
-    }
-    const PERIODO_CURTO = { MENSAL: "/mês", QUINZENAL: "/quinzena", SEMANAL: "/semana", DIARIO: "/dia", ANUAL: "/ano", UNICO: "" };
+  const P = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+  const I = {
+    heart: P('<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/>'),
+    utensils: P('<path d="M3 2v7c0 1.1.9 2 2 2h2a2 2 0 0 0 2-2V2M6 2v20M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/>'),
+    bus: P('<rect x="4" y="3" width="16" height="14" rx="2"/><path d="M4 11h16M8 21v-4M16 21v-4M8 7h8"/>'),
+    shield: P('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8v6M9 11h6"/>'),
+    book: P('<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/>'),
+    home: P('<path d="M3 11 12 3l9 8"/><path d="M5 10v10h14V10"/>'),
+    gift: P('<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M19 12v9H5v-9M7.5 8a2.5 2.5 0 1 1 0-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 1 1 0 5"/>'),
+    checkCircle: P('<circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/>'),
+    dollar: P('<path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>'),
+    briefcase: P('<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>'),
+    left: P('<path d="m15 18-6-6 6-6"/>'), right: P('<path d="m9 18 6-6-6-6"/>'),
+    lock: P('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'),
+    alert: P('<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16v.01"/>'),
+  };
+  const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+  const ATUAL = rhCompetenciaAtual();
+  const brl = (v) => (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const addMes = (k, n) => { const [y, m] = k.split("-").map(Number); const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
+  const rotulo = (k) => { const [y, m] = k.split("-").map(Number); return `${MESES[m - 1]}/${y}`; };
+  const mesCurto = (k) => MESES[Number(k.split("-")[1]) - 1];
+  const CATEGORIAS = { ALIMENTACAO: ["Alimentação / Refeição", "utensils"], TRANSPORTE: ["Transporte", "bus"], SAUDE: ["Saúde", "shield"], EDUCACAO: ["Educação", "book"], HOME_OFFICE: ["Home office", "home"], OUTROS: ["Outros", "gift"] };
+  const TONS = { orange: ["var(--orange-50)", "var(--orange-600)"], red: ["var(--red-50)", "var(--red-600)"], blue: ["var(--blue-50)", "var(--blue-600)"], indigo: ["var(--blue-50)", "var(--blue-600)"], teal: ["var(--teal-50)", "var(--teal-600)"], violet: ["var(--violet-50)", "var(--violet-600)"], green: ["var(--green-50)", "var(--green-700)"] };
+  const ALIAS = { car: "bus", dollarSign: "dollar" };
+  const recebido = (l) => (l && l.lancado ? Math.max(0, (l.valor || 0) - (l.desconto || 0)) : 0);
+  function lanc(b, k) {
+    const l = b.valores[session.employeeId]?.[k];
+    if (l) return l;
+    const fixo = Number(b.fixos[session.employeeId]) || 0;
+    return fixo > 0 && k >= ATUAL ? { valor: fixo, desconto: 0, lancado: false, doFixo: true } : null;
+  }
 
-    function render() {
-      document.getElementById("content").innerHTML = `
-        <div class="space-y">
-          <div class="row-between">
-            <div>
-              <h1 class="page-title">Benefícios</h1>
-              <p class="page-sub">Seus benefícios na BSconta+. Toque em um benefício para ver os detalhes.</p>
-            </div>
-            <a href="solicitacoes.html" class="btn-ghost">${ICONS.messageSquare}<span>Solicitar alteração</span></a>
+  let beneficios = [];
+  let mes = ATUAL;
+
+  function render() {
+    const prox = addMes(mes, 1);
+    const s = mes === ATUAL ? "Competência atual" : mes < ATUAL ? "Histórico" : "Próxima competência";
+    const lista = beneficios.filter((b) => b.status === "ATIVO" || Object.keys(b.valores[session.employeeId] || {}).length);
+    document.getElementById("content").innerHTML = `<div class="bnf">
+      <div class="row-between" style="flex-wrap:wrap;gap:1rem;align-items:flex-end;margin-bottom:1.2rem">
+        <div><h1 class="page-title">Meus benefícios</h1><p class="page-sub">Veja o que você recebeu em cada mês, os descontos e o valor previsto para o próximo mês.</p></div>
+        <div class="bf-month-nav"><button type="button" data-d="-1" aria-label="Mês anterior">${I.left}</button><span>${rotulo(mes)}<small>${s}</small></span><button type="button" data-d="1" aria-label="Próximo mês">${I.right}</button></div>
+      </div>
+      <div class="bf-mine">${lista.length ? lista.map((b) => {
+        const cat = CATEGORIAS[b.categoria] || CATEGORIAS.OUTROS, tom = TONS[b.tone] || TONS.blue, ico = I[ALIAS[b.icon] || b.icon] || I[cat[1]];
+        const l = lanc(b, mes), n = lanc(b, prox), fixo = Number(b.fixos[session.employeeId]) || 0;
+        const hist = Object.keys(b.valores[session.employeeId] || {}).filter((k) => k < mes).sort().reverse();
+        return `<div class="bf-card bf-mine-card">
+          <div class="bf-mine-head"><div class="bf-b-ico" style="background:${tom[0]};color:${tom[1]}">${ico}</div><div><h3>${esc(b.nome)} ${b.status === "ATIVO" ? '<span class="bf-badge bf-b-green">Ativo</span>' : '<span class="bf-badge bf-b-gray">Inativo</span>'}</h3><small style="color:var(--text-faint)">${esc(b.descricao || cat[0])}</small></div><span class="bf-readonly">${I.lock}Somente visualização</span></div>
+          <div class="bf-mine-grid">
+            <div class="bf-stat bf-fixo"><small>Valor fixo mensal</small><b>${fixo ? brl(fixo) : "—"}</b></div>
+            <div class="bf-stat"><small>Valor em ${mesCurto(mes)}</small><b>${l ? brl(l.valor) : "—"}</b></div>
+            <div class="bf-stat ${l?.desconto ? "bf-neg" : ""}"><small>Desconto</small><b>${l ? (l.desconto ? "- " + brl(l.desconto) : "Sem desconto") : "—"}</b></div>
+            <div class="bf-stat ${l?.lancado ? "bf-pos" : ""}"><small>Você recebeu</small><b>${l ? (l.lancado ? brl(recebido(l)) : "Ainda não lançado") : "—"}</b></div>
+            <div class="bf-stat bf-next"><small>Previsto ${rotulo(prox)}</small><b>${n ? brl(n.valor) : "—"}</b></div>
           </div>
-          ${itens.length
-            ? `<div class="benefit-grid">${itens.map((it) => {
-                const c = it.concessao;
-                return `
-              <button type="button" class="card benefit-card benefit-card-click" data-beneficio="${it.id}">
-                <div class="benefit-icon" style="background:${TONE_BG[it.tone] || TONE_BG.indigo};color:${TONE_FG[it.tone] || TONE_FG.indigo}">${ICONS[it.icon] || ICONS.heart}</div>
-                <div style="flex:1;min-width:0;text-align:left">
-                  <div class="row-between" style="margin-bottom:0.1rem">
-                    <p class="title">${esc(it.nome)}</p>
-                    ${statusBadgeHtml(it.status, STATUS_LABELS)}
-                  </div>
-                  <p class="desc">${esc(it.desc || "")}</p>
-                  ${c ? `<div class="benefit-values">
-                    ${c.valor != null ? `<span class="bf-valor">${rhBrl(c.valor)}<small>${PERIODO_CURTO[c.periodicidade] || ""}</small></span>` : ""}
-                    ${c.possui_desconto ? `<span class="doc-missing" style="font-weight:700">${ICONS.dollarSign}<span>Desconto ${rhBrl(c.valor_desconto)}</span></span>` : `<span class="badge badge-green">Sem desconto</span>`}
-                  </div>` : ""}
-                </div>
-                <span class="bf-chevron">${ICONS.chevronRight}</span>
-              </button>`;
-              }).join("")}</div>`
-            : emptyStateHtml({ icon: ICONS.heart, title: "Nenhum benefício por aqui", desc: "Ainda não há benefícios atribuídos a você. Fale com o RH se acha que algo está faltando." })}
+          ${hist.length ? `<details><summary>Histórico (${hist.length} ${hist.length === 1 ? "mês" : "meses"})</summary><div class="bf-hist-box" style="margin-left:0;margin-top:.6rem">${hist.map((k) => { const x = b.valores[session.employeeId][k]; return `<div class="bf-hist-item"><b>${rotulo(k)}</b><span>Valor ${brl(x.valor)}</span><span class="${x.desconto ? "bf-neg" : ""}">Desconto ${brl(x.desconto)}</span><span class="${x.lancado ? "bf-ok" : ""}">${x.lancado ? "Recebido " + brl(recebido(x)) : "Não lançado"}</span></div>`; }).join("")}</div></details>` : ""}
         </div>`;
-      document.querySelectorAll("[data-beneficio]").forEach((b) => b.addEventListener("click", () => abrirDetalhe(itens.find((x) => x.id === b.dataset.beneficio))));
-    }
+      }).join("") : `<div class="bf-card bf-empty"><div class="bf-e-ico">${I.heart}</div><b>Nenhum benefício para você</b><p>Quando o RH conceder um benefício, ele aparece aqui.</p></div>`}</div>
+    </div>`;
+    document.querySelectorAll("[data-d]").forEach((x) => x.addEventListener("click", () => { mes = addMes(mes, Number(x.dataset.d)); render(); }));
+  }
 
-    function abrirDetalhe(it) {
-      if (!it) return;
-      const c = it.concessao;
-      let overlay = document.getElementById("modal-beneficio-detalhe");
-      if (!overlay) {
-        overlay = document.createElement("div");
-        overlay.className = "modal-overlay";
-        overlay.id = "modal-beneficio-detalhe";
-        overlay.innerHTML = '<div class="modal" style="max-width:520px"></div>';
-        document.body.appendChild(overlay);
-        overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.classList.remove("open"); });
-        document.addEventListener("keydown", (e) => { if (e.key === "Escape") overlay.classList.remove("open"); });
-      }
-      const info = (l, v) => `<div class="ad-info"><span>${l}</span><strong>${v}</strong></div>`;
-      const liquido = c && c.valor != null ? Number(c.valor) - (c.possui_desconto ? Number(c.valor_desconto || 0) : 0) : null;
-      overlay.querySelector(".modal").innerHTML = `
-        <div class="modal-header">
-          <div class="ad-head">
-            <div class="benefit-icon" style="width:44px;height:44px;background:${TONE_BG[it.tone] || TONE_BG.indigo};color:${TONE_FG[it.tone] || TONE_FG.indigo}">${ICONS[it.icon] || ICONS.heart}</div>
-            <div><h3>${esc(it.nome)}</h3>${it.desc ? `<p class="page-sub" style="margin:.15rem 0 0">${esc(it.desc)}</p>` : ""}</div>
-          </div>
-          <button type="button" class="modal-close" data-fechar aria-label="Fechar">${ICONS.x}</button>
-        </div>
-        <div class="modal-body">
-          <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem">${statusBadgeHtml(it.status, STATUS_LABELS)}${c?.informado_em ? `<span class="hint">Informado pelo RH em ${new Date(c.informado_em).toLocaleDateString("pt-BR")}</span>` : ""}</div>
-          ${c ? `
-            <div class="bf-destaque">
-              <div><span>Valor do benefício</span><strong>${c.valor != null ? rhBrl(c.valor) : "—"}</strong><small>${esc(RH_PERIODICIDADE[c.periodicidade] || "")}</small></div>
-              <div class="${c.possui_desconto ? "is-desconto" : ""}"><span>Desconto</span><strong>${c.possui_desconto ? "− " + rhBrl(c.valor_desconto) : "Sem desconto"}</strong><small>${c.possui_desconto ? "descontado de você" : ""}</small></div>
-              ${liquido != null ? `<div class="is-liquido"><span>Você recebe</span><strong>${rhBrl(liquido)}</strong><small>${esc(RH_PERIODICIDADE[c.periodicidade] || "")}</small></div>` : ""}
-            </div>
-            <div class="ad-grid" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-top:1rem">
-              ${info("Início", fmtDate(c.data_inicio))}
-              ${info("Término", c.data_fim ? fmtDate(c.data_fim) : "Sem data de término")}
-            </div>
-            ${c.descricao ? `<div class="ad-bloco"><span>Descrição</span><p>${esc(c.descricao)}</p></div>` : ""}`
-          : `<p class="page-sub" style="margin:0">O RH ainda não registrou valor, periodicidade ou desconto para este benefício. Se tiver dúvidas, abra uma solicitação.</p>`}
-        </div>
-        <div class="modal-footer">
-          <a href="solicitacoes.html" class="btn-ghost" style="width:auto">${ICONS.messageSquare}<span>Tenho uma dúvida</span></a>
-          <button type="button" class="btn-primary auto" data-fechar>Fechar</button>
-        </div>`;
-      overlay.querySelectorAll("[data-fechar]").forEach((b) => b.addEventListener("click", () => overlay.classList.remove("open")));
-      requestAnimationFrame(() => overlay.classList.add("open"));
-    }
-
-    if (session) {
-      renderShell(session, NAV_COLABORADOR);
-      renderTopHeader(document.getElementById("top-header"), session, { notifications: [] });
-      try {
-        const meusBeneficios = await rhCarregarBeneficiosColaborador();
-        let minhasConcessoes = [];
-        if (session.employeeId) {
-          try { minhasConcessoes = await rhListarConcessoes(session.employeeId); } catch (e) { minhasConcessoes = []; }
-        }
-        itens = montarItens(meusBeneficios, minhasConcessoes);
-        render();
-      } catch (err) {
-        rhShowFatalError(rhMensagemErroSupabase(err));
-      }
-    }
-
+  if (!session.employeeId) {
+    rhShowFatalError("Este login não está vinculado a um cadastro de colaborador. Peça ao RH para vincular seu usuário.");
+    return;
+  }
+  try {
+    beneficios = await rhCarregarMeusBeneficios(session.employeeId);
+    render();
+  } catch (err) {
+    document.getElementById("content").innerHTML = `<div class="bnf"><div class="bf-card bf-empty"><div class="bf-e-ico">${I.alert}</div><b>Não foi possível carregar seus benefícios</b><p>${esc(rhErroMigracao26(err))}</p></div></div>`;
+  }
 })();
-</script>
+  </script>
   <script src="../js/ui-effects.js"></script>
 </body>
 </html>
