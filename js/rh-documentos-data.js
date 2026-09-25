@@ -53,6 +53,8 @@ function rhMapDocumentoRow(row) {
     assinadoEm: row.assinado_em,
     prazo: row.prazo,
     metodoAssinatura: row.metodo_assinatura,
+    arquivadoEm: row.arquivado_colab_em || null,
+    removidoEm: row.removido_colab_em || null,
     data: row.enviado_em ? String(row.enviado_em).slice(0, 10) : row.created_at?.slice(0, 10),
   };
 }
@@ -202,4 +204,27 @@ async function rhColaboradorRegistrarAssinatura({ documentoId, colaboradorId, fi
   });
   if (rpcErr) throw rpcErr;
   return true;
+}
+
+/** Colaborador: arquiva/desarquiva um documento concluído (assinado ou
+ * publicado) — ver db/supabase/24_documentos_arquivar_colaborador.sql. */
+async function rhColaboradorArquivarDocumento(documentoId, arquivar) {
+  const { error } = await sb.rpc("colaborador_arquivar_documento", { p_documento_id: documentoId, p_arquivar: !!arquivar });
+  if (error) throw error;
+}
+
+/** Colaborador: exclui da PRÓPRIA tela um documento já arquivado. O RH
+ * continua com o registro e os PDFs. */
+async function rhColaboradorRemoverDocumento(documentoId) {
+  const { error } = await sb.rpc("colaborador_remover_documento", { p_documento_id: documentoId });
+  if (error) throw error;
+}
+
+/** Mensagem amigável quando a migração 24 ainda não foi aplicada. */
+function rhErroMigracao24(err) {
+  const msg = String(err?.message || err || "");
+  if (/colaborador_arquivar_documento|colaborador_remover_documento|could not find the function|schema cache/i.test(msg)) {
+    return "Arquivar/excluir ainda não está ativo no banco. O RH precisa rodar db/supabase/24_documentos_arquivar_colaborador.sql no Supabase.";
+  }
+  return rhMensagemErroSupabase(err);
 }
