@@ -7,6 +7,11 @@
   <link rel="icon" type="image/png" href="../assets/bsconta-icon.png" />
   <link rel="stylesheet" href="../css/styles.css" />
   <link rel="stylesheet" href="../css/theme-v2.css" />
+  <style>
+    .doc-icon-btn.doc-icon-danger { color: var(--red-600); }
+    .doc-icon-btn.doc-icon-danger:hover { background: var(--red-50); border-color: var(--red-200, #fecaca); }
+    .seg-tabs button svg { width: 15px; height: 15px; }
+  </style>
 </head>
 <body>
   <div class="app-shell">
@@ -99,6 +104,7 @@
     function origemLabel(origem) { return ({ ENVIADO_RH: "Enviado pelo RH", IMPORTADO_PREPARADO: "Importado preparado", GOVBR: "GOV.BR", EXTERNA: "Importado assinado", LEGADO: "Publicado" })[origem] || origem || "—"; }
     function safeDocs() {
       return cacheDocs.filter((d) => {
+        if (!!d.arquivadoRhEm !== !!state.arquivados) return false;
         if (state.colaborador && d.colaborador !== state.colaborador) return false;
         if (state.tipo && d.tipo !== state.tipo) return false;
         if (state.status && d.status !== state.status) return false;
@@ -108,7 +114,8 @@
     }
 
     function render() {
-      const docs = cacheDocs;
+      const docs = cacheDocs.filter((d) => !d.arquivadoRhEm);
+      const qtdArquivados = cacheDocs.length - docs.length;
       const assinatura = docs.filter((d) => d.workflow === "ASSINATURA");
       const pendentes = assinatura.filter((d) => d.status === "PENDENTE" || d.status === "AGUARDANDO_IMPORTACAO").length;
       const assinados = assinatura.filter((d) => d.status === "ASSINADO").length;
@@ -136,6 +143,10 @@
           <div id="kpi-grid"></div>
 
           <div class="card card-p">
+            <div class="seg-tabs" role="tablist" style="margin-bottom:.9rem">
+              <button type="button" role="tab" data-arq="0" class="${state.arquivados ? "" : "active"}">${ICONS.fileText}Ativos<span class="count">${docs.length}</span></button>
+              <button type="button" role="tab" data-arq="1" class="${state.arquivados ? "active" : ""}">${ICONS.archive}Arquivados<span class="count">${qtdArquivados}</span></button>
+            </div>
             <div class="filters-row" style="margin-bottom:1rem">
               <select id="f-colaborador"><option value="">Todos os colaboradores</option>${colaboradores.map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join("")}</select>
               <select id="f-tipo"><option value="">Todos os tipos</option>${tipos.map((t) => `<option value="${esc(t)}">${esc(t)}</option>`).join("")}</select>
@@ -158,6 +169,13 @@
         document.getElementById(`f-${key}`).addEventListener("change", (e) => { state[key] = e.target.value; renderTable(); });
       });
       document.getElementById("btn-upload").addEventListener("click", () => openDocumentModal("SEND"));
+      document.querySelectorAll("[data-arq]").forEach((b) => b.addEventListener("click", () => {
+        state.arquivados = b.dataset.arq === "1";
+        document.querySelectorAll("[data-arq]").forEach((x) => x.classList.toggle("active", x === b));
+        renderTable();
+      }));
+      // Mantém os filtros escolhidos ao redesenhar a tela.
+      ["colaborador", "tipo", "status", "workflow"].forEach((key) => { const el = document.getElementById(`f-${key}`); if (el && state[key]) el.value = state[key]; });
       renderTable();
     }
 
@@ -179,11 +197,15 @@
                   <button type="button" class="btn-ghost doc-icon-btn" title="Visualizar documento" data-view="${esc(d.id)}">${ICONS.eye}</button>
                   ${d.workflow === "ASSINATURA" ? (d.status === "ASSINADO" ? `<button type="button" class="btn-ghost doc-icon-btn" title="Baixar documento assinado" data-download-signed="${esc(d.id)}">${ICONS.download}</button>` : `<button type="button" class="btn-ghost doc-icon-btn" title="Lembrar colaborador" data-remind="${esc(d.id)}">${ICONS.send}</button>`) : ""}
                   ${d.status === "ASSINADO" ? `<a class="btn-ghost doc-icon-btn" title="Validar assinatura" href="https://validar.iti.gov.br/" target="_blank" rel="noopener">${ICONS.shield}</a>` : ""}
-                  ${d.status !== "ASSINADO" && d.status !== "PUBLICADO" ? `<button type="button" class="btn-ghost doc-icon-btn" title="Excluir documento" data-excluir="${esc(d.id)}">${ICONS.trash}</button>` : ""}
+                  ${d.arquivadoRhEm
+                    ? `<button type="button" class="btn-ghost doc-icon-btn" title="Desarquivar documento" data-desarquivar="${esc(d.id)}">${ICONS.refresh}</button><button type="button" class="btn-ghost doc-icon-btn doc-icon-danger" title="Excluir documento" data-excluir="${esc(d.id)}">${ICONS.trash}</button>`
+                    : `<button type="button" class="btn-ghost doc-icon-btn" title="Arquivar documento" data-arquivar="${esc(d.id)}">${ICONS.archive}</button>${d.status !== "ASSINADO" && d.status !== "PUBLICADO" ? `<button type="button" class="btn-ghost doc-icon-btn doc-icon-danger" title="Excluir documento" data-excluir="${esc(d.id)}">${ICONS.trash}</button>` : ""}`}
                 </div></td>
               </tr>`).join("")}</tbody>
           </table>
-        </div>` : emptyStateHtml({ icon: ICONS.fileText, title: "Nenhum documento encontrado", desc: "Ajuste os filtros ou crie um novo documento para assinatura." });
+        </div>` : (state.arquivados
+          ? emptyStateHtml({ icon: ICONS.archive, title: "Nenhum documento arquivado", desc: "Use o botão Arquivar na lista de ativos para tirar da frente o que já foi concluído." })
+          : emptyStateHtml({ icon: ICONS.fileText, title: "Nenhum documento encontrado", desc: "Ajuste os filtros ou crie um novo documento para assinatura." }));
 
       document.querySelectorAll("[data-view]").forEach((b) => b.addEventListener("click", () => { const d = cacheDocs.find((x) => x.id === b.dataset.view); openPreview(b.dataset.view, d?.status === "ASSINADO"); }));
       document.querySelectorAll("[data-download-signed]").forEach((b) => b.addEventListener("click", () => downloadDoc(b.dataset.downloadSigned, true)));
@@ -206,13 +228,31 @@
           }
         })
       );
+      document.querySelectorAll("[data-arquivar], [data-desarquivar]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          const arquivar = !!b.dataset.arquivar;
+          const id = b.dataset.arquivar || b.dataset.desarquivar;
+          b.disabled = true;
+          try {
+            await rhArquivarDocumentoRH(id, arquivar);
+            await refrescarDocumentos();
+            showToast(arquivar ? "Documento arquivado. Ele fica na aba Arquivados." : "Documento voltou para os ativos.", "success");
+            render();
+          } catch (err) {
+            showToast(rhMensagemErroSupabase(err), "error");
+            b.disabled = false;
+          }
+        })
+      );
       document.querySelectorAll("[data-excluir]").forEach((b) =>
         b.addEventListener("click", async () => {
           const d = cacheDocs.find((x) => x.id === b.dataset.excluir);
           if (!d) return;
           const ok = await confirmDialog({
             title: "Excluir documento",
-            message: `Excluir "${d.titulo || d.tipo}" de ${d.colaborador}? O arquivo também será removido do armazenamento. Esta ação não pode ser desfeita.`,
+            message: (d.status === "ASSINADO" || d.status === "PUBLICADO")
+              ? `Excluir DEFINITIVAMENTE "${d.titulo || d.tipo}" de ${d.colaborador}? Este documento está ${d.status === "ASSINADO" ? "assinado" : "publicado"} — o registro e os PDFs (original e assinado) serão apagados para o RH e para o colaborador. Esta ação não pode ser desfeita.`
+              : `Excluir "${d.titulo || d.tipo}" de ${d.colaborador}? O arquivo também será removido do armazenamento. Esta ação não pode ser desfeita.`,
             confirmLabel: "Excluir",
             danger: true,
           });
