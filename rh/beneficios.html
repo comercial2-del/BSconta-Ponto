@@ -35,16 +35,17 @@
     .tone-swatch-grid { display: flex; flex-wrap: wrap; gap: 0.5rem; }
     .tone-swatch { width: 30px; height: 30px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; box-shadow: inset 0 0 0 1px rgba(15,23,42,0.06); }
     .tone-swatch.is-active { border-color: var(--text); }
-    .benef-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; justify-content: flex-end; }
-    .benef-actions select { min-width: 200px; }
-    .benef-add-wrap { position: relative; }
+    .benef-head { position: relative; z-index: 30; }
+    .benef-actions { display: flex; gap: 0.6rem; flex-wrap: nowrap; flex-shrink: 0; align-items: center; justify-content: flex-end; }
+    .benef-actions select { width: 240px; min-width: 0; flex: 0 1 240px; }
+    .benef-add-wrap { position: relative; flex-shrink: 0; }
     #btn-novo-beneficio svg:last-child { width: 15px; height: 15px; margin-left: 0.1rem; opacity: 0.85; }
-    .benef-add-menu { width: 18.5rem; }
+    .benef-add-menu { width: 18.5rem; z-index: 80; }
     .benef-add-menu .dd-item { align-items: flex-start; }
     .benef-add-menu .dd-item svg { margin-top: 0.15rem; }
     .benef-add-menu .dd-item span { display: flex; flex-direction: column; gap: 0.1rem; }
     .benef-add-menu .dd-item small { font-size: 0.75rem; color: var(--text-faint); font-weight: 500; }
-    @media (max-width: 640px) { .benef-actions { width: 100%; justify-content: stretch; } .benef-actions select { flex: 1; min-width: 0; } }
+    @media (max-width: 640px) { .benef-head { flex-wrap: wrap; } .benef-actions { width: 100%; } .benef-actions select { flex: 1 1 auto; width: auto; } }
   </style>
 </head>
 <body>
@@ -162,7 +163,7 @@
 
       document.getElementById("content").innerHTML = `
         <div class="space-y">
-          <div class="row-between">
+          <div class="row-between benef-head">
             <div>
               <h1 class="page-title">Benefícios</h1>
               <p class="page-sub">Cadastre os benefícios da empresa e escolha se valem para todos ou só para colaboradores específicos.</p>
