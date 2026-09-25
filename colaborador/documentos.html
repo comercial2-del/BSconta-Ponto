@@ -7,6 +7,21 @@
   <link rel="icon" type="image/png" href="../assets/bsconta-icon.png" />
   <link rel="stylesheet" href="../css/styles.css" />
   <link rel="stylesheet" href="../css/theme-v2.css" />
+  <style>
+    .doc-page { display: flex; flex-direction: column; gap: 1rem; }
+    .doc-page > * { margin: 0 !important; }
+    .doc-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    @media (max-width: 900px) { .doc-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .doc-kpi { text-align: left; cursor: pointer; font: inherit; width: 100%; transition: border-color .15s, box-shadow .15s, transform .15s; }
+    .doc-kpi:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+    .doc-kpi.is-active { border-color: var(--indigo-400, #818cf8); box-shadow: 0 0 0 3px var(--indigo-50, #eef2ff); }
+    .doc-tabs-head { display: flex; flex-direction: column; gap: .55rem; margin-bottom: 1rem; }
+    .doc-tabs-hint { margin: 0; font-size: .8rem; color: var(--text-faint); }
+    .document-card.is-archived { opacity: .88; background: var(--surface-2); }
+    .document-card-actions .btn-ghost.danger { color: var(--red-600); }
+    .document-card-actions .btn-ghost.danger:hover { background: var(--red-50); border-color: var(--red-200, #fecaca); }
+    .status-badge.status-PUBLICADO { background: var(--teal-50); color: var(--teal-600); }
+  </style>
 </head>
 <body>
   <div class="app-shell">
@@ -88,47 +103,118 @@
     function statusChip(status) { return `<span class="status-badge status-${status}">${statusLabels[status] || status}</span>`; }
     function isSignatureDoc(d) { return d.workflow === "ASSINATURA"; }
 
+    // Aba ativa da lista única de documentos.
+    let abaAtiva = null;
+
+    function classificar() {
+      const docs = myDocs().filter((d) => !d.removidoEm);
+      const ativos = docs.filter((d) => !d.arquivadoEm);
+      return {
+        PENDENTES: ativos.filter((d) => isSignatureDoc(d) && d.status !== "ASSINADO"),
+        ASSINADOS: ativos.filter((d) => isSignatureDoc(d) && d.status === "ASSINADO"),
+        PUBLICADOS: ativos.filter((d) => d.workflow === "PUBLICADO"),
+        ARQUIVADOS: docs.filter((d) => d.arquivadoEm),
+      };
+    }
+
+    const ABAS = [
+      { key: "PENDENTES", label: "Para assinar", icon: "signature", tone: "indigo" },
+      { key: "ASSINADOS", label: "Assinados", icon: "checkCircle", tone: "green" },
+      { key: "PUBLICADOS", label: "Publicados", icon: "fileText", tone: "teal" },
+      { key: "ARQUIVADOS", label: "Arquivados", icon: "archive", tone: "orange" },
+    ];
+    const VAZIO = {
+      PENDENTES: { icon: "signature", title: "Nada para assinar", desc: "Quando o RH enviar um documento para assinatura, ele aparece aqui." },
+      ASSINADOS: { icon: "checkCircle", title: "Nenhum documento assinado", desc: "Os documentos que você assinar ficam aqui até você arquivá-los." },
+      PUBLICADOS: { icon: "fileText", title: "Nenhum documento publicado", desc: "Holerites e outros arquivos disponibilizados pelo RH aparecem aqui." },
+      ARQUIVADOS: { icon: "archive", title: "Nenhum documento arquivado", desc: "Arquive documentos assinados ou publicados para deixar sua lista mais limpa." },
+    };
+
     function render() {
-      const docs = myDocs();
-      const assinatura = docs.filter(isSignatureDoc);
-      const pendentes = assinatura.filter((d) => d.status !== "ASSINADO");
-      const assinados = assinatura.filter((d) => d.status === "ASSINADO");
-      const publicados = docs.filter((d) => d.workflow === "PUBLICADO");
+      const grupos = classificar();
+      if (!abaAtiva) abaAtiva = grupos.PENDENTES.length ? "PENDENTES" : grupos.ASSINADOS.length ? "ASSINADOS" : grupos.PUBLICADOS.length ? "PUBLICADOS" : "PENDENTES";
+      const lista = grupos[abaAtiva];
+      const pendentes = grupos.PENDENTES;
+      const vazio = VAZIO[abaAtiva];
 
       document.getElementById("content").innerHTML = `
-        <div class="space-y">
-          <div class="row-between"><div><h1 class="page-title">Documentos</h1><p class="page-sub">Visualize seus documentos, assine os que estiverem pendentes e acompanhe o histórico.</p></div></div>
+        <div class="space-y doc-page">
+          <div class="row-between"><div><h1 class="page-title">Documentos</h1><p class="page-sub">Assine os pendentes, consulte seus holerites e arquive o que já foi concluído.</p></div></div>
           ${pendentes.length ? `<div class="doc-alert"><span>${ICONS.alertCircle}</span><div><strong>${pendentes.length} documento${pendentes.length > 1 ? "s" : ""} aguardando sua assinatura</strong><p>Abra o PDF antes de escolher GOV.BR ou enviar o arquivo assinado de volta.</p></div></div>` : ""}
-          <div class="kpi-grid">
-            <div class="kpi-card kpi-card--icon tone-indigo"><div class="kpi-card-top"><div class="kpi-icon tone-indigo">${ICONS.signature}</div><p class="kpi-label">Para assinar</p></div><p class="kpi-value">${pendentes.length}</p></div>
-            <div class="kpi-card kpi-card--icon tone-green"><div class="kpi-card-top"><div class="kpi-icon tone-green">${ICONS.checkCircle}</div><p class="kpi-label">Assinados</p></div><p class="kpi-value">${assinados.length}</p></div>
-            <div class="kpi-card kpi-card--icon tone-teal"><div class="kpi-card-top"><div class="kpi-icon tone-teal">${ICONS.fileText}</div><p class="kpi-label">Publicados</p></div><p class="kpi-value">${publicados.length}</p></div>
+          <div class="kpi-grid doc-kpis">
+            ${ABAS.map((a) => `<button type="button" class="kpi-card kpi-card--icon tone-${a.tone} doc-kpi ${abaAtiva === a.key ? "is-active" : ""}" data-aba="${a.key}"><div class="kpi-card-top"><div class="kpi-icon tone-${a.tone}">${ICONS[a.icon]}</div><p class="kpi-label">${a.label}</p></div><p class="kpi-value">${grupos[a.key].length}</p></button>`).join("")}
           </div>
           <div class="card card-p">
-            <div class="doc-section-heading"><div><h2>Documentos para assinatura</h2><p>Os documentos abaixo foram enviados pelo RH ou importados já preparados para assinatura.</p></div><span class="badge badge-neutral">${assinatura.length} documento${assinatura.length !== 1 ? "s" : ""}</span></div>
-            <div class="doc-list">${assinatura.length ? assinatura.map(renderDocCard).join("") : emptyStateHtml({ icon: ICONS.signature, title: "Nenhum documento para assinatura", desc: "Quando o RH enviar um documento, ele aparecerá aqui." })}</div>
-          </div>
-          <div class="card card-p">
-            <div class="doc-section-heading"><div><h2>Documentos publicados</h2><p>Holerites e outros documentos já disponibilizados para consulta.</p></div></div>
-            <div id="published-table"></div>
+            <div class="doc-tabs-head">
+              <div class="seg-tabs" role="tablist">
+                ${ABAS.map((a) => `<button type="button" role="tab" aria-selected="${abaAtiva === a.key}" class="${abaAtiva === a.key ? "active" : ""}" data-aba="${a.key}">${a.label}<span class="count">${grupos[a.key].length}</span></button>`).join("")}
+              </div>
+              <p class="doc-tabs-hint">${abaAtiva === "ARQUIVADOS" ? "Documentos excluídos saem só da sua tela — o RH continua com uma cópia." : abaAtiva === "PENDENTES" ? "Visualize o PDF e assine pelo GOV.BR ou importe o arquivo assinado." : "Arquive o que você já conferiu para manter a lista limpa."}</p>
+            </div>
+            <div class="doc-list">${lista.length ? lista.map(renderDocCard).join("") : emptyStateHtml({ icon: ICONS[vazio.icon], title: vazio.title, desc: vazio.desc })}</div>
           </div>
         </div>
       `;
-      renderPublished(publicados);
+      document.querySelectorAll("[data-aba]").forEach((b) => b.addEventListener("click", () => { abaAtiva = b.dataset.aba; render(); }));
       wireActions();
     }
 
     function renderDocCard(d) {
-      const pending = d.status !== "ASSINADO";
+      const publicado = d.workflow === "PUBLICADO";
       const signed = d.status === "ASSINADO";
-      return `<article class="document-card ${pending ? "is-pending" : "is-signed"}">
-        <div class="document-card-main"><div class="document-icon">${signed ? ICONS.checkCircle : ICONS.fileText}</div><div><div class="document-card-title-row"><h3>${esc(d.titulo || d.tipo)}</h3>${statusChip(d.status)}</div><p>${esc(d.tipo)} • ${esc(d.competencia || "Sem competência")}</p><small>${d.enviadoEm ? `Enviado em ${fmtDate(String(d.enviadoEm).slice(0,10))}` : "Disponível para assinatura"}${d.assinadoEm ? ` • Assinado em ${fmtDate(String(d.assinadoEm).slice(0,10))}` : ""}</small></div></div>
-        <div class="document-card-actions"><button type="button" class="btn-ghost" data-view="${esc(d.id)}">${ICONS.eye}<span>Visualizar PDF</span></button><button type="button" class="btn-ghost" data-download="${esc(d.id)}">${ICONS.download}<span>Baixar PDF</span></button>${pending ? `<button type="button" class="btn-primary auto" data-govbr="${esc(d.id)}">${ICONS.signature}<span>Assinar com GOV.BR</span></button><button type="button" class="btn-ghost" data-import="${esc(d.id)}">${ICONS.upload}<span>Importar assinado</span></button>` : `<span class="doc-complete-note">${ICONS.checkCircle}<span>Documento concluído</span></span>`}</div>
+      const pending = !publicado && !signed;
+      const arquivado = !!d.arquivadoEm;
+      const datas = [
+        d.enviadoEm ? `${publicado ? "Publicado" : "Enviado"} em ${fmtDate(String(d.enviadoEm).slice(0, 10))}` : (publicado && d.data ? `Publicado em ${fmtDate(d.data)}` : "Disponível para assinatura"),
+        d.assinadoEm ? `Assinado em ${fmtDate(String(d.assinadoEm).slice(0, 10))}` : "",
+        arquivado ? `Arquivado em ${fmtDate(String(d.arquivadoEm).slice(0, 10))}` : "",
+      ].filter(Boolean).join(" • ");
+      const chip = publicado ? `<span class="status-badge status-PUBLICADO">Publicado</span>` : statusChip(d.status);
+      const icone = pending ? ICONS.fileText : publicado ? ICONS.fileText : ICONS.checkCircle;
+
+      let acoes = `<button type="button" class="btn-ghost" data-view="${esc(d.id)}">${ICONS.eye}<span>Visualizar</span></button><button type="button" class="btn-ghost" data-download="${esc(d.id)}">${ICONS.download}<span>Baixar</span></button>`;
+      if (pending) {
+        acoes += `<button type="button" class="btn-ghost" data-import="${esc(d.id)}">${ICONS.upload}<span>Importar assinado</span></button><button type="button" class="btn-primary auto" data-govbr="${esc(d.id)}">${ICONS.signature}<span>Assinar com GOV.BR</span></button>`;
+      } else if (arquivado) {
+        acoes += `<button type="button" class="btn-ghost" data-desarquivar="${esc(d.id)}">${ICONS.refresh}<span>Desarquivar</span></button><button type="button" class="btn-ghost danger" data-remover="${esc(d.id)}">${ICONS.trash}<span>Excluir</span></button>`;
+      } else {
+        acoes += `<button type="button" class="btn-ghost" data-arquivar="${esc(d.id)}">${ICONS.archive}<span>Arquivar</span></button>`;
+      }
+
+      return `<article class="document-card ${pending ? "is-pending" : "is-signed"} ${arquivado ? "is-archived" : ""}">
+        <div class="document-card-main"><div class="document-icon">${icone}</div><div><div class="document-card-title-row"><h3>${esc(d.titulo || d.tipo)}</h3>${chip}</div><p>${esc(d.tipo)} • ${esc(d.competencia || "Sem competência")}</p><small>${datas}</small></div></div>
+        <div class="document-card-actions">${acoes}</div>
       </article>`;
     }
 
-    function renderPublished(rows) {
-      document.getElementById("published-table").innerHTML = rows.length ? `<div class="table-scroll no-scrollbar"><table><thead><tr><th>Competência</th><th>Tipo</th><th>Publicado em</th><th></th></tr></thead><tbody>${rows.map((d) => `<tr><td><strong>${esc(d.competencia)}</strong></td><td><span class="badge badge-neutral">${esc(d.tipo)}</span></td><td>${fmtDate(d.data || d.publicadoEm || d.enviadoEm?.slice(0,10))}</td><td style="text-align:right"><button type="button" class="btn-ghost" style="width:auto" data-view="${esc(d.id)}">${ICONS.eye}<span>Visualizar</span></button></td></tr>`).join("")}</tbody></table></div>` : emptyStateHtml({ icon: ICONS.fileText, title: "Nenhum documento publicado", desc: "Seu histórico aparecerá aqui quando o RH disponibilizar arquivos." });
+    async function arquivarDoc(id, arquivar) {
+      try {
+        await rhColaboradorArquivarDocumento(id, arquivar);
+        await refrescarDocs();
+        showToast(arquivar ? "Documento arquivado. Ele fica disponível na aba Arquivados." : "Documento voltou para a lista.", "success");
+        render();
+      } catch (err) {
+        showToast(rhErroMigracao24(err), "error");
+      }
+    }
+
+    async function removerDoc(id) {
+      const doc = myDocs().find((d) => d.id === id); if (!doc) return;
+      const ok = await confirmDialog({
+        title: "Excluir documento",
+        message: `Excluir “${doc.titulo || doc.tipo}” da sua tela? Ele some da sua lista, mas o RH continua com o registro e o PDF.`,
+        confirmLabel: "Excluir",
+        danger: true,
+      });
+      if (!ok) return;
+      try {
+        await rhColaboradorRemoverDocumento(id);
+        await refrescarDocs();
+        showToast("Documento excluído da sua lista.", "success");
+        render();
+      } catch (err) {
+        showToast(rhErroMigracao24(err), "error");
+      }
     }
 
     async function openPreview(id) {
@@ -209,6 +295,9 @@
       document.querySelectorAll("[data-download]").forEach((b) => b.addEventListener("click", () => downloadDoc(b.dataset.download)));
       document.querySelectorAll("[data-govbr]").forEach((b) => b.addEventListener("click", () => openGovbr(b.dataset.govbr)));
       document.querySelectorAll("[data-import]").forEach((b) => b.addEventListener("click", () => openImport(b.dataset.import)));
+      document.querySelectorAll("[data-arquivar]").forEach((b) => b.addEventListener("click", () => arquivarDoc(b.dataset.arquivar, true)));
+      document.querySelectorAll("[data-desarquivar]").forEach((b) => b.addEventListener("click", () => arquivarDoc(b.dataset.desarquivar, false)));
+      document.querySelectorAll("[data-remover]").forEach((b) => b.addEventListener("click", () => removerDoc(b.dataset.remover)));
     }
 
     if (session) {
