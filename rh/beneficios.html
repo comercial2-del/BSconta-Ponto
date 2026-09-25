@@ -737,25 +737,17 @@ function formValores(body) {
   body.innerHTML = `
     <div class="bf-values-bar">
       ${monthNavHtml(k, "form")}
-      <button type="button" class="bf-btn bf-btn-ghost bf-btn-sm" id="ff-copiar" title="Copiar valores e descontos de ${rotuloMes(ant)}">${I.copy}<span>Copiar de ${MESES[Number(ant.split("-")[1]) - 1]}</span></button>
       <button type="button" class="bf-btn bf-btn-launch bf-btn-sm" id="ff-lancar-todos" style="border:1px solid #abefc6" title="Marcar todos os valores de ${rotuloMes(k)} como lançados/pagos">${I.send}<span>Lançar todos de ${MESES[Number(k.split("-")[1]) - 1]}</span></button>
       <span class="bf-spacer"></span>
       <div class="bf-apply-all"><div class="bf-money" style="width:120px"><span>R$</span><input class="bf-inp" id="ff-aplicar" inputmode="decimal" placeholder="0,00" style="height:36px" /></div><button type="button" class="bf-btn bf-btn-ghost bf-btn-sm" id="ff-aplicar-btn">Aplicar a todos</button></div>
     </div>
     ${ids.length ? `
-    <div class="bf-note" style="margin-bottom:.8rem">${I.info}<span>${situacaoMes(k).t === "Histórico" ? `Você está editando <b>${rotuloMes(k)}</b> (mês anterior). Os outros meses não mudam.` : `O <b>valor fixo/mês</b> preenche sozinho este mês e os próximos. Para um mês diferente, digite em <b>Valor do mês</b>. Marque <b>Lançado</b> quando for pago — aí o <b>Recebido</b> passa a contar.`}</span></div>
     <div class="bf-col-head"><span>Colaborador</span><span title="Valor que se repete todo mês">Valor fixo/mês</span><span>Valor do mês</span><span>Desconto</span><span>Recebido</span><span>Situação</span></div>
     <div class="bf-colab-list">${ids.map((id) => linhaValor(b, id, k, prox, eAtual)).join("")}</div>
     <div style="display:flex;gap:.5rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.8rem" id="ff-totais">${totaisBadges(t)}</div>`
     : `<div class="bf-empty"><div class="bf-e-ico">${I.users}</div><b>Nenhum colaborador selecionado</b><p>Volte em “Para quem é” e escolha os colaboradores.</p></div>`}`;
 
   body.querySelectorAll('[data-mes="form"]').forEach((x) => x.addEventListener("click", () => { form.mes = addMes(form.mes, Number(x.dataset.d)); renderForm(); }));
-  body.querySelector("#ff-copiar").addEventListener("click", () => {
-    let n = 0;
-    ids.forEach((id) => { const a = b.valores[id]?.[ant]; if (!a) return; b.valores[id] = b.valores[id] || {}; b.valores[id][k] = { valor: a.valor, desconto: a.desconto, lancado: false }; n++; });
-    n ? toast(`Valores de ${rotuloMes(ant)} copiados para ${rotuloMes(k)} (${n}).`) : toast(`Não há valores em ${rotuloMes(ant)} para copiar.`, "error");
-    renderForm();
-  });
   body.querySelector("#ff-lancar-todos").addEventListener("click", () => {
     const alvo = ids.filter((id) => { const l = lanc(b, id, k); return l && !l.lancado && (l.valor || 0) > 0; });
     if (!alvo.length) { toast(`Nada pendente para lançar em ${rotuloMes(k)}.`, "error"); return; }
@@ -810,8 +802,6 @@ function linhaValor(b, id, k, prox, eAtual) {
         <label class="bf-toggle"><input type="checkbox" data-lanc="${id}" ${l?.lancado ? "checked" : ""} /><span class="bf-tr"></span><span data-lanc-txt="${id}">${l?.lancado ? "Lançado" : "Previsto"}</span></label>
       </div>
       <div class="bf-err" data-err="${id}">O desconto não pode ser maior que o valor.</div>
-      ${eAtual ? `<div class="bf-next-line">${I.calendar.replace("<svg", '<svg style="width:14px;height:14px;color:var(--blue-600)"')}<span>Próxima competência <b>${rotuloMes(prox)}</b> — valor a receber:</span><div class="bf-money"><span>R$</span><input class="bf-inp" data-v="proximo" data-id="${id}" inputmode="decimal" value="${n && !n.doFixo ? fmtInput(n.valor) : ""}" placeholder="${n?.doFixo ? fmtInput(n.valor) : fmtInput(l?.valor) || "0,00"}" /></div><button type="button" class="bf-hist-link ${aberto ? "bf-open" : ""}" data-fhist="${id}">Histórico ${I.down}</button></div>` : `<div style="margin:.45rem 0 0 2.6rem"><button type="button" class="bf-hist-link ${aberto ? "bf-open" : ""}" data-fhist="${id}" style="margin-left:0">Ver histórico ${I.down}</button></div>`}
-      ${hist}
     </div>`;
 }
 function recvHtml(l) {
