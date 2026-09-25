@@ -7,45 +7,233 @@
   <link rel="icon" type="image/png" href="../assets/bsconta-icon.png" />
   <link rel="stylesheet" href="../css/styles.css" />
   <link rel="stylesheet" href="../css/theme-v2.css" />
-
+  <!-- Estilos próprios da tela de Benefícios (prefixo bf-, escopo .bnf) para
+       não interferir no restante do sistema. -->
   <style>
-    .benefit-card-rh { display: flex; flex-direction: column; gap: 0; padding: 0; overflow: hidden; }
-    .benefit-card-rh .benefit-card-top { display: flex; align-items: flex-start; gap: 0.85rem; padding: 1.05rem 1.05rem 0.9rem; }
-    .benefit-card-rh .benefit-card-foot {
-      display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
-      padding: 0.65rem 1.05rem; border-top: 1px solid var(--border); background: var(--surface-2);
-    }
-    .benefit-assign-chip { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.76rem; font-weight: 600; color: var(--text-soft); min-width: 0; }
-    .benefit-assign-chip svg { width: 14px; height: 14px; flex-shrink: 0; color: var(--text-faint); }
-    .benefit-assign-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .assign-radio-group { display: flex; flex-direction: column; gap: 0.55rem; }
-    .assign-checklist {
-      margin-top: 0.6rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2);
-      max-height: 12rem; overflow-y: auto; padding: 0.55rem 0.7rem; display: flex; flex-direction: column; gap: 0.45rem;
-    }
-    .assign-checklist[hidden] { display: none; }
-    .icon-swatch-grid { display: flex; flex-wrap: wrap; gap: 0.45rem; }
-    .icon-swatch {
-      width: 38px; height: 38px; border-radius: 10px; border: 1.5px solid var(--border); background: var(--surface);
-      display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-soft);
-      transition: border-color 0.12s, background 0.12s, color 0.12s;
-    }
-    .icon-swatch svg { width: 18px; height: 18px; }
-    .icon-swatch.is-active { border-color: var(--indigo-600); background: var(--indigo-50); color: var(--indigo-600); }
-    .tone-swatch-grid { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-    .tone-swatch { width: 30px; height: 30px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; box-shadow: inset 0 0 0 1px rgba(15,23,42,0.06); }
-    .tone-swatch.is-active { border-color: var(--text); }
-    .benef-head { position: relative; z-index: 30; }
-    .benef-actions { display: flex; gap: 0.6rem; flex-wrap: nowrap; flex-shrink: 0; align-items: center; justify-content: flex-end; }
-    .benef-actions select { width: 240px; min-width: 0; flex: 0 1 240px; }
-    .benef-add-wrap { position: relative; flex-shrink: 0; }
-    #btn-novo-beneficio svg:last-child { width: 15px; height: 15px; margin-left: 0.1rem; opacity: 0.85; }
-    .benef-add-menu { width: 18.5rem; z-index: 80; }
-    .benef-add-menu .dd-item { align-items: flex-start; }
-    .benef-add-menu .dd-item svg { margin-top: 0.15rem; }
-    .benef-add-menu .dd-item span { display: flex; flex-direction: column; gap: 0.1rem; }
-    .benef-add-menu .dd-item small { font-size: 0.75rem; color: var(--text-faint); font-weight: 500; }
-    @media (max-width: 640px) { .benef-head { flex-wrap: wrap; } .benef-actions { width: 100%; } .benef-actions select { flex: 1 1 auto; width: auto; } }
+.bnf{--green-50:#ecfdf3;--green-600:#079455;--green-700:#067647;--orange-50:#fff6ed;--orange-600:#e04f16;--red-50:#fef3f2;--red-500:#f04438;--red-600:#d92d20;--pink-500:#e8456b;--violet-50:#f4f3ff;--violet-600:#6941c6;--teal-50:#effcfb;--teal-600:#0e9384;--blue-50:#eef4ff;--blue-100:#dfeaff;--blue-500:#3967e8;--blue-600:#2f5bd3;--blue-700:#2347ad;--shadow-md:0 10px 26px rgba(16,24,40,.06);--shadow-lg:0 22px 55px rgba(16,24,40,.14)}
+.bnf button{font-family:inherit;cursor:pointer}
+.bnf .bf-toolbar .bf-inp{width:auto;margin:0}
+.bnf .bf-toolbar{justify-content:flex-end}
+.bnf .bf-btn{font-size:.85rem;font-weight:700}
+.bnf .bf-btn-sm{font-size:.78rem}
+.bnf input.bf-inp,.bnf select.bf-inp{margin:0;font-size:.88rem}
+.bnf .bf-money input.bf-inp{min-height:0}
+@media (max-width:640px){.bnf .bf-toolbar .bf-inp{flex:1 1 45%}}.bnf svg{display:block}
+.bnf .bf-inp,.bnf select.bf-inp,.bnf input.bf-inp{font:inherit;color:var(--text)}
+
+
+/* ---------- Shell (igual ao sistema) ---------- */
+
+/* ---------- Elementos ---------- */
+.bf-avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:.72rem;font-weight:800;flex-shrink:0}
+.bf-c1{background:#eef4ff;color:#2f5bd3}.bf-c2{background:#ecfdf3;color:#067647}.bf-c3{background:#fff6ed;color:#c4320a}.bf-c4{background:#f4f3ff;color:#5925dc}.bf-c5{background:#fdf2fa;color:#c11574}
+.bf-btn{display:inline-flex;align-items:center;justify-content:center;gap:.45rem;border-radius:10px;font-weight:700;font-size:.85rem;padding:.62rem .95rem;border:1px solid transparent;transition:background .15s,box-shadow .15s,transform .15s,border-color .15s;white-space:nowrap}
+.bf-btn svg{width:16px;height:16px}
+.bf-btn-primary{background:var(--blue-600);color:#fff;box-shadow:0 6px 14px rgba(47,91,211,.18)}
+.bf-btn-primary:hover{background:#294fb8;transform:translateY(-1px)}
+.bf-btn-ghost{background:#fff;border-color:var(--border);color:var(--text)}
+.bf-btn-ghost:hover{background:var(--surface-2);border-color:#d5dbe7}
+.bf-btn-danger-ghost{background:#fff;border-color:#fecdca;color:var(--red-600)}
+.bf-btn-sm{padding:.42rem .7rem;font-size:.78rem;border-radius:9px}
+.bf-icon-btn{width:34px;height:34px;border-radius:9px;border:1px solid var(--border);background:#fff;display:grid;place-items:center;color:var(--text-soft)}
+.bf-icon-btn:hover{background:var(--surface-2);color:var(--blue-600)}
+.bf-icon-btn svg{width:16px;height:16px}
+.bf-badge{display:inline-flex;align-items:center;gap:.3rem;font-size:.7rem;font-weight:700;padding:.22rem .55rem;border-radius:999px}
+.bf-b-green{background:var(--green-50);color:var(--green-700)}.bf-b-gray{background:#f2f4f7;color:#475467}.bf-b-blue{background:var(--blue-50);color:var(--blue-700)}.bf-b-orange{background:var(--orange-50);color:var(--orange-600)}.bf-b-pink{background:#fff0f3;color:#c01048}
+.bf-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm)}
+
+.bf-toolbar{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap}
+.bf-month-nav{display:inline-flex;align-items:center;background:#fff;border:1px solid var(--border);border-radius:11px;height:40px}
+.bf-month-nav button{border:0;background:transparent;width:36px;height:100%;display:grid;place-items:center;color:var(--text-soft)}
+.bf-month-nav button:hover{color:var(--blue-600)}
+.bf-month-nav button svg{width:16px;height:16px}
+.bf-month-nav span{min-width:150px;text-align:center;font-weight:700;font-size:.85rem;display:flex;flex-direction:column;line-height:1.1}
+.bf-month-nav span small{font-size:.63rem;font-weight:700;color:var(--text-faint);text-transform:uppercase;letter-spacing:.05em}
+select.bf-inp,input.bf-inp{height:40px;border:1px solid var(--border);border-radius:10px;background:#fff;padding:0 .75rem;min-width:0;outline:none;transition:border-color .15s,box-shadow .15s}
+select.bf-inp:focus,input.bf-inp:focus{border-color:var(--blue-500);box-shadow:0 0 0 3px rgba(57,103,232,.14)}
+
+.bf-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1rem;margin-bottom:1.2rem}
+.bf-kpi{padding:1rem 1.1rem}
+.bf-kpi-top{display:flex;align-items:center;gap:.6rem;margin-bottom:.55rem}
+.bf-kpi-ico{width:34px;height:34px;border-radius:10px;display:grid;place-items:center}
+.bf-kpi-ico svg{width:17px;height:17px}
+.bf-kpi-label{margin:0;font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-faint)}
+.bf-kpi-value{margin:0;font-size:1.45rem;font-weight:800;letter-spacing:-.01em}
+.bf-kpi-sub{font-size:.75rem;color:var(--text-faint);margin-top:.15rem}
+
+.bf-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:1rem}
+.bf-bcard{display:flex;flex-direction:column;overflow:hidden;cursor:pointer;transition:border-color .15s,box-shadow .15s,transform .15s}
+.bf-bcard:hover{border-color:#c9d6f6;box-shadow:var(--shadow-md);transform:translateY(-1px)}
+.bf-bcard.bf-inactive{opacity:.72}
+.bf-bcard-top{display:flex;gap:.85rem;padding:1.05rem 1.1rem .8rem}
+.bf-b-ico{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;flex-shrink:0}
+.bf-b-ico svg{width:20px;height:20px}
+.bf-bcard h3{margin:0;font-size:1rem;font-weight:800}
+.bf-bcard .bf-desc{margin:.2rem 0 0;color:var(--text-soft);font-size:.82rem;line-height:1.4}
+.bf-bcard-stats{display:grid;grid-template-columns:1fr 1fr;gap:.55rem;padding:0 1.1rem .9rem}
+.bf-stat{background:var(--surface-2);border:1px solid #eef1f6;border-radius:10px;padding:.55rem .7rem}
+.bf-stat small{display:block;font-size:.66rem;font-weight:700;color:var(--text-faint);text-transform:uppercase;letter-spacing:.05em}
+.bf-stat b{font-size:.95rem}
+.bf-foot-actions{display:flex;gap:.4rem;align-items:center;margin-left:auto;flex-wrap:wrap;justify-content:flex-end}
+.bf-bcard-foot .bf-chip{white-space:nowrap}
+.bf-btn-launch{background:var(--green-50);color:var(--green-700);border-color:#abefc6}
+.bf-btn-launch:hover{background:#dcfae6}
+.bf-icon-btn.bf-danger{color:var(--red-600);border-color:#fecdca}
+.bf-icon-btn.bf-danger:hover{background:var(--red-50);color:var(--red-600)}
+.bf-confirm-ico.bf-danger{background:var(--red-50);color:var(--red-600)}
+.bf-confirm-ico.bf-ok{background:var(--green-50);color:var(--green-700)}
+.bf-bcard-foot{margin-top:auto;display:flex;flex-wrap:wrap;row-gap:.5rem;align-items:center;justify-content:space-between;gap:.5rem;padding:.65rem 1.1rem;border-top:1px solid var(--border);background:var(--surface-2)}
+.bf-chip{display:inline-flex;align-items:center;gap:.35rem;font-size:.76rem;font-weight:600;color:var(--text-soft)}
+.bf-chip svg{width:14px;height:14px;color:var(--text-faint)}
+.bf-empty{padding:3rem 1rem;text-align:center;color:var(--text-soft)}
+.bf-empty .bf-e-ico{width:52px;height:52px;border-radius:14px;background:var(--surface-2);border:1px solid var(--border);display:grid;place-items:center;margin:0 auto .8rem;color:var(--text-faint)}
+
+/* ---------- Modal ---------- */
+.bf-overlay{position:fixed;inset:0;background:rgba(16,24,40,.48);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;padding:1.2rem;z-index:50}
+.bf-overlay.bf-open{display:flex;animation:fade .15s ease}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@keyframes pop{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+.bf-modal{background:#fff;border-radius:18px;box-shadow:var(--shadow-lg);width:100%;max-width:940px;max-height:min(90vh,820px);display:flex;flex-direction:column;animation:pop .18s ease;overflow:hidden}
+.bf-modal-sm{max-width:440px}
+.bf-modal-head{padding:1.1rem 1.3rem .9rem;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:.8rem;flex-shrink:0}
+.bf-modal-head h2{margin:0;font-size:1.15rem;font-weight:800}
+.bf-modal-head p{margin:.2rem 0 0;color:var(--text-soft);font-size:.82rem}
+.bf-modal-head .bf-x{margin-left:auto}
+.bf-tabs{display:flex;gap:.25rem;padding:0 1.3rem;border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto}
+.bf-tabs button{border:0;background:transparent;padding:.8rem .2rem;margin-right:1rem;font-weight:700;font-size:.84rem;color:var(--text-soft);border-bottom:2px solid transparent;display:flex;align-items:center;gap:.45rem;white-space:nowrap}
+.bf-tabs button .bf-n{width:20px;height:20px;border-radius:50%;background:#f2f4f7;color:var(--text-soft);display:grid;place-items:center;font-size:.7rem}
+.bf-tabs button.bf-active{color:var(--blue-700);border-bottom-color:var(--blue-600)}
+.bf-tabs button.bf-active .bf-n{background:var(--blue-600);color:#fff}
+.bf-modal-body{padding:1.2rem 1.3rem;overflow-y:auto;flex:1;min-height:0}
+.bf-modal-foot{padding:.85rem 1.3rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;align-items:center;gap:.6rem;flex-shrink:0;background:#fff}
+.bf-modal-foot .bf-hint{margin-right:auto;font-size:.78rem;color:var(--text-faint)}
+.bf-sec{margin-bottom:1.3rem}
+.bf-sec-title{display:flex;align-items:center;gap:.5rem;margin:0 0 .7rem;font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-soft)}
+.bf-sec-title .bf-dot{width:6px;height:6px;border-radius:50%;background:var(--pink-500)}
+.bf-form-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:.9rem}
+.bf-field label{display:block;font-size:.78rem;font-weight:700;color:var(--text-soft);margin-bottom:.35rem}
+.bf-field .bf-inp{width:100%}
+.bf-field.bf-full{grid-column:1/-1}
+.bf-swatches{display:flex;flex-wrap:wrap;gap:.45rem}
+.bf-sw-icon{width:40px;height:40px;border-radius:10px;border:1.5px solid var(--border);background:#fff;display:grid;place-items:center;color:var(--text-soft);transition:border-color .12s,background .12s,color .12s}
+.bf-sw-icon svg{width:18px;height:18px}
+.bf-sw-icon:hover{border-color:#c9d6f6}
+.bf-sw-icon.bf-active{border-color:var(--blue-600);background:var(--blue-50);color:var(--blue-600)}
+.bf-sw-tone{width:32px;height:32px;border-radius:50%;border:2px solid transparent;box-shadow:inset 0 0 0 1px rgba(15,23,42,.06);transition:transform .12s}
+.bf-sw-tone:hover{transform:scale(1.08)}
+.bf-sw-tone.bf-active{border-color:var(--text);box-shadow:0 0 0 2px #fff inset}
+.bf-preview-card{display:flex;gap:.7rem;align-items:center;border:1px dashed var(--border);border-radius:12px;padding:.7rem .85rem;background:var(--surface-2)}
+.bf-preview-card b{display:block;font-size:.9rem}.bf-preview-card small{color:var(--text-faint);font-size:.75rem}
+.bf-seg{display:inline-flex;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:.2rem;height:40px}
+.bf-seg button{border:0;background:transparent;border-radius:8px;padding:0 .9rem;font-weight:700;font-size:.8rem;color:var(--text-soft);display:flex;align-items:center;gap:.4rem}
+.bf-seg button.bf-active{background:#fff;box-shadow:var(--shadow-sm)}
+.bf-seg button.bf-active.bf-on{color:var(--green-700)}.bf-seg button.bf-active.bf-off{color:var(--red-600)}
+.bf-seg button i{width:7px;height:7px;border-radius:50%;background:currentColor}
+.bf-radio-cards{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}
+.bf-rcard{border:1.5px solid var(--border);border-radius:12px;padding:.85rem .95rem;display:flex;gap:.7rem;align-items:flex-start;cursor:pointer;background:#fff;text-align:left;transition:border-color .15s,background .15s}
+.bf-rcard:hover{border-color:#c9d6f6}
+.bf-rcard.bf-active{border-color:var(--blue-600);background:var(--blue-50)}
+.bf-rcard .bf-rd{width:18px;height:18px;border-radius:50%;border:2px solid #d0d5dd;flex-shrink:0;margin-top:.1rem;display:grid;place-items:center}
+.bf-rcard.bf-active .bf-rd{border-color:var(--blue-600)}
+.bf-rcard.bf-active .bf-rd::after{content:"";width:8px;height:8px;border-radius:50%;background:var(--blue-600)}
+.bf-rcard b{display:block;font-size:.88rem}
+.bf-rcard small{color:var(--text-soft);font-size:.76rem;line-height:1.35}
+.bf-picker{margin-top:.8rem;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.bf-picker-head{display:flex;gap:.6rem;align-items:center;padding:.6rem .7rem;background:var(--surface-2);border-bottom:1px solid var(--border)}
+.bf-picker-head .bf-inp{flex:1;height:36px}
+.bf-picker-list{max-height:210px;overflow-y:auto}
+.bf-pick{display:flex;align-items:center;gap:.65rem;padding:.55rem .8rem;border-bottom:1px solid #f2f4f7;cursor:pointer}
+.bf-pick:last-child{border-bottom:0}
+.bf-pick:hover{background:var(--surface-2)}
+.bf-pick input{width:17px;height:17px;accent-color:var(--blue-600)}
+.bf-pick small{color:var(--text-faint);margin-left:auto;font-size:.75rem}
+
+.bf-values-bar{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.8rem}
+.bf-values-bar .bf-spacer{flex:1}
+.bf-apply-all{display:flex;gap:.4rem;align-items:center}
+.bf-money{position:relative;display:flex;align-items:center}
+.bf-money span{position:absolute;left:.6rem;font-size:.78rem;color:var(--text-faint);font-weight:600;pointer-events:none}
+.bf-money input{padding-left:2rem !important;width:100%}
+.bf-money.bf-fixo input{background:var(--blue-50);border-color:#c9d6f6;font-weight:700;color:var(--blue-700)}
+.bf-from-fixo{font-size:.62rem;font-weight:700;color:var(--blue-600);display:block;margin-top:.15rem}
+.bf-fixo-lbl{display:none;font-size:.66rem;font-weight:700;color:var(--text-faint);text-transform:uppercase;margin-bottom:.2rem}
+.bf-colab-list{border:1px solid var(--border);border-radius:12px;max-height:380px;overflow-y:auto;background:#fff}
+.bf-colab-row{padding:.8rem .9rem;border-bottom:1px solid #eef1f6}
+.bf-colab-row:last-child{border-bottom:0}
+.bf-colab-main{display:grid;grid-template-columns:minmax(160px,1.2fr) 112px 104px 104px 110px 112px;gap:.6rem;align-items:center}
+.bf-colab-name{display:flex;gap:.6rem;align-items:center;min-width:0}
+.bf-colab-name b{display:block;font-size:.86rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bf-colab-name small{color:var(--text-faint);font-size:.73rem}
+.bf-colab-main .bf-inp{height:36px;width:100%}
+.bf-recv{font-weight:800;font-size:.92rem}
+.bf-recv small{display:block;font-size:.66rem;font-weight:700;color:var(--text-faint);text-transform:uppercase;letter-spacing:.04em}
+.bf-recv.bf-pos{color:var(--green-700)}.bf-recv.bf-wait{color:var(--text-faint)}
+.bf-toggle{display:inline-flex;align-items:center;gap:.45rem;font-size:.76rem;font-weight:700;color:var(--text-soft);cursor:pointer;user-select:none}
+.bf-toggle input{display:none}
+.bf-toggle .bf-tr{width:34px;height:20px;border-radius:999px;background:#d0d5dd;position:relative;transition:background .15s;flex-shrink:0}
+.bf-toggle .bf-tr::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:transform .15s}
+.bf-toggle input:checked + .bf-tr{background:var(--green-600)}
+.bf-toggle input:checked + .bf-tr::after{transform:translateX(14px)}
+.bf-col-head{display:grid;grid-template-columns:minmax(160px,1.2fr) 112px 104px 104px 110px 112px;gap:.6rem;padding:.55rem .9rem;font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint);background:var(--surface-2);border:1px solid var(--border);border-bottom:0;border-radius:12px 12px 0 0}
+.bf-col-head + .bf-colab-list{border-radius:0 0 12px 12px}
+.bf-next-line{margin-top:.6rem;margin-left:2.6rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;font-size:.78rem;color:var(--text-soft);background:var(--blue-50);border:1px dashed #c9d6f6;border-radius:10px;padding:.45rem .6rem}
+.bf-next-line b{color:var(--blue-700)}
+.bf-next-line .bf-money{width:120px}.bf-next-line .bf-money input{height:32px}
+.bf-hist-link{border:0;background:transparent;color:var(--blue-600);font-weight:700;font-size:.76rem;padding:0;margin-left:auto;display:inline-flex;gap:.3rem;align-items:center}
+.bf-hist-link svg{width:13px;height:13px;transition:transform .15s}
+.bf-hist-link.bf-open svg{transform:rotate(180deg)}
+.bf-hist-box{margin:.6rem 0 0 2.6rem;border-left:2px solid var(--blue-100);padding-left:.8rem;display:grid;gap:.35rem}
+.bf-hist-item{display:flex;gap:.8rem;flex-wrap:wrap;font-size:.78rem;color:var(--text-soft)}
+.bf-hist-item b{color:var(--text);min-width:110px}
+.bf-hist-item .bf-neg{color:var(--red-600)}.bf-hist-item .bf-ok{color:var(--green-700);font-weight:700}
+.bf-note{display:flex;gap:.55rem;align-items:flex-start;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:.65rem .8rem;font-size:.8rem;color:var(--text-soft);margin-bottom:.9rem}
+.bf-note svg{width:16px;height:16px;flex-shrink:0;color:var(--blue-600);margin-top:.05rem}
+.bf-err{color:var(--red-600);font-size:.75rem;font-weight:600;margin-top:.3rem;display:none}
+.bf-err.bf-show{display:block}
+.bf-inp.bf-invalid{border-color:var(--red-500) !important;box-shadow:0 0 0 3px rgba(240,68,56,.12) !important}
+
+table.bf-tbl{width:100%;border-collapse:collapse;font-size:.83rem}
+.bf-tbl th{text-align:left;font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint);padding:.6rem .7rem;background:var(--surface-2);border-bottom:1px solid var(--border);position:sticky;top:0}
+.bf-tbl td{padding:.65rem .7rem;border-bottom:1px solid #eef1f6;vertical-align:middle}
+.bf-tbl td.bf-num,.bf-tbl th.bf-num{text-align:right;white-space:nowrap}
+.bf-tbl-wrap{border:1px solid var(--border);border-radius:12px;overflow:auto;max-height:400px}
+.bf-month-group td{background:#fbfcfe;font-weight:800;color:var(--blue-700);font-size:.78rem}
+
+.bf-confirm-ico{width:52px;height:52px;border-radius:50%;background:var(--blue-50);color:var(--blue-600);display:grid;place-items:center;margin-bottom:.8rem}
+.bf-confirm-ico svg{width:24px;height:24px}
+.bf-sum-list{display:grid;gap:.4rem;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:.8rem .9rem;font-size:.84rem}
+.bf-sum-list div{display:flex;justify-content:space-between;gap:1rem}
+.bf-sum-list span{color:var(--text-soft)}
+
+
+/* ---------- Visão do colaborador ---------- */
+.bf-stat.bf-fixo{background:#fff;border:1.5px solid #c9d6f6}.bf-stat.bf-fixo b{color:var(--blue-700)}
+
+/* ---------- Responsivo ---------- */
+@media (max-width:1100px){.bf-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:900px){
+  .bf-col-head{display:none}
+  .bf-col-head + .bf-colab-list{border-radius:12px}
+  .bf-colab-main{grid-template-columns:1fr 1fr;row-gap:.55rem}
+  .bf-colab-name{grid-column:1/-1}
+  .bf-next-line,.bf-hist-box{margin-left:0}
+  .bf-fixo-lbl{display:block}
+  .bf-colab-main > div:nth-child(2){grid-column:1/-1}
+}
+@media (max-width:640px){
+  .bf-kpis{grid-template-columns:1fr 1fr;gap:.6rem}
+  .bf-kpi-value{font-size:1.15rem}
+  .bf-form-grid,.bf-radio-cards{grid-template-columns:1fr}
+  .bf-toolbar{width:100%}
+  .bf-toolbar > *{flex:1 1 auto}
+  .bf-month-nav span{min-width:0;flex:1}
+  .bf-overlay{padding:0;align-items:flex-end}
+  .bf-modal{max-height:94vh;border-radius:18px 18px 0 0}
+  .bf-modal-foot .bf-hint{display:none}
+  .bf-modal-foot .bf-btn{flex:1}
+  .bf-grid{grid-template-columns:1fr}
+}
+
   </style>
 </head>
 <body>
@@ -59,47 +247,53 @@
     </div>
   </div>
 
-  <div class="modal-overlay" id="modal-beneficio">
-    <div class="modal">
-      <div class="modal-header"><h3 id="modal-beneficio-titulo">Novo benefício</h3><button class="modal-close" data-close-modal></button></div>
-      <form id="form-beneficio">
-        <div class="modal-body">
-          <div class="form-grid">
-            <div class="field full"><label>Nome do benefício</label><input type="text" id="beneficio-nome" required placeholder="Ex.: Vale Cultura" /></div>
-            <div class="field full"><label>Descrição</label><input type="text" id="beneficio-desc" required placeholder="Ex.: R$ 50,00/mês, crédito no cartão." /></div>
-            <div class="field full">
-              <label>Ícone</label>
-              <div class="icon-swatch-grid" id="beneficio-icon-grid"></div>
-              <input type="hidden" id="beneficio-icon" value="heart" />
-            </div>
-            <div class="field full">
-              <label>Cor</label>
-              <div class="tone-swatch-grid" id="beneficio-tone-grid"></div>
-              <input type="hidden" id="beneficio-tone" value="indigo" />
-            </div>
-            <div class="field full"><label>Status</label>
-              <select id="beneficio-status" required>
-                <option value="ATIVO">Ativo</option>
-                <option value="PENDENTE">Pendente</option>
-              </select>
-            </div>
-            <div class="field full">
-              <label>Quem recebe este benefício?</label>
-              <div class="assign-radio-group">
-                <label class="check-row"><input type="radio" name="beneficio-atribuicao" value="TODOS" id="beneficio-atrib-todos" checked /> Todos os colaboradores</label>
-                <label class="check-row"><input type="radio" name="beneficio-atribuicao" value="ESPECIFICO" id="beneficio-atrib-especifico" /> Colaboradores específicos</label>
-              </div>
-              <div class="assign-checklist" id="beneficio-checklist" hidden></div>
-              <span class="field-hint">Escolha "Colaboradores específicos" pra marcar só quem deve receber esse benefício.</span>
-            </div>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn-ghost" data-close-modal>Cancelar</button>
-          <button type="submit" class="btn-primary auto" id="beneficio-submit-label">Criar benefício</button>
-        </div>
-      </form>
+  <div class="bnf">
+<!-- Modal: novo / editar benefício -->
+<div class="bf-overlay" id="ov-form" aria-hidden="true">
+  <div class="bf-modal" role="dialog" aria-modal="true" aria-labelledby="form-title">
+    <div class="bf-modal-head">
+      <div><h2 id="form-title">Novo benefício</h2><p id="form-sub">Cadastre o benefício, escolha quem recebe e informe o valor de cada colaborador.</p></div>
+      <button type="button" class="bf-icon-btn bf-x" data-close="ov-form" aria-label="Fechar"></button>
     </div>
+    <div class="bf-tabs" id="form-tabs"></div>
+    <div class="bf-modal-body" id="form-body"></div>
+    <div class="bf-modal-foot">
+      <span class="bf-hint" id="form-hint"></span>
+      <button type="button" class="bf-btn bf-btn-ghost" data-close="ov-form">Cancelar</button>
+      <button type="button" class="bf-btn bf-btn-primary" id="btn-salvar"></button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: detalhes -->
+<div class="bf-overlay" id="ov-det" aria-hidden="true">
+  <div class="bf-modal" role="dialog" aria-modal="true" aria-labelledby="det-title">
+    <div class="bf-modal-head">
+      <div class="bf-b-ico" id="det-ico"></div>
+      <div><h2 id="det-title"></h2><p id="det-sub"></p></div>
+      <button type="button" class="bf-icon-btn bf-x" data-close="ov-det" aria-label="Fechar"></button>
+    </div>
+    <div class="bf-tabs" id="det-tabs"></div>
+    <div class="bf-modal-body" id="det-body"></div>
+    <div class="bf-modal-foot">
+      <button type="button" class="bf-icon-btn bf-danger" id="det-excluir" title="Excluir benefício" aria-label="Excluir benefício" style="margin-right:auto;width:40px;height:40px"></button>
+      <button type="button" class="bf-btn bf-btn-launch" id="det-lancar" style="border:1px solid #abefc6"></button>
+      <button type="button" class="bf-btn bf-btn-ghost" id="det-toggle"></button>
+      <button type="button" class="bf-btn bf-btn-primary" id="det-edit"></button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirmação -->
+<div class="bf-overlay" id="ov-confirm" aria-hidden="true" style="z-index:60">
+  <div class="bf-modal bf-modal-sm" role="alertdialog" aria-modal="true">
+    <div class="bf-modal-body" id="confirm-body"></div>
+    <div class="bf-modal-foot">
+      <button type="button" class="bf-btn bf-btn-ghost" data-close="ov-confirm">Voltar e revisar</button>
+      <button type="button" class="bf-btn bf-btn-primary" id="btn-confirmar"></button>
+    </div>
+  </div>
+</div>
   </div>
 
   <script>window.BASE_PATH = "../";</script>
@@ -109,343 +303,676 @@
   <script src="../js/supabase-client.js"></script>
   <script src="../js/rh-supabase-auth.js"></script>
   <script src="../js/rh-beneficios-data.js"></script>
-  <script src="../js/rh-historia-data.js"></script>
-  <script src="../js/rh-historia-ui.js"></script>
   <script>
+/*
+ * Benefícios (RH) — cadastro unificado.
+ * Um único "+ Novo benefício" abre um modal com: informações (nome, tipo,
+ * ícone, cor, status), para quem é (todos / específicos) e valores por
+ * colaborador e por mês (valor fixo mensal, valor do mês, desconto, lançado).
+ * O valor mora em BENEFÍCIO + COLABORADOR + COMPETÊNCIA (aaaa-mm) — ver
+ * db/supabase/26_beneficios_competencias.sql e js/rh-beneficios-data.js.
+ */
 (async function () {
-    const session = await requireRoleReal("RH");
-    if (!session) return;
-    document.querySelector("#modal-beneficio .modal-close").innerHTML = ICONS.x;
+  const session = await requireRoleReal("RH");
+  if (!session) return;
+  renderShell(session, withBadges(NAV_RH, await rhNavBadges()));
+  renderTopHeader(document.getElementById("top-header"), session, { notifications: [] });
 
-    const TONE_BG = { orange: "var(--orange-50)", red: "var(--red-50)", indigo: "var(--indigo-50)", teal: "var(--teal-50)", violet: "var(--violet-50)", green: "var(--emerald-50)" };
-    const TONE_FG = { orange: "var(--orange-600)", red: "var(--red-600)", indigo: "var(--indigo-600)", teal: "var(--teal-600)", violet: "var(--violet-600)", green: "var(--emerald-600)" };
-    const TONE_DOT = { orange: "var(--orange-500)", red: "var(--red-500)", indigo: "var(--indigo-500)", teal: "var(--teal-500)", violet: "var(--violet-500)", green: "var(--emerald-500)" };
-    const ICON_OPTIONS = ["heart", "utensils", "car", "shield", "checkCircle", "gift", "dollarSign", "briefcase", "home"];
-    const TONE_OPTIONS = Object.keys(TONE_BG);
+/* =========================================================================
+   Ícones (mesmo estilo do sistema: traço 2px, arredondado)
+   ========================================================================= */
+const P = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const I = {
+  plus: P('<path d="M12 5v14M5 12h14"/>'), x: P('<path d="M18 6 6 18M6 6l12 12"/>'),
+  heart: P('<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/>'),
+  utensils: P('<path d="M3 2v7c0 1.1.9 2 2 2h2a2 2 0 0 0 2-2V2M6 2v20M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/>'),
+  bus: P('<rect x="4" y="3" width="16" height="14" rx="2"/><path d="M4 11h16M8 21v-4M16 21v-4M8 7h8"/>'),
+  shield: P('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8v6M9 11h6"/>'),
+  book: P('<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/>'),
+  home: P('<path d="M3 11 12 3l9 8"/><path d="M5 10v10h14V10"/>'),
+  gift: P('<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M19 12v9H5v-9M7.5 8a2.5 2.5 0 1 1 0-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 1 1 0 5"/>'),
+  users: P('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>'),
+  user: P('<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>'),
+  left: P('<path d="m15 18-6-6 6-6"/>'), right: P('<path d="m9 18 6-6-6-6"/>'), down: P('<path d="m6 9 6 6 6-6"/>'),
+  edit: P('<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4z"/>'),
+  check: P('<path d="M20 6 9 17l-5-5"/>'), checkCircle: P('<circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/>'),
+  alert: P('<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16v.01"/>'), info: P('<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.01"/>'),
+  wallet: P('<path d="M20 12V8H6a2 2 0 0 1 0-4h12v4"/><path d="M4 6v12a2 2 0 0 0 2 2h14v-4"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/>'),
+  minus: P('<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/>'), calendar: P('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>'),
+  lock: P('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'), power: P('<path d="M18.4 6.6a9 9 0 1 1-12.8 0M12 2v10"/>'),
+  copy: P('<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>'),
+  grid: P('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>'),
+  clock: P('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'), file: P('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>'),
+  chat: P('<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>'), mega: P('<path d="m3 11 18-7v16L3 13z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>'),
+  chart: P('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'), gear: P('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 2.9-1.2V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'),
+  trash: P('<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6"/>'),
+  dollar: P('<path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>'),
+  briefcase: P('<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>'),
+  send: P('<path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/>'),
+  palm: P('<path d="M12 22V11M12 11C9 7 5 7 3 9M12 11c3-4 7-4 9-2M12 11c-1-4-4-6-7-6M12 11c1-4 4-6 7-6"/>'),
+};
 
-    let cacheBeneficios = [];
-    let cacheColaboradores = [];
-    let beneficioEditandoId = null;
-    // Benefícios concedidos individualmente (valor, periodicidade, desconto —
-    // rh.colaborador_beneficios, migração 22). Carregado à parte: se a
-    // migração não estiver aplicada, o catálogo acima continua funcionando.
-    let cacheConcessoes = [];
-    let erroConcessoes = "";
-    let colaboradoresTodos = [];
-    let filtroConcessaoColab = "";
-    async function refrescarConcessoes() {
-      erroConcessoes = "";
-      try {
-        [cacheConcessoes, colaboradoresTodos] = await Promise.all([rhListarConcessoes(), rhListarColaboradoresBasico({ incluirInativos: false })]);
-      } catch (err) {
-        cacheConcessoes = [];
-        erroConcessoes = rhErroMigracao22(err);
-      }
-    }
+document.querySelectorAll(".bnf [data-close]").forEach((b) => { if (b.classList.contains("bf-x")) b.innerHTML = I.x; });
 
-    async function refrescarBeneficios() {
-      [cacheBeneficios, cacheColaboradores] = await Promise.all([rhCarregarBeneficiosRH(), rhListarColaboradoresParaAtribuicao()]);
-    }
+/* =========================================================================
+   Utilitários
+   ========================================================================= */
+const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+const COMPETENCIA_ATUAL = rhCompetenciaAtual();
+const brl = (v) => (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const addMes = (k, n) => { const [y, m] = k.split("-").map(Number); const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
+const rotuloMes = (k) => { const [y, m] = k.split("-").map(Number); return `${MESES[m - 1]}/${y}`; };
+const iniciais = (n) => avatarInner(n); // foto do colaborador quando houver (js/ui.js)
+const corAvatar = (n) => "bf-c" + ((n.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % 5) + 1);
+const clone = (o) => JSON.parse(JSON.stringify(o));
+const num = (v) => { const n = parseFloat(String(v).replace(/\./g, "").replace(",", ".")); return Number.isFinite(n) ? n : null; };
+const fmtInput = (v) => (v === null || v === undefined || v === "" ? "" : Number(v).toFixed(2).replace(".", ","));
+function situacaoMes(k) { return k === COMPETENCIA_ATUAL ? { t: "Atual", c: "bf-b-blue" } : k < COMPETENCIA_ATUAL ? { t: "Histórico", c: "bf-b-gray" } : { t: "Próxima", c: "bf-b-orange" }; }
 
-    function descricaoAtribuicao(b) {
-      if (!b.atribuicao || b.atribuicao.tipo === "TODOS") return "Todos os colaboradores";
-      const nomes = b.atribuicao.nomes || [];
-      if (!nomes.length) return "Nenhum colaborador selecionado";
-      if (nomes.length === 1) return nomes[0];
-      return `${nomes.length} colaboradores: ${nomes.join(", ")}`;
-    }
+const CATEGORIAS = {
+  ALIMENTACAO: { label: "Alimentação / Refeição", icon: "utensils", bg: "var(--orange-50)", fg: "var(--orange-600)" },
+  TRANSPORTE: { label: "Transporte", icon: "bus", bg: "var(--blue-50)", fg: "var(--blue-600)" },
+  SAUDE: { label: "Saúde", icon: "shield", bg: "var(--red-50)", fg: "var(--red-600)" },
+  EDUCACAO: { label: "Educação", icon: "book", bg: "var(--violet-50)", fg: "var(--violet-600)" },
+  HOME_OFFICE: { label: "Home office", icon: "home", bg: "var(--teal-50)", fg: "var(--teal-600)" },
+  OUTROS: { label: "Outros", icon: "gift", bg: "var(--green-50)", fg: "var(--green-700)" },
+};
 
-    function render() {
-      const total = cacheBeneficios.length;
-      const ativos = cacheBeneficios.filter((b) => b.status === "ATIVO").length;
-      const pendentes = cacheBeneficios.filter((b) => b.status === "PENDENTE").length;
-      const especificos = cacheBeneficios.filter((b) => b.atribuicao?.tipo === "ESPECIFICO").length;
+// Personalização (igual ao cadastro atual do sistema): ícone + cor do card.
+const ICONES = ["heart", "utensils", "bus", "shield", "checkCircle", "gift", "dollar", "briefcase", "home"];
+const TONS = {
+  orange: { bg: "var(--orange-50)", fg: "var(--orange-600)", dot: "#f97316" },
+  red: { bg: "var(--red-50)", fg: "var(--red-600)", dot: "#ef4444" },
+  blue: { bg: "var(--blue-50)", fg: "var(--blue-600)", dot: "#3967e8" },
+  indigo: { bg: "var(--blue-50)", fg: "var(--blue-600)", dot: "#3967e8", oculto: true },
+  teal: { bg: "var(--teal-50)", fg: "var(--teal-600)", dot: "#14b8a6" },
+  violet: { bg: "var(--violet-50)", fg: "var(--violet-600)", dot: "#8b5cf6" },
+  green: { bg: "var(--green-50)", fg: "var(--green-700)", dot: "#10b981" },
+};
+const ICONE_ALIAS = { car: "bus", dollarSign: "dollar" };
+function visual(b) {
+  const cat = CATEGORIAS[b.categoria] || CATEGORIAS.OUTROS;
+  const t = TONS[b.tone === "indigo" ? "blue" : b.tone];
+  return { icon: I[ICONE_ALIAS[b.icon] || b.icon] || I[cat.icon], bg: t ? t.bg : cat.bg, fg: t ? t.fg : cat.fg };
+}
 
-      document.getElementById("content").innerHTML = `
-        <div class="space-y">
-          <div class="row-between benef-head">
-            <div>
-              <h1 class="page-title">Benefícios</h1>
-              <p class="page-sub">Cadastre os benefícios da empresa e escolha se valem para todos ou só para colaboradores específicos.</p>
-            </div>
-            <div class="benef-actions">
-              <select id="f-concessao-colab" title="Filtrar benefícios por colaborador">${rhOpcoesColaboradoresHtml(colaboradoresTodos, filtroConcessaoColab, { incluirVazio: true, labelVazio: "Todos os colaboradores" })}</select>
-              <div class="benef-add-wrap">
-                <button type="button" class="btn-primary auto" id="btn-novo-beneficio" aria-haspopup="menu" aria-expanded="false">${ICONS.plus}<span>Novo benefício</span>${ICONS.chevronDown}</button>
-                <div class="dropdown-panel benef-add-menu" id="menu-novo-beneficio" role="menu">
-                  <button type="button" class="dd-item" data-acao-novo="catalogo" role="menuitem">${ICONS.gift}<span><strong>Cadastrar benefício</strong><small>Catálogo da empresa: todos ou específicos</small></span></button>
-                  <button type="button" class="dd-item" data-acao-novo="concessao" role="menuitem">${ICONS.user}<span><strong>Registrar para colaborador</strong><small>Valor, início, periodicidade e desconto</small></span></button>
-                </div>
-              </div>
-            </div>
-          </div>
+/* =========================================================================
+   Dados fictícios
+   Estrutura pensada para o banco: o VALOR mora em
+   BENEFÍCIO + COLABORADOR + COMPETÊNCIA (aaaa-mm) — nunca só no benefício.
+   lancado=true → valor já pago/lançado (recebido = valor − desconto)
+   lancado=false → valor previsto (recebido = R$ 0,00 até lançar)
+   ========================================================================= */
+let COLABS = [];      // colaboradores ativos (id, nome, depto)
+let BENEFICIOS = [];  // benefícios no formato unificado (js/rh-beneficios-data.js)
+async function recarregar() {
+  const [colabs, beneficios] = await Promise.all([
+    sb.from("colaboradores").select("id, nome, departamento, status").neq("status", "INATIVO").order("nome").then((r) => { if (r.error) throw r.error; return r.data || []; }),
+    rhCarregarBeneficiosUnificados(),
+  ]);
+  COLABS = colabs.map((c) => ({ id: c.id, nome: c.nome, depto: c.departamento || "" }));
+  BENEFICIOS = beneficios;
+}
 
-          <div id="kpi-grid"></div>
+/* =========================================================================
+   Regras
+   ========================================================================= */
+// Valor do colaborador no mês: o que o RH lançou/ajustou para aquele mês;
+// se não houver e o mês for o atual ou futuro, usa o VALOR FIXO mensal
+// (histórico passado nunca é inventado a partir do fixo).
+function lanc(b, id, k) {
+  const l = b.valores[id]?.[k];
+  if (l) return l;
+  const fixo = Number(b.fixos?.[id]) || 0;
+  if (fixo > 0 && k >= COMPETENCIA_ATUAL) return { valor: fixo, desconto: 0, lancado: false, doFixo: true };
+  return null;
+}
+// Garante uma entrada real (materializa o fixo) antes de editar/lançar.
+function lancReal(b, id, k) {
+  b.valores[id] = b.valores[id] || {};
+  if (!b.valores[id][k]) { const v = lanc(b, id, k); b.valores[id][k] = v ? { valor: v.valor, desconto: v.desconto, lancado: false } : { valor: 0, desconto: 0, lancado: false }; }
+  return b.valores[id][k];
+}
+const recebido = (l) => (l && l.lancado ? Math.max(0, (l.valor || 0) - (l.desconto || 0)) : 0);
+const idsDo = (b) => (b.publico === "TODOS" ? COLABS.map((c) => c.id) : b.colaboradores.filter((id) => COLABS.some((c) => c.id === id)));
+const colab = (id) => COLABS.find((c) => c.id === id) || { id, nome: "Colaborador inativo", depto: "" };
+function totaisDoMes(b, k) {
+  let bruto = 0, desc = 0, rec = 0, previsto = 0, qtd = 0;
+  idsDo(b).forEach((id) => {
+    const l = lanc(b, id, k); if (!l) return; qtd++;
+    bruto += l.valor || 0; desc += l.desconto || 0; rec += recebido(l); if (!l.lancado) previsto += Math.max(0, (l.valor || 0) - (l.desconto || 0));
+  });
+  return { bruto, desc, rec, previsto, qtd };
+}
+function pendentesDoMes(b, k) {
+  return idsDo(b).filter((id) => { const l = lanc(b, id, k); return l && !l.lancado && (l.valor || 0) > 0; });
+}
+function mesesDe(b, idFiltro = null) {
+  const set = new Set();
+  Object.entries(b.valores).forEach(([id, meses]) => { if (!idFiltro || id === idFiltro) Object.keys(meses).forEach((k) => set.add(k)); });
+  return [...set].sort().reverse();
+}
 
-          <div class="benefit-grid" id="beneficios-grid"></div>
+/* =========================================================================
+   Estado da tela
+   ========================================================================= */
+const ui = { mes: COMPETENCIA_ATUAL, filtroColab: "", filtroStatus: "" };
 
-          <div class="card card-p">
-            <div class="row-between" style="margin-bottom:.9rem;flex-wrap:wrap;gap:.7rem">
-              <div>
-                <h2 style="margin:0">Benefícios por colaborador</h2>
-                <p class="page-sub" style="margin:.25rem 0 0">Benefício concedido a cada pessoa: início, valor, periodicidade e se houve desconto. Use o filtro no topo para ver um colaborador.</p>
-              </div>
-            </div>
-            <div id="concessoes-wrap"></div>
-          </div>
+// Aviso: usa o toast padrão do sistema (showToast, js/ui.js).
+function toast(msg, tipo = "success") { showToast(msg, tipo); }
+function abrir(id) { const o = document.getElementById(id); o.classList.add("bf-open"); o.setAttribute("aria-hidden", "false"); }
+function fechar(id) { const o = document.getElementById(id); o.classList.remove("bf-open"); o.setAttribute("aria-hidden", "true"); }
+document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => fechar(b.dataset.close)));
+document.querySelectorAll(".bf-overlay").forEach((o) => o.addEventListener("mousedown", (e) => { if (e.target === o) fechar(o.id); }));
+document.addEventListener("keydown", (e) => { if (e.key !== "Escape") return; const abertos = [...document.querySelectorAll(".bf-overlay.bf-open")]; if (abertos.length) fechar(abertos[abertos.length - 1].id); });
+
+function monthNavHtml(k, id) {
+  const s = situacaoMes(k);
+  return `<div class="bf-month-nav"><button type="button" data-mes="${id}" data-d="-1" aria-label="Mês anterior">${I.left}</button><span>${rotuloMes(k)}<small>${s.t === "Atual" ? "Competência atual" : s.t === "Próxima" ? "Próxima competência" : "Histórico"}</small></span><button type="button" data-mes="${id}" data-d="1" aria-label="Próximo mês">${I.right}</button></div>`;
+}
+
+/* =========================================================================
+   TELA PRINCIPAL (RH)
+   ========================================================================= */
+function render() { return renderRH(); }
+
+function renderRH() {
+  const k = ui.mes;
+  const ativos = BENEFICIOS.filter((b) => b.status === "ATIVO");
+  let bruto = 0, desc = 0, rec = 0; const atendidos = new Set();
+  ativos.forEach((b) => { const t = totaisDoMes(b, k); bruto += t.bruto; desc += t.desc; rec += t.rec; idsDo(b).forEach((id) => { if (lanc(b, id, k)) atendidos.add(id); }); });
+
+  let lista = BENEFICIOS.slice();
+  if (ui.filtroStatus) lista = lista.filter((b) => b.status === ui.filtroStatus);
+  if (ui.filtroColab) lista = lista.filter((b) => idsDo(b).includes(ui.filtroColab));
+
+  document.getElementById("content").innerHTML = `<div class="bnf">
+    <div class="row-between" style="flex-wrap:wrap;gap:1rem;align-items:flex-end;margin-bottom:1.2rem">
+      <div><h1 class="page-title">Benefícios</h1><p class="page-sub">Cadastre os benefícios, escolha quem recebe e controle o valor de cada colaborador mês a mês.</p></div>
+      <div class="bf-toolbar">
+        ${monthNavHtml(k, "main")}
+        <select class="bf-inp" id="f-colab" aria-label="Filtrar por colaborador"><option value="">Todos os colaboradores</option>${COLABS.map((c) => `<option value="${c.id}" ${c.id === ui.filtroColab ? "selected" : ""}>${esc(c.nome)}</option>`).join("")}</select>
+        <select class="bf-inp" id="f-status" aria-label="Filtrar por status"><option value="">Todos os status</option><option value="ATIVO" ${ui.filtroStatus === "ATIVO" ? "selected" : ""}>Ativos</option><option value="INATIVO" ${ui.filtroStatus === "INATIVO" ? "selected" : ""}>Inativos</option></select>
+        <button type="button" class="bf-btn bf-btn-primary" id="btn-novo">${I.plus}<span>Novo benefício</span></button>
+      </div>
+    </div>
+    <div class="bf-kpis">
+      ${kpi("Benefícios ativos", ativos.length, `${BENEFICIOS.length - ativos.length} inativo(s)`, I.heart, "var(--blue-50)", "var(--blue-600)")}
+      ${kpi("Colaboradores atendidos", atendidos.size, `em ${rotuloMes(k)}`, I.users, "var(--violet-50)", "var(--violet-600)")}
+      ${kpi("Descontos no mês", brl(desc), `de ${brl(bruto)} concedidos`, I.minus, "var(--red-50)", "var(--red-600)")}
+      ${kpi("Total recebido", brl(rec), situacaoMes(k).t === "Próxima" ? "ainda não lançado" : "valores já lançados", I.wallet, "var(--green-50)", "var(--green-700)")}
+    </div>
+    <div class="bf-grid">${lista.length ? lista.map((b) => cardHtml(b, k)).join("") : `<div class="bf-card bf-empty" style="grid-column:1/-1"><div class="bf-e-ico">${I.heart}</div><b>${BENEFICIOS.length ? "Nenhum benefício encontrado" : "Nenhum benefício cadastrado"}</b><p>${BENEFICIOS.length ? "Ajuste os filtros ou clique em “Novo benefício”." : "Clique em “Novo benefício” para começar."}</p></div>`}</div>
+  </div>`;
+  document.getElementById("btn-novo").addEventListener("click", () => abrirForm(null));
+  document.getElementById("f-colab").addEventListener("change", (e) => { ui.filtroColab = e.target.value; renderRH(); });
+  document.getElementById("f-status").addEventListener("change", (e) => { ui.filtroStatus = e.target.value; renderRH(); });
+  document.querySelectorAll('[data-mes="main"]').forEach((b) => b.addEventListener("click", () => { ui.mes = addMes(ui.mes, Number(b.dataset.d)); renderRH(); }));
+  document.querySelectorAll("[data-card]").forEach((c) => c.addEventListener("click", (e) => {
+    if (e.target.closest("[data-editar]")) { e.stopPropagation(); abrirForm(c.dataset.card, "valores"); return; }
+    if (e.target.closest("[data-excluir]")) { e.stopPropagation(); excluirBeneficio(c.dataset.card); return; }
+    if (e.target.closest("[data-lancar]")) { e.stopPropagation(); lancarMes(c.dataset.card, ui.mes); return; }
+    abrirDetalhes(c.dataset.card);
+  }));
+}
+function kpi(label, value, sub, ico, bg, fg) {
+  return `<div class="bf-card bf-kpi"><div class="bf-kpi-top"><div class="bf-kpi-ico" style="background:${bg};color:${fg}">${ico}</div><p class="bf-kpi-label">${label}</p></div><p class="bf-kpi-value">${value}</p><div class="bf-kpi-sub">${sub}</div></div>`;
+}
+function cardHtml(b, k) {
+  const cat = CATEGORIAS[b.categoria] || CATEGORIAS.OUTROS, vis = visual(b);
+  const t = totaisDoMes(b, k);
+  const prox = totaisDoMes(b, addMes(k, 1));
+  const qtd = idsDo(b).length;
+  const pendentes = pendentesDoMes(b, k);
+  return `
+    <article class="bf-card bf-bcard ${b.status === "INATIVO" ? "bf-inactive" : ""}" data-card="${b.id}" tabindex="0">
+      <div class="bf-bcard-top">
+        <div class="bf-b-ico" style="background:${vis.bg};color:${vis.fg}">${vis.icon}</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;justify-content:space-between;gap:.5rem;align-items:center"><h3>${esc(b.nome)}</h3>${b.status === "ATIVO" ? '<span class="bf-badge bf-b-green">● Ativo</span>' : '<span class="bf-badge bf-b-gray">● Inativo</span>'}</div>
+          <p class="bf-desc">${esc(b.descricao || cat.label)}</p>
         </div>
-      `;
-      renderConcessoes();
-      document.getElementById("f-concessao-colab").addEventListener("change", (e) => { filtroConcessaoColab = e.target.value; renderConcessoes(); });
-      const btnNovo = document.getElementById("btn-novo-beneficio");
-      const menuNovo = document.getElementById("menu-novo-beneficio");
-      const fecharMenu = () => { menuNovo.classList.remove("open"); btnNovo.setAttribute("aria-expanded", "false"); };
-      btnNovo.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const abrir = !menuNovo.classList.contains("open");
-        menuNovo.classList.toggle("open", abrir);
-        btnNovo.setAttribute("aria-expanded", String(abrir));
-      });
-      menuNovo.querySelectorAll("[data-acao-novo]").forEach((item) =>
-        item.addEventListener("click", () => {
-          fecharMenu();
-          if (item.dataset.acaoNovo === "catalogo") abrirModalNovo();
-          else rhAbrirModalConcessao({ colaboradores: colaboradoresTodos, catalogo: cacheBeneficios, colaboradorFixoId: filtroConcessaoColab || null, session, onSaved: async () => { await refrescarConcessoes(); render(); } });
-        })
-      );
-      if (!window.__benefMenuWired) {
-        window.__benefMenuWired = true;
-        const fecharGlobal = () => { document.getElementById("menu-novo-beneficio")?.classList.remove("open"); document.getElementById("btn-novo-beneficio")?.setAttribute("aria-expanded", "false"); };
-        document.addEventListener("click", (e) => { if (!e.target.closest(".benef-add-wrap")) fecharGlobal(); });
-        document.addEventListener("keydown", (e) => { if (e.key === "Escape") fecharGlobal(); });
-      }
+      </div>
+      <div class="bf-bcard-stats">
+        <div class="bf-stat"><small>Competência</small><b>${rotuloMes(k)}</b></div>
+        <div class="bf-stat"><small>Colaboradores</small><b>${qtd}</b></div>
+        <div class="bf-stat"><small>Total recebido</small><b style="color:var(--green-700)">${brl(t.rec)}</b></div>
+        <div class="bf-stat"><small>Previsto ${MESES[Number(addMes(k, 1).split("-")[1]) - 1]}</small><b style="color:var(--blue-700)">${brl(prox.bruto - prox.desc)}</b></div>
+      </div>
+      <div class="bf-bcard-foot">
+        <span class="bf-chip">${b.publico === "TODOS" ? I.users : I.user}${b.publico === "TODOS" ? "Todos os colaboradores" : `${qtd} específico${qtd > 1 ? "s" : ""}`}</span>
+        <div class="bf-foot-actions">
+          ${pendentes.length && k <= COMPETENCIA_ATUAL ? `<button type="button" class="bf-btn bf-btn-launch bf-btn-sm" data-lancar title="Marcar como pagos os valores de ${rotuloMes(k)}">${I.send}<span>Lançar ${MESES[Number(k.split("-")[1]) - 1]}</span></button>` : ""}
+          <button type="button" class="bf-btn bf-btn-ghost bf-btn-sm" data-editar>${I.edit}<span>Editar</span></button>
+          <button type="button" class="bf-icon-btn bf-danger" data-excluir title="Excluir benefício" aria-label="Excluir benefício">${I.trash}</button>
+        </div>
+      </div>
+    </article>`;
+}
 
-      renderKpiGrid(document.getElementById("kpi-grid"), [
-        { label: "Benefícios cadastrados", value: total, tone: "indigo", icon: ICONS.heart },
-        { label: "Ativos", value: ativos, tone: "green", icon: ICONS.checkCircle },
-        { label: "Pendentes", value: pendentes, tone: "orange", icon: ICONS.hourglass },
-        { label: "Com atribuição específica", value: especificos, tone: "violet", icon: ICONS.users },
-      ]);
+/* =========================================================================
+   DETALHES (clique no card)
+   ========================================================================= */
+let det = null;
+function abrirDetalhes(id) {
+  const b = BENEFICIOS.find((x) => x.id === id);
+  det = { id, mes: ui.mes, aba: "valores", abertos: {} };
+  const vis = visual(b);
+  const ico = document.getElementById("det-ico");
+  ico.innerHTML = vis.icon; ico.style.background = vis.bg; ico.style.color = vis.fg;
+  renderDetalhes();
+  abrir("ov-det");
+}
+function renderDetalhes() {
+  const b = BENEFICIOS.find((x) => x.id === det.id);
+  document.getElementById("det-title").innerHTML = `${esc(b.nome)} ${b.status === "ATIVO" ? '<span class="bf-badge bf-b-green">Ativo</span>' : '<span class="bf-badge bf-b-gray">Inativo</span>'}`;
+  document.getElementById("det-sub").textContent = `${(CATEGORIAS[b.categoria] || CATEGORIAS.OUTROS).label} · ${b.publico === "TODOS" ? "Todos os colaboradores" : "Colaboradores específicos"}`;
+  document.getElementById("det-tabs").innerHTML = [["valores", "Valores por colaborador"], ["historico", "Histórico"]]
+    .map(([k, t]) => `<button type="button" class="${det.aba === k ? "bf-active" : ""}" data-dtab="${k}">${t}</button>`).join("");
+  const body = document.getElementById("det-body");
+  if (det.aba === "valores") {
+    const k = det.mes, prox = addMes(k, 1), t = totaisDoMes(b, k);
+    body.innerHTML = `
+      <div class="bf-values-bar">${monthNavHtml(k, "det")}<span class="bf-spacer"></span>
+        <span class="bf-badge bf-b-gray">Concedido ${brl(t.bruto)}</span><span class="bf-badge bf-b-pink">Descontos ${brl(t.desc)}</span><span class="bf-badge bf-b-green">Recebido ${brl(t.rec)}</span></div>
+      <div class="bf-tbl-wrap"><table class="bf-tbl"><thead><tr><th>Colaborador</th><th class="bf-num">Fixo/mês</th><th class="bf-num">Valor</th><th class="bf-num">Desconto</th><th class="bf-num">Recebido</th><th class="bf-num">${rotuloMes(prox)}</th><th></th></tr></thead>
+      <tbody>${idsDo(b).map((id) => {
+        const c = colab(id), l = lanc(b, id, k), n = lanc(b, id, prox);
+        const aberto = det.abertos[id];
+        const linhas = aberto ? mesesDe(b, id).map((m) => { const x = b.valores[id][m]; return `<tr><td colspan="7" style="padding:.35rem .7rem .35rem 3.3rem;background:#fbfcfe"><div class="bf-hist-item"><b>${rotuloMes(m)}</b><span>Valor ${brl(x.valor)}</span><span class="${bf-x.desconto ? "bf-neg" : ""}">Desconto ${brl(x.desconto)}</span><span class="${bf-x.lancado ? "bf-ok" : ""}">${x.lancado ? "Recebido " + brl(recebido(x)) : "Previsto (não lançado)"}</span></div></td></tr>`; }).join("") : "";
+        return `<tr>
+          <td><div class="bf-colab-name"><span class="bf-avatar ${corAvatar(c.nome)}">${iniciais(c.nome)}</span><div><b>${esc(c.nome)}</b><small>${esc(c.depto)}</small></div></div></td>
+          <td class="bf-num" style="color:var(--blue-700);font-weight:700">${b.fixos?.[id] ? brl(b.fixos[id]) : "—"}</td>
+          <td class="bf-num">${l ? brl(l.valor) : "—"}</td>
+          <td class="bf-num" style="${l?.desconto ? "color:var(--red-600)" : ""}">${l ? brl(l.desconto) : "—"}</td>
+          <td class="bf-num"><b style="color:${l?.lancado ? "var(--green-700)" : "var(--text-faint)"}">${l ? (l.lancado ? brl(recebido(l)) : "Previsto") : "—"}</b></td>
+          <td class="bf-num" style="color:var(--blue-700);font-weight:700">${n ? brl(n.valor) : "—"}</td>
+          <td class="bf-num"><button type="button" class="bf-hist-link ${aberto ? "bf-open" : ""}" data-dhist="${id}">Histórico ${I.down}</button></td>
+        </tr>${linhas}`;
+      }).join("")}</tbody></table></div>`;
+    body.querySelectorAll('[data-mes="det"]').forEach((x) => x.addEventListener("click", () => { det.mes = addMes(det.mes, Number(x.dataset.d)); renderDetalhes(); }));
+    body.querySelectorAll("[data-dhist]").forEach((x) => x.addEventListener("click", () => { det.abertos[x.dataset.dhist] = !det.abertos[x.dataset.dhist]; renderDetalhes(); }));
+  } else {
+    body.innerHTML = historicoHtml(b, det.filtroHist || "");
+    wireHistorico(body, (v) => { det.filtroHist = v; renderDetalhes(); });
+  }
+  document.querySelectorAll("[data-dtab]").forEach((x) => x.addEventListener("click", () => { det.aba = x.dataset.dtab; renderDetalhes(); }));
+  const tg = document.getElementById("det-toggle");
+  tg.innerHTML = `${I.power}<span>${b.status === "ATIVO" ? "Desativar" : "Ativar"} benefício</span>`;
+  tg.className = b.status === "ATIVO" ? "btn btn-danger-ghost" : "btn btn-ghost";
+  tg.onclick = async () => {
+    const novo = b.status === "ATIVO" ? "INATIVO" : "ATIVO";
+    tg.disabled = true;
+    try {
+      await rhDefinirStatusBeneficio(b.id, novo);
+      await recarregar();
+      toast(`${b.nome} ${novo === "ATIVO" ? "ativado" : "desativado"}.`, "success");
+      renderDetalhes(); renderRH();
+    } catch (err) { toast(rhErroMigracao26(err), "error"); }
+    finally { tg.disabled = false; }
+  };
+  const ex = document.getElementById("det-excluir");
+  ex.innerHTML = I.trash; ex.onclick = () => excluirBeneficio(b.id);
+  const la = document.getElementById("det-lancar");
+  const pend = pendentesDoMes(b, det.mes);
+  la.style.display = pend.length && det.mes <= COMPETENCIA_ATUAL ? "" : "none";
+  la.innerHTML = `${I.send}<span>Lançar ${rotuloMes(det.mes)}</span>`;
+  la.onclick = () => lancarMes(b.id, det.mes, () => renderDetalhes());
+  const ed = document.getElementById("det-edit");
+  ed.innerHTML = `${I.edit}<span>Editar benefício</span>`;
+  ed.onclick = () => { fechar("ov-det"); abrirForm(b.id, "valores", det.mes); };
+}
 
-      renderBeneficiosGrid();
-    }
+function historicoHtml(b, filtro) {
+  const meses = mesesDe(b, filtro || null);
+  const ids = idsDo(b).filter((id) => !filtro || id === filtro);
+  // inclui quem tem histórico mas saiu do público (não some do histórico)
+  Object.keys(b.valores).forEach((id) => { if (!ids.includes(id) && (!filtro || id === filtro)) ids.push(id); });
+  const rows = meses.map((m) => {
+    const itens = ids.filter((id) => b.valores[id]?.[m]);
+    if (!itens.length) return "";
+    const tot = itens.reduce((a, id) => a + recebido(b.valores[id][m]), 0);
+    return `<tr class="bf-month-group"><td colspan="3">${rotuloMes(m)} <span class="bf-badge ${situacaoMes(m).c}" style="margin-left:.4rem">${situacaoMes(m).t}</span></td><td class="bf-num" colspan="2">Recebido no mês: ${brl(tot)}</td></tr>` +
+      itens.map((id) => { const l = b.valores[id][m]; const c = colab(id); return `<tr><td>${esc(c.nome)}</td><td class="bf-num">${brl(l.valor)}</td><td class="bf-num" style="${l.desconto ? "color:var(--red-600)" : ""}">${brl(l.desconto)}</td><td class="bf-num"><b style="color:${l.lancado ? "var(--green-700)" : "var(--text-faint)"}">${l.lancado ? brl(recebido(l)) : "—"}</b></td><td>${l.lancado ? '<span class="bf-badge bf-b-green">Lançado</span>' : '<span class="bf-badge bf-b-orange">Previsto</span>'}</td></tr>`; }).join("");
+  }).join("");
+  return `
+    <div class="bf-note">${I.info}<span>O histórico nunca é apagado: cada mês é uma competência separada. Mudar o valor de um mês não altera os meses anteriores.</span></div>
+    <div class="bf-values-bar"><select class="bf-inp" id="hist-filtro" style="min-width:240px"><option value="">Todos os colaboradores</option>${Object.keys(b.valores).map((id) => `<option value="${id}" ${id === filtro ? "selected" : ""}>${esc(colab(id).nome)}</option>`).join("")}</select></div>
+    ${rows ? `<div class="bf-tbl-wrap"><table class="bf-tbl"><thead><tr><th>Colaborador</th><th class="bf-num">Valor</th><th class="bf-num">Desconto</th><th class="bf-num">Recebido</th><th>Situação</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<div class="bf-empty"><div class="bf-e-ico">${I.calendar}</div><b>Sem histórico ainda</b><p>Os meses aparecem aqui assim que você informar valores.</p></div>`}`;
+}
+function wireHistorico(root, onFiltro) { root.querySelector("#hist-filtro")?.addEventListener("change", (e) => onFiltro(e.target.value)); }
 
-    function renderConcessoes() {
-      const wrap = document.getElementById("concessoes-wrap");
-      if (!wrap) return;
-      if (erroConcessoes) { wrap.innerHTML = `<div class="notice">${esc(erroConcessoes)}</div>`; return; }
-      const rows = cacheConcessoes.filter((c) => !filtroConcessaoColab || c.colaborador_id === filtroConcessaoColab);
-      wrap.innerHTML = rows.length
-        ? `<div class="mini-list">${rows.map((c) => rhConcessaoCardHtml(c, { podeEditar: true, mostrarColaborador: true })).join("")}</div>`
-        : emptyStateHtml({ icon: ICONS.heart, title: "Nenhum benefício individual registrado", desc: "Use “Novo benefício” → “Registrar para colaborador” para lançar valor, início e desconto de um benefício para um colaborador." });
-      wrap.querySelectorAll("[data-editar-concessao]").forEach((b) =>
-        b.addEventListener("click", () =>
-          rhAbrirModalConcessao({ colaboradores: colaboradoresTodos, catalogo: cacheBeneficios, concessao: cacheConcessoes.find((x) => x.id === b.dataset.editarConcessao), session, onSaved: async () => { await refrescarConcessoes(); render(); } })
-        )
-      );
-    }
+/* =========================================================================
+   MODAL ÚNICO: NOVO / EDITAR BENEFÍCIO
+   ========================================================================= */
+let form = null; // rascunho — só vira "real" ao salvar
+function abrirForm(id, aba = "info", mes = null) {
+  const base = id ? clone(BENEFICIOS.find((x) => x.id === id)) : { id: null, nome: "", categoria: "ALIMENTACAO", icon: "heart", tone: "blue", status: "ATIVO", descricao: "", publico: "TODOS", colaboradores: [], fixos: {}, valores: {} };
+  form = { b: base, aba: id ? aba : "info", mes: mes || ui.mes, busca: "", abertos: {}, filtroHist: "", erros: {} };
+  document.getElementById("form-title").textContent = id ? `Editar benefício` : "Novo benefício";
+  document.getElementById("form-sub").textContent = id ? `${base.nome} — altere as informações, quem recebe e os valores por competência.` : "Cadastre o benefício, escolha quem recebe e informe o valor de cada colaborador.";
+  document.getElementById("btn-salvar").innerHTML = `${I.check}<span>Salvar benefício</span>`;
+  renderForm();
+  abrir("ov-form");
+  setTimeout(() => document.getElementById("ff-nome")?.focus(), 60);
+}
+function renderForm() {
+  const abas = [["info", "Informações"], ["publico", "Para quem é"], ["valores", "Valores por colaborador"]];
+  if (form.b.id) abas.push(["historico", "Histórico"]);
+  document.getElementById("form-tabs").innerHTML = abas.map(([k, t], i) => `<button type="button" class="${form.aba === k ? "bf-active" : ""}" data-ftab="${k}"><span class="bf-n">${i + 1}</span>${t}</button>`).join("");
+  document.querySelectorAll("[data-ftab]").forEach((x) => x.addEventListener("click", () => { form.aba = x.dataset.ftab; renderForm(); }));
+  const body = document.getElementById("form-body");
+  body.scrollTop = 0;
+  const ids = idsDo(form.b);
+  document.getElementById("form-hint").textContent = `${ids.length} colaborador${ids.length === 1 ? "" : "es"} · ${rotuloMes(form.mes)}`;
+  ({ info: formInfo, publico: formPublico, valores: formValores, historico: formHistorico })[form.aba](body);
+}
 
-    function renderBeneficiosGrid() {
-      const grid = document.getElementById("beneficios-grid");
-      if (!cacheBeneficios.length) {
-        grid.outerHTML = `<div id="beneficios-grid">${emptyStateHtml({ icon: ICONS.heart, title: "Nenhum benefício cadastrado", desc: "Clique em “Novo benefício” para começar." })}</div>`;
-        return;
-      }
-      grid.innerHTML = cacheBeneficios.map((b) => beneficioCardHtml(b)).join("");
-      wireBeneficiosGridEvents();
-    }
+function formInfo(body) {
+  const b = form.b;
+  body.innerHTML = `
+    <div class="bf-sec">
+      <p class="bf-sec-title"><span class="bf-dot"></span>Informações do benefício</p>
+      <div class="bf-form-grid">
+        <div class="bf-field"><label for="ff-nome">Nome do benefício</label><input class="bf-inp ${form.erros.nome ? "bf-invalid" : ""}" id="ff-nome" value="${esc(b.nome)}" placeholder="Ex.: Alimentação" maxlength="60" /><div class="bf-err ${form.erros.nome ? "bf-show" : ""}">Informe o nome do benefício.</div></div>
+        <div class="bf-field"><label for="ff-cat">Tipo / categoria</label><select class="bf-inp" id="ff-cat">${Object.entries(CATEGORIAS).map(([k, c]) => `<option value="${k}" ${k === b.categoria ? "selected" : ""}>${c.label}</option>`).join("")}</select></div>
+        <div class="bf-field bf-full"><label for="ff-desc">Descrição <span style="font-weight:500;color:var(--text-faint)">(opcional)</span></label><input class="bf-inp" id="ff-desc" value="${esc(b.descricao)}" placeholder="Ex.: Crédito mensal no cartão alimentação." maxlength="120" /></div>
+        <div class="bf-field bf-full"><label>Ícone</label><div class="bf-swatches">${ICONES.map((k) => `<button type="button" class="bf-sw-icon ${b.icon === k ? "bf-active" : ""}" data-icon="${k}" aria-label="Ícone ${k}">${I[k]}</button>`).join("")}</div></div>
+        <div class="bf-field"><label>Cor</label><div class="bf-swatches">${Object.entries(TONS).filter(([, t]) => !t.oculto).map(([k, t]) => `<button type="button" class="bf-sw-tone ${(b.tone === "indigo" ? "blue" : b.tone) === k ? "bf-active" : ""}" data-tone="${k}" style="background:${t.dot}" aria-label="Cor ${k}"></button>`).join("")}</div></div>
+        <div class="bf-field"><label>Pré-visualização</label><div class="bf-preview-card" id="ff-prev"></div></div>
+        <div class="bf-field bf-full"><label>Status</label>
+          <div class="bf-seg" role="radiogroup"><button type="button" class="bf-on ${b.status === "ATIVO" ? "bf-active" : ""}" data-st="ATIVO"><i></i>Ativo</button><button type="button" class="bf-off ${b.status === "INATIVO" ? "bf-active" : ""}" data-st="INATIVO"><i></i>Inativo</button></div>
+        </div>
+      </div>
+    </div>
+    <div class="bf-note">${I.info}<span>Sem data de término: o benefício fica ativo até o RH desativá-lo. Desativar não apaga o histórico.</span></div>`;
+  body.querySelector("#ff-nome").addEventListener("input", (e) => { b.nome = e.target.value; if (form.erros.nome && b.nome.trim()) { form.erros.nome = false; e.target.classList.remove("bf-invalid"); body.querySelector(".bf-err").classList.remove("bf-show"); } });
+  const pintarPrev = () => { const v = visual(b); body.querySelector("#ff-prev").innerHTML = `<div class="bf-b-ico" style="background:${v.bg};color:${v.fg}">${v.icon}</div><div><b>${esc(b.nome || "Nome do benefício")}</b><small>${esc((CATEGORIAS[b.categoria] || CATEGORIAS.OUTROS).label)}</small></div>`; };
+  pintarPrev();
+  body.querySelector("#ff-nome").addEventListener("input", pintarPrev);
+  body.querySelector("#ff-cat").addEventListener("change", (e) => { b.categoria = e.target.value; pintarPrev(); });
+  body.querySelectorAll("[data-icon]").forEach((x) => x.addEventListener("click", () => { b.icon = x.dataset.icon; body.querySelectorAll("[data-icon]").forEach((y) => y.classList.toggle("bf-active", y === x)); pintarPrev(); }));
+  body.querySelectorAll("[data-tone]").forEach((x) => x.addEventListener("click", () => { b.tone = x.dataset.tone; body.querySelectorAll("[data-tone]").forEach((y) => y.classList.toggle("bf-active", y === x)); pintarPrev(); }));
+  body.querySelector("#ff-desc").addEventListener("input", (e) => { b.descricao = e.target.value; });
+  body.querySelectorAll("[data-st]").forEach((x) => x.addEventListener("click", () => { b.status = x.dataset.st; formInfo(body); }));
+}
 
-    function beneficioCardHtml(b) {
-      return `
-        <div class="card benefit-card-rh">
-          <div class="benefit-card-top">
-            <div class="benefit-icon" style="background:${TONE_BG[b.tone] || TONE_BG.indigo};color:${TONE_FG[b.tone] || TONE_FG.indigo}">${ICONS[b.icon] || ICONS.heart}</div>
-            <div style="flex:1;min-width:0">
-              <div class="row-between" style="margin-bottom:0.1rem">
-                <p class="title">${esc(b.nome)}</p>
-                ${statusBadgeHtml(b.status, STATUS_LABELS)}
-              </div>
-              <p class="desc">${esc(b.desc)}</p>
-            </div>
-          </div>
-          <div class="benefit-card-foot">
-            <span class="benefit-assign-chip" title="${esc(descricaoAtribuicao(b))}">${b.atribuicao?.tipo === "ESPECIFICO" ? ICONS.user : ICONS.users}<span>${esc(descricaoAtribuicao(b))}</span></span>
-            <div class="approve-reject">
-              <button type="button" class="edit" data-editar-beneficio="${b.id}" aria-label="Editar benefício" title="Editar benefício">${ICONS.edit}</button>
-              <button type="button" class="delete" data-excluir-beneficio="${b.id}" aria-label="Excluir benefício" title="Excluir benefício">${ICONS.trash}</button>
-            </div>
-          </div>
-        </div>`;
-    }
+function formPublico(body) {
+  const b = form.b;
+  const q = form.busca.trim().toLowerCase();
+  const lista = COLABS.filter((c) => !q || c.nome.toLowerCase().includes(q) || c.depto.toLowerCase().includes(q));
+  body.innerHTML = `
+    <div class="bf-sec">
+      <p class="bf-sec-title"><span class="bf-dot"></span>Para quem é o benefício?</p>
+      <div class="bf-radio-cards">
+        <button type="button" class="bf-rcard ${b.publico === "TODOS" ? "bf-active" : ""}" data-pub="TODOS"><span class="bf-rd"></span><span><b>Todos os colaboradores</b><small>Disponível para todos (${COLABS.length}). O valor continua individual por colaborador.</small></span></button>
+        <button type="button" class="bf-rcard ${b.publico === "ESPECIFICO" ? "bf-active" : ""}" data-pub="ESPECIFICO"><span class="bf-rd"></span><span><b>Colaboradores específicos</b><small>Escolha quem vai receber este benefício.</small></span></button>
+      </div>
+      ${b.publico === "ESPECIFICO" ? `
+      <div class="bf-picker ${form.erros.publico ? "bf-invalid" : ""}" style="${form.erros.publico ? "border-color:var(--red-500)" : ""}">
+        <div class="bf-picker-head"><input class="bf-inp" id="ff-busca" placeholder="Buscar por nome ou departamento..." value="${esc(form.busca)}" /><button type="button" class="bf-btn bf-btn-ghost bf-btn-sm" id="ff-todos">${b.colaboradores.length === COLABS.length ? "Limpar" : "Marcar todos"}</button></div>
+        <div class="bf-picker-list">${lista.map((c) => `<label class="bf-pick"><input type="checkbox" value="${c.id}" ${b.colaboradores.includes(c.id) ? "checked" : ""} /><span class="bf-avatar ${corAvatar(c.nome)}" style="width:28px;height:28px;font-size:.65rem">${iniciais(c.nome)}</span><span>${esc(c.nome)}</span><small>${esc(c.depto)}</small></label>`).join("") || '<div class="bf-empty" style="padding:1.2rem">Nenhum colaborador encontrado.</div>'}</div>
+      </div>
+      <div class="bf-err ${form.erros.publico ? "bf-show" : ""}">Selecione pelo menos um colaborador.</div>
+      <p style="font-size:.78rem;color:var(--text-soft);margin:.6rem 0 0"><b>${b.colaboradores.length}</b> selecionado(s)</p>` : ""}
+    </div>
+    <div class="bf-note">${I.info}<span>Depois de escolher, vá em <b>Valores por colaborador</b> para informar quanto cada pessoa recebe em cada mês.</span></div>`;
+  body.querySelectorAll("[data-pub]").forEach((x) => x.addEventListener("click", () => { b.publico = x.dataset.pub; form.erros.publico = false; renderForm(); }));
+  body.querySelector("#ff-busca")?.addEventListener("input", (e) => { form.busca = e.target.value; const pos = e.target.selectionStart; formPublico(body); const i = body.querySelector("#ff-busca"); i.focus(); i.setSelectionRange(pos, pos); });
+  body.querySelector("#ff-todos")?.addEventListener("click", () => { b.colaboradores = b.colaboradores.length === COLABS.length ? [] : COLABS.map((c) => c.id); form.erros.publico = false; renderForm(); });
+  body.querySelectorAll(".bf-pick input").forEach((x) => x.addEventListener("change", () => {
+    b.colaboradores = x.checked ? [...new Set([...b.colaboradores, x.value])] : b.colaboradores.filter((i) => i !== x.value);
+    if (b.colaboradores.length) form.erros.publico = false;
+    renderForm();
+  }));
+}
 
-    function wireBeneficiosGridEvents() {
-      document.querySelectorAll("[data-editar-beneficio]").forEach((btn) =>
-        btn.addEventListener("click", () => abrirModalEditar(btn.dataset.editarBeneficio))
-      );
-      document.querySelectorAll("[data-excluir-beneficio]").forEach((btn) =>
-        btn.addEventListener("click", async () => {
-          const id = btn.dataset.excluirBeneficio;
-          const b = cacheBeneficios.find((x) => x.id === id);
-          if (!b) return;
-          const ok = await confirmDialog({
-            title: "Excluir benefício",
-            message: `Excluir “${b.nome}”? Ele deixará de aparecer para os colaboradores que o recebiam.`,
-            confirmLabel: "Excluir",
-            danger: true,
-          });
-          if (!ok) return;
-          btn.disabled = true;
-          try {
-            await rhExcluirBeneficio(id);
-            await refrescarBeneficios();
-            showToast(`${b.nome} excluído.`, "success");
-            render();
-          } catch (err) {
-            showToast(rhMensagemErroSupabase(err), "error");
-            btn.disabled = false;
-          }
-        })
-      );
-    }
+function formValores(body) {
+  const b = form.b, k = form.mes, prox = addMes(k, 1), ant = addMes(k, -1);
+  const ids = idsDo(b);
+  const t = totaisDoMes(b, k);
+  const eAtual = k === COMPETENCIA_ATUAL;
+  body.innerHTML = `
+    <div class="bf-values-bar">
+      ${monthNavHtml(k, "form")}
+      <button type="button" class="bf-btn bf-btn-ghost bf-btn-sm" id="ff-copiar" title="Copiar valores e descontos de ${rotuloMes(ant)}">${I.copy}<span>Copiar de ${MESES[Number(ant.split("-")[1]) - 1]}</span></button>
+      <button type="button" class="bf-btn bf-btn-launch bf-btn-sm" id="ff-lancar-todos" style="border:1px solid #abefc6" title="Marcar todos os valores de ${rotuloMes(k)} como lançados/pagos">${I.send}<span>Lançar todos de ${MESES[Number(k.split("-")[1]) - 1]}</span></button>
+      <span class="bf-spacer"></span>
+      <div class="bf-apply-all"><div class="bf-money" style="width:120px"><span>R$</span><input class="bf-inp" id="ff-aplicar" inputmode="decimal" placeholder="0,00" style="height:36px" /></div><button type="button" class="bf-btn bf-btn-ghost bf-btn-sm" id="ff-aplicar-btn">Aplicar a todos</button></div>
+    </div>
+    ${ids.length ? `
+    <div class="bf-note" style="margin-bottom:.8rem">${I.info}<span>${situacaoMes(k).t === "Histórico" ? `Você está editando <b>${rotuloMes(k)}</b> (mês anterior). Os outros meses não mudam.` : `O <b>valor fixo/mês</b> preenche sozinho este mês e os próximos. Para um mês diferente, digite em <b>Valor do mês</b>. Marque <b>Lançado</b> quando for pago — aí o <b>Recebido</b> passa a contar.`}</span></div>
+    <div class="bf-col-head"><span>Colaborador</span><span title="Valor que se repete todo mês">Valor fixo/mês</span><span>Valor do mês</span><span>Desconto</span><span>Recebido</span><span>Situação</span></div>
+    <div class="bf-colab-list">${ids.map((id) => linhaValor(b, id, k, prox, eAtual)).join("")}</div>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.8rem" id="ff-totais">${totaisBadges(t)}</div>`
+    : `<div class="bf-empty"><div class="bf-e-ico">${I.users}</div><b>Nenhum colaborador selecionado</b><p>Volte em “Para quem é” e escolha os colaboradores.</p></div>`}`;
 
-    // ------------------------------------------------------------------
-    // Modal criar/editar
-    // ------------------------------------------------------------------
-    function renderIconSwatchGrid(selected) {
-      document.getElementById("beneficio-icon-grid").innerHTML = ICON_OPTIONS
-        .map((key) => `<button type="button" class="icon-swatch ${key === selected ? "is-active" : ""}" data-icon-choice="${key}" aria-label="${key}">${ICONS[key]}</button>`)
-        .join("");
-      document.getElementById("beneficio-icon").value = selected;
-      document.querySelectorAll("[data-icon-choice]").forEach((btn) =>
-        btn.addEventListener("click", () => {
-          document.getElementById("beneficio-icon").value = btn.dataset.iconChoice;
-          document.querySelectorAll("[data-icon-choice]").forEach((b) => b.classList.toggle("is-active", b === btn));
-        })
-      );
-    }
-
-    function renderToneSwatchGrid(selected) {
-      document.getElementById("beneficio-tone-grid").innerHTML = TONE_OPTIONS
-        .map((key) => `<button type="button" class="tone-swatch ${key === selected ? "is-active" : ""}" data-tone-choice="${key}" style="background:${TONE_DOT[key]}" aria-label="${key}"></button>`)
-        .join("");
-      document.getElementById("beneficio-tone").value = selected;
-      document.querySelectorAll("[data-tone-choice]").forEach((btn) =>
-        btn.addEventListener("click", () => {
-          document.getElementById("beneficio-tone").value = btn.dataset.toneChoice;
-          document.querySelectorAll("[data-tone-choice]").forEach((b) => b.classList.toggle("is-active", b === btn));
-        })
-      );
-    }
-
-    function renderChecklist(idsMarcados) {
-      const checklist = document.getElementById("beneficio-checklist");
-      checklist.innerHTML = cacheColaboradores
-        .map(
-          (c) => `<label class="check-row"><input type="checkbox" value="${c.id}" ${idsMarcados.includes(c.id) ? "checked" : ""} /> ${esc(c.nome)}</label>`
-        )
-        .join("");
-    }
-
-    function atualizarVisibilidadeChecklist() {
-      const especifico = document.getElementById("beneficio-atrib-especifico").checked;
-      document.getElementById("beneficio-checklist").hidden = !especifico;
-    }
-
-    function abrirModalNovo() {
-      beneficioEditandoId = null;
-      document.getElementById("modal-beneficio-titulo").textContent = "Novo benefício";
-      document.getElementById("beneficio-submit-label").textContent = "Criar benefício";
-      document.getElementById("form-beneficio").reset();
-      document.getElementById("beneficio-status").value = "ATIVO";
-      document.getElementById("beneficio-atrib-todos").checked = true;
-      renderIconSwatchGrid("heart");
-      renderToneSwatchGrid("indigo");
-      renderChecklist([]);
-      atualizarVisibilidadeChecklist();
-      openModal("modal-beneficio");
-    }
-
-    function abrirModalEditar(id) {
-      const b = cacheBeneficios.find((x) => x.id === id);
-      if (!b) return;
-      beneficioEditandoId = id;
-      document.getElementById("modal-beneficio-titulo").textContent = "Editar benefício";
-      document.getElementById("beneficio-submit-label").textContent = "Salvar alterações";
-      document.getElementById("beneficio-nome").value = b.nome;
-      document.getElementById("beneficio-desc").value = b.desc;
-      document.getElementById("beneficio-status").value = b.status;
-      const especifico = b.atribuicao?.tipo === "ESPECIFICO";
-      document.getElementById("beneficio-atrib-todos").checked = !especifico;
-      document.getElementById("beneficio-atrib-especifico").checked = especifico;
-      renderIconSwatchGrid(b.icon);
-      renderToneSwatchGrid(b.tone);
-      renderChecklist(especifico ? b.atribuicao.colaboradorIds || [] : []);
-      atualizarVisibilidadeChecklist();
-      openModal("modal-beneficio");
-    }
-
-    document.getElementById("beneficio-atrib-todos").addEventListener("change", atualizarVisibilidadeChecklist);
-    document.getElementById("beneficio-atrib-especifico").addEventListener("change", atualizarVisibilidadeChecklist);
-
-    document.getElementById("form-beneficio").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const nome = document.getElementById("beneficio-nome").value.trim();
-      const descricao = document.getElementById("beneficio-desc").value.trim();
-      const icon = document.getElementById("beneficio-icon").value;
-      const tone = document.getElementById("beneficio-tone").value;
-      const status = document.getElementById("beneficio-status").value;
-      const especifico = document.getElementById("beneficio-atrib-especifico").checked;
-      let colaboradorIds = [];
-      if (especifico) {
-        colaboradorIds = [...document.querySelectorAll("#beneficio-checklist input:checked")].map((el) => el.value);
-        if (!colaboradorIds.length) {
-          showToast("Selecione ao menos um colaborador ou escolha “Todos os colaboradores”.", "error");
-          return;
-        }
-      }
-
-      const btn = document.getElementById("beneficio-submit-label");
-      const textoOriginal = btn.textContent;
-      btn.disabled = true;
-      btn.textContent = "Salvando...";
-      try {
-        await rhSalvarBeneficio({
-          id: beneficioEditandoId,
-          nome,
-          descricao,
-          icon,
-          tone,
-          status,
-          atribuicaoTipo: especifico ? "ESPECIFICO" : "TODOS",
-          colaboradorIds,
-        });
-        await refrescarBeneficios();
-        showToast(beneficioEditandoId ? `${nome} atualizado.` : `${nome} cadastrado com sucesso.`, "success");
-        closeModal("modal-beneficio");
-        render();
-      } catch (err) {
-        showToast(rhMensagemErroSupabase(err), "error");
-      } finally {
-        btn.disabled = false;
-        btn.textContent = textoOriginal;
-      }
+  body.querySelectorAll('[data-mes="form"]').forEach((x) => x.addEventListener("click", () => { form.mes = addMes(form.mes, Number(x.dataset.d)); renderForm(); }));
+  body.querySelector("#ff-copiar").addEventListener("click", () => {
+    let n = 0;
+    ids.forEach((id) => { const a = b.valores[id]?.[ant]; if (!a) return; b.valores[id] = b.valores[id] || {}; b.valores[id][k] = { valor: a.valor, desconto: a.desconto, lancado: false }; n++; });
+    n ? toast(`Valores de ${rotuloMes(ant)} copiados para ${rotuloMes(k)} (${n}).`) : toast(`Não há valores em ${rotuloMes(ant)} para copiar.`, "error");
+    renderForm();
+  });
+  body.querySelector("#ff-lancar-todos").addEventListener("click", () => {
+    const alvo = ids.filter((id) => { const l = lanc(b, id, k); return l && !l.lancado && (l.valor || 0) > 0; });
+    if (!alvo.length) { toast(`Nada pendente para lançar em ${rotuloMes(k)}.`, "error"); return; }
+    if (k > COMPETENCIA_ATUAL) { toast(`${rotuloMes(k)} ainda não chegou — lance quando o mês começar.`, "error"); return; }
+    alvo.forEach((id) => { lancReal(b, id, k).lancado = true; });
+    toast(`${alvo.length} valor(es) marcados como lançados. Clique em “Salvar benefício” para confirmar.`, "success");
+    renderForm();
+  });
+  body.querySelector("#ff-aplicar-btn").addEventListener("click", () => {
+    const v = num(body.querySelector("#ff-aplicar").value);
+    if (v === null || v < 0) { toast("Informe um valor válido para aplicar.", "error"); return; }
+    ids.forEach((id) => { b.valores[id] = b.valores[id] || {}; const cur = b.valores[id][k] || { desconto: 0, lancado: false }; b.valores[id][k] = { ...cur, valor: v, desconto: Math.min(cur.desconto || 0, v) }; });
+    toast(`${brl(v)} aplicado a ${ids.length} colaborador(es) em ${rotuloMes(k)}.`, "success");
+    renderForm();
+  });
+  body.querySelectorAll("[data-fixo]").forEach((inp) => {
+    inp.addEventListener("input", () => {
+      const id = inp.dataset.fixo, v = num(inp.value);
+      b.fixos = b.fixos || {};
+      if (v === null || v <= 0) delete b.fixos[id]; else b.fixos[id] = v;
+      // atualiza os campos do mês que ainda seguem o fixo
+      const val = body.querySelector(`[data-v="valor"][data-id="${id}"]`);
+      if (!b.valores[id]?.[k]) { val.value = ""; val.placeholder = v ? fmtInput(v) : "0,00"; }
+      const px = body.querySelector(`[data-v="proximo"][data-id="${id}"]`);
+      if (px && !b.valores[id]?.[addMes(k, 1)]) { px.value = ""; px.placeholder = v ? fmtInput(v) : "0,00"; }
+      refreshLinha(id);
     });
+    inp.addEventListener("blur", () => { const n = num(inp.value); if (n !== null) inp.value = fmtInput(n); });
+  });
+  body.querySelectorAll("[data-v]").forEach((inp) => {
+    inp.addEventListener("input", () => atualizarLinha(inp));
+    inp.addEventListener("blur", () => { const n = num(inp.value); if (n !== null) inp.value = fmtInput(n); });
+  });
+  body.querySelectorAll("[data-lanc]").forEach((x) => x.addEventListener("change", () => {
+    const id = x.dataset.lanc; lancReal(b, id, k).lancado = x.checked; refreshLinha(id);
+  }));
+  body.querySelectorAll("[data-fhist]").forEach((x) => x.addEventListener("click", () => { form.abertos[x.dataset.fhist] = !form.abertos[x.dataset.fhist]; const sc = body.scrollTop; renderForm(); document.getElementById("form-body").scrollTop = sc; }));
+}
+function linhaValor(b, id, k, prox, eAtual) {
+  const c = colab(id), l = lanc(b, id, k), n = lanc(b, id, prox);
+  const anterior = b.valores[id]?.[addMes(k, -1)];
+  const aberto = form.abertos[id];
+  const hist = aberto ? `<div class="bf-hist-box">${mesesDe(b, id).filter((m) => m !== k).map((m) => { const x = b.valores[id][m]; return `<div class="bf-hist-item"><b>${rotuloMes(m)}</b><span>Valor ${brl(x.valor)}</span><span class="${bf-x.desconto ? "bf-neg" : ""}">Desconto ${brl(x.desconto)}</span><span class="${bf-x.lancado ? "bf-ok" : ""}">${x.lancado ? "Recebido " + brl(recebido(x)) : "Previsto"}</span></div>`; }).join("") || '<div class="bf-hist-item">Sem outros meses registrados.</div>'}</div>` : "";
+  return `
+    <div class="bf-colab-row" data-row="${id}">
+      <div class="bf-colab-main">
+        <div class="bf-colab-name"><span class="bf-avatar ${corAvatar(c.nome)}">${iniciais(c.nome)}</span><div style="min-width:0"><b>${esc(c.nome)}</b><small>${esc(c.depto)}</small></div></div>
+        <div><span class="bf-fixo-lbl">Valor fixo/mês</span><div class="bf-money bf-fixo"><span>R$</span><input class="bf-inp" data-fixo="${id}" inputmode="decimal" aria-label="Valor fixo mensal de ${esc(c.nome)}" value="${fmtInput(b.fixos?.[id])}" placeholder="0,00" title="Valor que se repete todo mês" /></div></div>
+        <div class="bf-money"><span>R$</span><input class="bf-inp" data-v="valor" data-id="${id}" inputmode="decimal" aria-label="Valor de ${esc(c.nome)}" value="${l && !l.doFixo ? fmtInput(l.valor) : ""}" placeholder="${l?.doFixo ? fmtInput(l.valor) : anterior ? fmtInput(anterior.valor) : "0,00"}" /></div>
+        <div class="bf-money"><span>R$</span><input class="bf-inp" data-v="desconto" data-id="${id}" inputmode="decimal" aria-label="Desconto de ${esc(c.nome)}" value="${l && !l.doFixo ? fmtInput(l.desconto) : ""}" placeholder="0,00" /></div>
+        <div class="bf-recv ${l?.lancado ? "bf-pos" : "bf-wait"}" data-recv="${id}">${recvHtml(l)}</div>
+        <label class="bf-toggle"><input type="checkbox" data-lanc="${id}" ${l?.lancado ? "checked" : ""} /><span class="bf-tr"></span><span data-lanc-txt="${id}">${l?.lancado ? "Lançado" : "Previsto"}</span></label>
+      </div>
+      <div class="bf-err" data-err="${id}">O desconto não pode ser maior que o valor.</div>
+      ${eAtual ? `<div class="bf-next-line">${I.calendar.replace("<svg", '<svg style="width:14px;height:14px;color:var(--blue-600)"')}<span>Próxima competência <b>${rotuloMes(prox)}</b> — valor a receber:</span><div class="bf-money"><span>R$</span><input class="bf-inp" data-v="proximo" data-id="${id}" inputmode="decimal" value="${n && !n.doFixo ? fmtInput(n.valor) : ""}" placeholder="${n?.doFixo ? fmtInput(n.valor) : fmtInput(l?.valor) || "0,00"}" /></div><button type="button" class="bf-hist-link ${aberto ? "bf-open" : ""}" data-fhist="${id}">Histórico ${I.down}</button></div>` : `<div style="margin:.45rem 0 0 2.6rem"><button type="button" class="bf-hist-link ${aberto ? "bf-open" : ""}" data-fhist="${id}" style="margin-left:0">Ver histórico ${I.down}</button></div>`}
+      ${hist}
+    </div>`;
+}
+function recvHtml(l) {
+  if (!l || (!l.valor && !l.desconto)) return `<small>Recebido</small>—`;
+  if (l.doFixo) return `<small>A receber</small>${brl(l.valor)}<span class="bf-from-fixo">do valor fixo</span>`;
+  return l.lancado ? `<small>Recebido</small>${brl(recebido(l))}` : `<small>A receber</small>${brl(Math.max(0, (l.valor || 0) - (l.desconto || 0)))}`;
+}
+function totaisBadges(t) { return `<span class="bf-badge bf-b-gray">Concedido ${brl(t.bruto)}</span><span class="bf-badge bf-b-pink">Descontos ${brl(t.desc)}</span><span class="bf-badge bf-b-green">Recebido ${brl(t.rec)}</span>`; }
+function atualizarLinha(inp) {
+  const b = form.b, id = inp.dataset.id, campo = inp.dataset.v;
+  const alvo = campo === "proximo" ? addMes(form.mes, 1) : form.mes;
+  b.valores[id] = b.valores[id] || {};
+  const cur = b.valores[id][alvo] || (() => { const v = lanc(b, id, alvo); return v ? { valor: v.valor, desconto: v.desconto, lancado: false } : { valor: 0, desconto: 0, lancado: false }; })();
+  const v = num(inp.value);
+  if (campo === "proximo") cur.valor = v ?? 0;
+  else cur[campo] = v ?? 0;
+  if (inp.value.trim() === "" && campo !== "desconto" && !cur.desconto && !cur.lancado && (campo === "proximo" || campo === "valor")) {
+    if (campo === "proximo" || !cur.valor) { delete b.valores[id][alvo]; }
+    else b.valores[id][alvo] = cur;
+  } else b.valores[id][alvo] = cur;
+  refreshLinha(id);
+}
+function refreshLinha(id) {
+  const b = form.b, l = lanc(b, id, form.mes);
+  const el = document.querySelector(`[data-recv="${id}"]`); if (!el) return;
+  el.innerHTML = recvHtml(l); el.className = `bf-recv ${l?.lancado ? "bf-pos" : "bf-wait"}`;
+  document.querySelector(`[data-lanc-txt="${id}"]`).textContent = l?.lancado ? "Lançado" : "Previsto";
+  const erro = l && (l.desconto || 0) > (l.valor || 0);
+  document.querySelector(`[data-err="${id}"]`).classList.toggle("bf-show", !!erro);
+  document.querySelector(`[data-v="desconto"][data-id="${id}"]`).classList.toggle("bf-invalid", !!erro);
+  document.getElementById("ff-totais").innerHTML = totaisBadges(totaisDoMes(b, form.mes));
+}
+function formHistorico(body) {
+  body.innerHTML = historicoHtml(form.b, form.filtroHist);
+  wireHistorico(body, (v) => { form.filtroHist = v; renderForm(); });
+}
 
-    if (session) {
-      renderShell(session, withBadges(NAV_RH, await rhNavBadges()));
-      renderTopHeader(document.getElementById("top-header"), session, { notifications: [] });
-      document.getElementById("content").innerHTML = `<div class="loading-wrap"><div class="spinner"></div></div>`;
+/* ---------- Salvar ---------- */
+function validar() {
+  const b = form.b; form.erros = {};
+  if (!b.nome.trim()) { form.erros.nome = true; form.aba = "info"; renderForm(); toast("Informe o nome do benefício.", "error"); return false; }
+  if (BENEFICIOS.some((x) => x.id !== b.id && x.nome.trim().toLowerCase() === b.nome.trim().toLowerCase())) { form.erros.nome = true; form.aba = "info"; renderForm(); toast("Já existe um benefício com esse nome.", "error"); return false; }
+  if (b.publico === "ESPECIFICO" && !b.colaboradores.length) { form.erros.publico = true; form.aba = "publico"; renderForm(); toast("Selecione pelo menos um colaborador.", "error"); return false; }
+  for (const id of idsDo(b)) for (const [m, l] of Object.entries(b.valores[id] || {})) {
+    if ((l.desconto || 0) > (l.valor || 0)) { form.aba = "valores"; form.mes = m; renderForm(); refreshLinha(id); toast(`${colab(id).nome}: desconto maior que o valor em ${rotuloMes(m)}.`, "error"); return false; }
+  }
+  return true;
+}
+document.getElementById("btn-salvar").addEventListener("click", () => {
+  if (!validar()) return;
+  const b = form.b, ids = idsDo(b), t = totaisDoMes(b, form.mes), semValor = ids.filter((id) => !lanc(b, id, form.mes)).length;
+  document.getElementById("confirm-body").innerHTML = `
+    <div class="bf-confirm-ico">${I.checkCircle}</div>
+    <h2 style="margin:0 0 .3rem;font-size:1.1rem">${b.id ? "Salvar alterações?" : "Cadastrar benefício?"}</h2>
+    <p style="margin:0 0 .9rem;color:var(--text-soft);font-size:.86rem">Confira o resumo antes de confirmar.</p>
+    <div class="bf-sum-list">
+      <div><span>Benefício</span><b>${esc(b.nome)}</b></div>
+      <div><span>Status</span><b style="color:${b.status === "ATIVO" ? "var(--green-700)" : "var(--red-600)"}">${b.status === "ATIVO" ? "Ativo" : "Inativo"}</b></div>
+      <div><span>Para quem</span><b>${b.publico === "TODOS" ? "Todos" : "Específicos"} (${ids.length})</b></div>
+      <div><span>${rotuloMes(form.mes)} — concedido</span><b>${brl(t.bruto)}</b></div>
+      <div><span>Descontos</span><b style="color:var(--red-600)">${brl(t.desc)}</b></div>
+    </div>
+    ${semValor ? `<p style="margin:.8rem 0 0;font-size:.78rem;color:var(--orange-600);display:flex;gap:.4rem">${I.alert.replace("<svg", '<svg style="width:15px;height:15px;flex-shrink:0"')}<span>${semValor} colaborador(es) ainda sem valor em ${rotuloMes(form.mes)} — dá para preencher depois.</span></p>` : ""}`;
+  confirmAcao = salvarConfirmado;
+  prepararBotaoConfirmar(`${I.check}<span>${b.id ? "Salvar" : "Cadastrar"}</span>`, false);
+  abrir("ov-confirm");
+});
+let confirmAcao = null;
+function prepararBotaoConfirmar(html, perigo) {
+  const btn = document.getElementById("btn-confirmar");
+  btn.innerHTML = html; btn.disabled = false;
+  btn.className = "bf-btn bf-btn-primary";
+  btn.style.background = perigo ? "var(--red-600)" : ""; btn.style.boxShadow = perigo ? "0 6px 14px rgba(217,45,32,.2)" : "";
+}
+function confirmar({ icone, tom = "", titulo, texto, resumo = "", botao, perigo = false, acao }) {
+  document.getElementById("confirm-body").innerHTML = `<div class="bf-confirm-ico ${tom ? "bf-" + tom : ""}">${icone}</div><h2 style="margin:0 0 .3rem;font-size:1.1rem">${titulo}</h2><p style="margin:0 0 .9rem;color:var(--text-soft);font-size:.86rem;line-height:1.45">${texto}</p>${resumo}`;
+  confirmAcao = acao;
+  prepararBotaoConfirmar(botao, perigo);
+  abrir("ov-confirm");
+}
+document.getElementById("btn-confirmar").addEventListener("click", () => {
+  const btn = document.getElementById("btn-confirmar");
+  btn.disabled = true; btn.innerHTML = "<span>Aguarde...</span>";
+  setTimeout(() => { fechar("ov-confirm"); confirmAcao && confirmAcao(); }, 350);
+});
+async function salvarConfirmado() {
+  const b = form.b, novo = !b.id;
+  const btnSalvar = document.getElementById("btn-salvar");
+  btnSalvar.disabled = true;
+  try {
+    b.nome = b.nome.trim();
+    if (b.publico === "TODOS") b.colaboradores = [];
+    const original = novo ? null : BENEFICIOS.find((x) => x.id === b.id) || null;
+    b.id = await rhSalvarBeneficioUnificado(b, original);
+    await recarregar();
+    fechar("ov-form");
+    toast(novo ? "Benefício cadastrado com sucesso." : "Benefício atualizado com sucesso.");
+    render();
+    const card = document.querySelector(`[data-card="${b.id}"]`);
+    if (card) { card.scrollIntoView({ behavior: "smooth", block: "center" }); card.animate([{ boxShadow: "0 0 0 4px rgba(57,103,232,.35)" }, { boxShadow: "0 0 0 0 rgba(57,103,232,0)" }], { duration: 1400 }); }
+  } catch (err) {
+    toast(rhErroMigracao26(err), "error");
+  } finally {
+    btnSalvar.disabled = false;
+  }
+}
+
+/* ---------- Lançar valores do mês (marca como pagos) ---------- */
+function lancarMes(id, k, depois) {
+  const b = BENEFICIOS.find((x) => x.id === id);
+  const pend = pendentesDoMes(b, k);
+  if (!pend.length) { toast(`Nada pendente para lançar em ${rotuloMes(k)}.`, "error"); return; }
+  const total = pend.reduce((a, cid) => { const l = lanc(b, cid, k); return a + Math.max(0, l.valor - (l.desconto || 0)); }, 0);
+  confirmar({
+    icone: I.send, tom: "ok",
+    titulo: `Lançar valores de ${rotuloMes(k)}?`,
+    texto: `Os valores previstos de <b>${esc(b.nome)}</b> passam a contar como <b>recebidos</b> pelos colaboradores. O mês fica registrado no histórico.`,
+    resumo: `<div class="bf-sum-list">${pend.map((cid) => { const l = lanc(b, cid, k); return `<div><span>${esc(colab(cid).nome)}</span><b>${brl(l.valor - (l.desconto || 0))}</b></div>`; }).join("")}<div style="border-top:1px solid var(--border);padding-top:.4rem"><span><b>Total a lançar</b></span><b style="color:var(--green-700)">${brl(total)}</b></div></div>`,
+    botao: `${I.check}<span>Lançar ${pend.length} valor${pend.length > 1 ? "es" : ""}</span>`,
+    acao: async () => {
       try {
-        await Promise.all([refrescarBeneficios(), refrescarConcessoes()]);
-        render();
-        wireModalClosers();
-      } catch (err) {
-        rhShowFatalError(rhMensagemErroSupabase(err));
-      }
-    }
-  
+        await rhLancarCompetenciaBeneficio(b.id, k, pend.map((cid) => { const l = lanc(b, cid, k); return { colaboradorId: cid, valor: l.valor, desconto: l.desconto }; }));
+        await recarregar();
+        toast(`${rotuloMes(k)} lançado: ${brl(total)} para ${pend.length} colaborador(es).`, "success");
+        render(); depois && depois();
+      } catch (err) { toast(rhErroMigracao26(err), "error"); }
+    },
+  });
+}
+
+/* ---------- Excluir benefício ---------- */
+function excluirBeneficio(id) {
+  const b = BENEFICIOS.find((x) => x.id === id);
+  const meses = mesesDe(b).length;
+  confirmar({
+    icone: I.trash, tom: "danger", perigo: true,
+    titulo: `Excluir “${esc(b.nome)}”?`,
+    texto: `O benefício e <b>todo o histórico</b> (${meses} competência${meses === 1 ? "" : "s"}) serão apagados, inclusive da tela dos colaboradores. Esta ação não pode ser desfeita.`,
+    resumo: b.status === "ATIVO" ? `<div class="bf-note" style="margin:0">${I.info}<span>Quer só parar de conceder e manter o histórico? Use <b>Desativar</b> nos detalhes do benefício.</span></div>` : "",
+    botao: `${I.trash}<span>Excluir benefício</span>`,
+    acao: async () => {
+      try {
+        await rhExcluirBeneficio(id);
+        await recarregar();
+        fechar("ov-det"); fechar("ov-form"); toast(`${b.nome} excluído.`, "success"); render();
+      } catch (err) { toast(rhErroMigracao26(err), "error"); }
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Inicialização
+// ---------------------------------------------------------------------------
+try {
+  await recarregar();
+  render();
+} catch (err) {
+  document.getElementById("content").innerHTML = `<div class="bnf"><div class="bf-card bf-empty"><div class="bf-e-ico">${I.alert}</div><b>Não foi possível carregar os benefícios</b><p>${esc(rhErroMigracao26(err))}</p></div></div>`;
+}
+
+
 })();
-</script>
+  </script>
   <script src="../js/ui-effects.js"></script>
 </body>
 </html>
