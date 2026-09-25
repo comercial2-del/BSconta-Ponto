@@ -233,7 +233,7 @@
       const u = session;
       return `
         <div class="profile-header" style="margin-bottom:1.2rem">
-          <div class="avatar-lg ${avatarColorClass(u.name)}">${initials(u.name)}</div>
+          <div class="avatar-lg ${avatarColorClass(u.name)}">${avatarInner(u.name)}</div>
           <div>
             <p class="profile-header-name">${esc(u.name)}</p>
             <p class="profile-header-meta">${esc(u.cargo)}<span class="sep">·</span>${esc(u.departamento)}</p>
@@ -276,7 +276,7 @@
               ${cacheUsuarios
                 .map(
                   (u) => `<tr>
-                <td><div class="person-cell"><span class="avatar avatar-sm ${avatarColorClass(u.nome)}">${initials(u.nome)}</span>${esc(u.nome)}</div></td>
+                <td><div class="person-cell"><span class="avatar avatar-sm ${avatarColorClass(u.nome)}">${avatarInner(u.nome)}</span>${esc(u.nome)}</div></td>
                 <td>${esc(u.email)}</td>
                 <td>${papelBadge(u.papel)}</td>
                 <td><span class="status-pill ${u.ativo ? "on" : "off"}"><span class="dot"></span>${u.ativo ? "Ativo" : "Inativo"}</span></td>

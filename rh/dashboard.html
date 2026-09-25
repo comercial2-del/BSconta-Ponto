@@ -179,7 +179,7 @@
                     .map(
                       (a) => `
                 <div style="display:flex;align-items:center;gap:0.7rem;padding:0.55rem 0;border-bottom:1px solid var(--surface-2)">
-                  <div class="avatar ${avatarColorClass(a.nome)}">${initials(a.nome)}</div>
+                  <div class="avatar ${avatarColorClass(a.nome)}">${avatarInner(a.nome)}</div>
                   <div style="flex:1"><p style="margin:0;font-weight:600;font-size:0.87rem">${esc(a.nome)}</p></div>
                   <span class="badge badge-neutral">${ICONS.cake}${a.data}</span>
                 </div>`
@@ -223,7 +223,7 @@
                           .slice(0, 5)
                           .map(
                             (s) => `<tr>
-                        <td><div class="person-cell"><span class="avatar avatar-sm ${avatarColorClass(s.colaborador)}">${initials(s.colaborador)}</span>${esc(s.colaborador)}</div></td>
+                        <td><div class="person-cell"><span class="avatar avatar-sm ${avatarColorClass(s.colaborador)}">${avatarInner(s.colaborador)}</span>${esc(s.colaborador)}</div></td>
                         <td>${esc(s.categoria)}</td>
                         <td>${fmtDate(s.data)}</td>
                         <td style="text-align:right"><a href="solicitacoes.html" class="btn-ghost" style="width:auto;padding:0.35rem 0.65rem;font-size:0.8rem">Resolver</a></td>
@@ -244,7 +244,7 @@
                     .map(
                       (v) => `
                 <div style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem 0;border-bottom:1px solid var(--surface-2)">
-                  <span class="avatar avatar-sm ${avatarColorClass(v.colaborador)}">${initials(v.colaborador)}</span>
+                  <span class="avatar avatar-sm ${avatarColorClass(v.colaborador)}">${avatarInner(v.colaborador)}</span>
                   <div style="flex:1;min-width:0">
                     <p style="margin:0;font-weight:600;font-size:0.83rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(v.colaborador)}</p>
                     <p style="margin:0.1rem 0 0;font-size:0.76rem;color:var(--text-faint)">${fmtDate(v.inicio)} a ${fmtDate(v.fim)}</p>

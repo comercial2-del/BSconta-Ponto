@@ -88,7 +88,7 @@
       const c = cacheComunicados.find((x) => x.id === id);
       if (!c) return;
       const v = visualizacoes(c);
-      const pessoa = (p, extra) => `<div class="person-cell" style="justify-content:space-between;width:100%;padding:.45rem 0;border-bottom:1px solid var(--surface-2)"><span style="display:flex;align-items:center;gap:.55rem"><span class="avatar avatar-sm ${avatarColorClass(p.nome)}">${initials(p.nome)}</span>${esc(p.nome)}<span class="hint">${esc(p.departamento || "")}</span></span>${extra}</div>`;
+      const pessoa = (p, extra) => `<div class="person-cell" style="justify-content:space-between;width:100%;padding:.45rem 0;border-bottom:1px solid var(--surface-2)"><span style="display:flex;align-items:center;gap:.55rem"><span class="avatar avatar-sm ${avatarColorClass(p.nome)}">${avatarInner(p.nome)}</span>${esc(p.nome)}<span class="hint">${esc(p.departamento || "")}</span></span>${extra}</div>`;
       let overlay = document.getElementById("modal-visualizacoes");
       if (!overlay) {
         overlay = document.createElement("div");

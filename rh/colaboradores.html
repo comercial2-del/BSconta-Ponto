@@ -278,6 +278,7 @@
         diasTrabalho: row.dias_trabalho || [],
         horasSemanais: row.horas_semanais,
         telefone: row.telefone || null,
+        foto: row.foto_url || null,
         fonteCadastro: "Banco de dados (rh.colaboradores)",
         emailProvisorio: /^BSconta@\d+/i.test(row.email || ""),
       };
@@ -391,7 +392,7 @@
               ${pageRows
                 .map(
                   (c) => `<tr>
-                <td><div class="person-cell"><span class="avatar avatar-sm ${avatarColorClass(c.nome)}">${initials(c.nome)}</span>${esc(c.nome)} ${tipoBadge(c.tipo)}</div></td>
+                <td><div class="person-cell"><span class="avatar avatar-sm ${avatarColorClass(c.nome)}">${avatarInner(c.nome, c.foto)}</span>${esc(c.nome)} ${tipoBadge(c.tipo)}</div></td>
                 <td><strong>${esc(c.codigoColaborador)}</strong></td>
                 <td>${esc(c.email)}</td>
                 <td>${esc(c.cargo || "—")}</td>
@@ -506,7 +507,7 @@
       document.getElementById("perfil-titulo").textContent = employee.nome;
       document.getElementById("perfil-body").innerHTML = `
         <div style="display:flex;align-items:center;gap:.9rem;margin-bottom:1.25rem">
-          <span class="avatar ${avatarColorClass(employee.nome)}" style="width:52px;height:52px;font-size:.9rem">${initials(employee.nome)}</span>
+          <span class="avatar ${avatarColorClass(employee.nome)}" style="width:52px;height:52px;font-size:.9rem">${avatarInner(employee.nome, employee.foto)}</span>
           <div>
             <div style="font-weight:800;color:var(--text);font-size:1rem">${esc(employee.nome)} ${tipoBadge(employee.tipo)}</div>
             <div style="display:flex;align-items:center;gap:.5rem;margin-top:.28rem">${statusPill(employee.status)}<span style="color:var(--text-faint);font-size:.76rem">${esc(employee.codigoColaborador)}</span></div>

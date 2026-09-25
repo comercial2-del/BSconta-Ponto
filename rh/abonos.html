@@ -141,7 +141,7 @@
           ${rows.map((a) => `
           <div class="abono-row" data-abrir="${a.id}" tabindex="0" role="button" aria-label="Ver abono de ${esc(a.colaborador?.nome || "")}">
             <span class="ab-check">${["PENDENTE", "PRE_APROVADO"].includes(a.status) ? `<input type="checkbox" data-sel="${a.id}" ${selecionados.has(a.id) ? "checked" : ""} aria-label="Selecionar" />` : ""}</span>
-            <div class="ab-pessoa"><span class="avatar avatar-sm ${avatarColorClass(a.colaborador?.nome)}">${initials(a.colaborador?.nome)}</span><div><strong>${esc(a.colaborador?.nome || "—")}</strong><small>${esc(a.colaborador?.departamento || "")}</small></div></div>
+            <div class="ab-pessoa"><span class="avatar avatar-sm ${avatarColorClass(a.colaborador?.nome)}">${avatarInner(a.colaborador?.nome)}</span><div><strong>${esc(a.colaborador?.nome || "—")}</strong><small>${esc(a.colaborador?.departamento || "")}</small></div></div>
             <div class="ab-ocorr"><strong>${esc(RH_TIPOS_ABONO[a.tipo]?.label || a.tipo)}${a.anexo_path ? `<span class="ab-clip" title="Tem documento anexado">${ICONS.fileText}</span>` : ""}</strong><small>${ICONS.calendar}${rhAbonoPeriodoTexto(a)} · ${a.dias} dia${a.dias > 1 ? "s" : ""}</small></div>
             <div class="ab-status">${statusBadgeHtml(a.status, RH_STATUS_ABONO)}</div>
             <div class="ab-acoes"><button type="button" class="btn-ghost doc-icon-btn" data-ver="${a.id}" title="Ver detalhes" aria-label="Ver detalhes">${ICONS.eye}</button></div>
@@ -195,7 +195,7 @@
       overlay.querySelector(".modal").innerHTML = `
         <div class="modal-header">
           <div class="ad-head">
-            <span class="avatar ${avatarColorClass(a.colaborador?.nome)}" style="width:42px;height:42px">${initials(a.colaborador?.nome)}</span>
+            <span class="avatar ${avatarColorClass(a.colaborador?.nome)}" style="width:42px;height:42px">${avatarInner(a.colaborador?.nome)}</span>
             <div><h3>${esc(a.colaborador?.nome || "—")}</h3><p class="page-sub" style="margin:.15rem 0 0">${esc(RH_TIPOS_ABONO[a.tipo]?.label || a.tipo)} · ${rhAbonoPeriodoTexto(a)}</p></div>
             ${statusBadgeHtml(a.status, RH_STATUS_ABONO)}
           </div>

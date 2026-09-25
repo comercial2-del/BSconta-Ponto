@@ -397,7 +397,7 @@
                 .map(
                   (s) => `<tr>
                 <td class="cell-check" data-label="Selecionar">${s.data && s.itens.length ? `<input type="checkbox" data-sel-ajuste="${esc(s.id)}" ${ajustesSelecionados.has(s.id) ? "checked" : ""} aria-label="Selecionar ajuste de ${esc(s.colaborador)}" />` : ""}</td>
-                <td data-label="Colaborador"><div class="person-cell"><span class="avatar avatar-sm ${avatarColorClass(s.colaborador)}">${initials(s.colaborador)}</span>${esc(s.colaborador)}</div></td>
+                <td data-label="Colaborador"><div class="person-cell"><span class="avatar avatar-sm ${avatarColorClass(s.colaborador)}">${avatarInner(s.colaborador)}</span>${esc(s.colaborador)}</div></td>
                 <td data-label="Tipo"><span class="ajuste-modo-badge ${s.modo}">${MODO_AJUSTE_LABEL[s.modo] || s.modo}</span></td>
                 <td data-label="Data">${fmtDate(s.data)}</td>
                 <td data-label="Registros"><div class="ajuste-itens-list">${s.itens.map((it) => `<span class="ajuste-item-chip">${esc(it.campoLabel)} → <strong>${esc(it.horario)}</strong></span>`).join("")}</div></td>
@@ -508,7 +508,7 @@
               ${rows
                 .map(
                   (r) => `<tr>
-                <td><div class="person-cell"><span class="avatar avatar-sm ${avatarColorClass(r.nome)}">${initials(r.nome)}</span>${esc(r.nome)}</div></td>
+                <td><div class="person-cell"><span class="avatar avatar-sm ${avatarColorClass(r.nome)}">${avatarInner(r.nome)}</span>${esc(r.nome)}</div></td>
                 <td>${statusPill(r.status)}${r.abonoTipo ? ` <span class="hint">${esc(r.abonoTipo)}</span>` : ""}</td>
                 <td>${r.entrada || "—"}</td>
                 <td>${r.local ? localBadgeHtml(r.local) : '<span class="muted">—</span>'}</td>
@@ -545,7 +545,7 @@
           <div class="card ponto-history-card">
             <div class="ponto-employee-bar">
               <div class="ponto-employee-main">
-                <span class="avatar avatar-sm ${avatarColorClass(colaboradorSelecionado)}">${initials(colaboradorSelecionado)}</span>
+                <span class="avatar avatar-sm ${avatarColorClass(colaboradorSelecionado)}">${avatarInner(colaboradorSelecionado)}</span>
                 <div>
                   <p class="info-label" style="margin:0 0 .25rem">Colaborador</p>
                   <select id="colaborador-select">

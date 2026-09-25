@@ -279,7 +279,7 @@
               ${rows
                 .map(
                   (f) => `<tr>
-                <td><div class="person-cell"><span class="avatar avatar-sm ${avatarColorClass(f.colaborador)}">${initials(f.colaborador)}</span>${esc(f.colaborador)}</div></td>
+                <td><div class="person-cell"><span class="avatar avatar-sm ${avatarColorClass(f.colaborador)}">${avatarInner(f.colaborador)}</span>${esc(f.colaborador)}</div></td>
                 <td>${fmtDate(f.colaboradorAdmissao)}</td>
                 <td>${f.periodoAquisitivoInicio ? `${fmtDate(f.periodoAquisitivoInicio)} a ${fmtDate(f.periodoAquisitivoFim)}` : "—"}</td>
                 <td class="cell-num">${f.saldoDiasDisponiveis ?? "—"}</td>

@@ -187,7 +187,7 @@
             <thead><tr><th>Colaborador</th><th>Documento</th><th>Fluxo</th><th>Status</th><th>Enviado</th><th>Assinado</th><th style="width:1%">Ações</th></tr></thead>
             <tbody>${rows.map((d) => `
               <tr>
-                <td><div class="person-cell"><span class="avatar avatar-sm ${avatarColorClass(d.colaborador)}">${initials(d.colaborador)}</span><div><strong>${esc(d.colaborador)}</strong><div class="text-xs">${esc(d.colaboradorEmail || "")}</div></div></div></td>
+                <td><div class="person-cell"><span class="avatar avatar-sm ${avatarColorClass(d.colaborador)}">${avatarInner(d.colaborador)}</span><div><strong>${esc(d.colaborador)}</strong><div class="text-xs">${esc(d.colaboradorEmail || "")}</div></div></div></td>
                 <td><div class="doc-name-cell"><strong>${esc(d.titulo || d.tipo)}</strong><span>${esc(d.tipo)} • ${esc(d.competencia || "—")}</span></div></td>
                 <td><span class="badge badge-neutral">${esc(origemLabel(d.origem))}</span></td>
                 <td>${docStatus(d.status)}</td>
