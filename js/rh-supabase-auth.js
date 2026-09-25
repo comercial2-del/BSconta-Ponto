@@ -83,9 +83,13 @@ async function rhFetchPerfilCompleto(userId, userEmail) {
     if (colabErr) throw colabErr;
     colaborador = colab;
   }
+  // Colaborador excluído pelo RH: a FK de rh.perfis zera colaborador_id
+  // (on delete set null), ou a linha simplesmente não existe mais.
+  const colaboradorRemovido = perfil.role === "COLABORADOR" && (!perfil.colaborador_id || !colaborador);
 
   return {
     role: perfil.role, // 'COLABORADOR' | 'RH' | 'RH_ADMIN'
+    colaboradorRemovido,
     employeeId: perfil.colaborador_id || null,
     contaAtiva: perfil.ativo !== false,
     primeiroAcesso: perfil.primeiro_acesso === true,
@@ -157,6 +161,16 @@ async function requireRoleReal(expectedRole) {
     return null;
   }
 
+  // Cadastro do colaborador foi excluído pelo RH: encerra a sessão e volta
+  // direto para o login, sem tela de erro (o login dele não tem mais nada
+  // para mostrar no portal).
+  if (perfilCompleto.colaboradorRemovido) {
+    try { await sb.auth.signOut(); } catch { /* segue para o login mesmo assim */ }
+    rhClearCachedSession();
+    window.location.replace(`${window.BASE_PATH || ""}login.html`);
+    return null;
+  }
+
   if (perfilCompleto.status === "INATIVO") {
     await sb.auth.signOut();
     rhClearCachedSession();
@@ -197,6 +211,11 @@ async function rhRedirecionarSeJaLogado() {
   try {
     const perfil = await rhFetchPerfilCompleto(authData.session.user.id, authData.session.user.email);
     if (!perfil) return false;
+    if (perfil.colaboradorRemovido) {
+      try { await sb.auth.signOut(); } catch { /* nada */ }
+      rhClearCachedSession();
+      return false;
+    }
     const isRh = perfil.role === "RH" || perfil.role === "RH_ADMIN";
     window.location.replace(isRh ? `${window.BASE_PATH || ""}rh/dashboard.html` : `${window.BASE_PATH || ""}colaborador/dashboard.html`);
     return true;
