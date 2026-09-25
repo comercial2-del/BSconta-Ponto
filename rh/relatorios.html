@@ -34,6 +34,16 @@
       .report-pre { display: none !important; }
     }
   </style>
+  <style>
+    .period-buttons button[data-p="custom"] { display: inline-flex; align-items: center; gap: .35rem; }
+    .period-buttons button[data-p="custom"] svg { width: 15px; height: 15px; }
+    .periodo-custom-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .75rem 1rem; }
+    .periodo-custom-bar[hidden] { display: none; }
+    .periodo-custom-bar .field { margin: 0; min-width: 160px; }
+    .periodo-atalhos { display: flex; gap: .4rem; flex-wrap: wrap; }
+    .periodo-atalhos .btn-ghost { width: auto; padding: .45rem .7rem; font-size: .8rem; }
+    .periodo-custom-resumo { flex-basis: 100%; margin: 0; font-size: .8rem; color: var(--text-faint); }
+  </style>
 </head>
 <body>
   <div class="app-shell">
@@ -63,6 +73,11 @@
     const session = await requireRoleReal("RH");
     if (!session) return;
     let periodo = "mes";
+    // Período personalizado (datas escolhidas pelo RH) — padrão: mês atual.
+    const periodoCustom = {
+      inicio: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`; })(),
+      fim: rhTodayIso(),
+    };
     let selecionado = null;
 
     // Cartões da tela (só rótulo/ícone — não é "dado" a ser relatado, é o
@@ -89,11 +104,15 @@
     let base = { colaboradores: [], ferias: [], solicitacoes: [], documentos: [], pontoHoje: [], pontoRegistros: [] };
 
     function periodoInicioIso() {
+      if (periodo === "custom") return periodoCustom.inicio;
       const d = new Date();
       if (periodo === "mes") d.setDate(d.getDate() - 30);
       else if (periodo === "trimestre") d.setDate(d.getDate() - 90);
       else d.setFullYear(d.getFullYear() - 1);
       return d.toISOString().slice(0, 10);
+    }
+    function periodoFimIso() {
+      return periodo === "custom" ? periodoCustom.fim : rhTodayIso();
     }
 
     async function carregarBase() {
@@ -171,8 +190,13 @@
     // ------------------------------------------------------------------
     function gerarRelatorio(id) {
       const hoje = new Date().toLocaleDateString("pt-BR");
-      const periodoLabel = { mes: "últimos 30 dias", trimestre: "último trimestre", ano: "ano corrente" }[periodo];
+      const periodoLabel = periodo === "custom"
+        ? `${fmtDate(periodoCustom.inicio)} a ${fmtDate(periodoCustom.fim)}`
+        : { mes: "últimos 30 dias", trimestre: "último trimestre", ano: "ano corrente" }[periodo];
       const inicioPeriodo = periodoInicioIso();
+      const fimPeriodo = periodoFimIso();
+      // Data (YYYY-MM-DD ou timestamp) dentro do período escolhido.
+      const noPeriodoData = (v) => { if (!v) return false; const d = String(v).slice(0, 10); return d >= inicioPeriodo && d <= fimPeriodo; };
       const metaPadrao = `Período: ${periodoLabel} · Gerado em ${hoje} por ${session.name}`;
 
       const geradores = {
@@ -180,8 +204,8 @@
           const total = base.colaboradores.length;
           const ativos = base.colaboradores.filter((c) => c.status === "ATIVO").length;
           const afastados = base.colaboradores.filter((c) => c.status === "AFASTADO").length;
-          const admissoesPeriodo = base.colaboradores.filter((c) => c.admissao && c.admissao >= inicioPeriodo).length;
-          const desligamentosPeriodo = base.colaboradores.filter((c) => c.data_desligamento && c.data_desligamento >= inicioPeriodo).length;
+          const admissoesPeriodo = base.colaboradores.filter((c) => noPeriodoData(c.admissao)).length;
+          const desligamentosPeriodo = base.colaboradores.filter((c) => noPeriodoData(c.data_desligamento)).length;
           const porDeptoMap = {};
           base.colaboradores.forEach((c) => { const d = c.departamento || "Sem departamento"; porDeptoMap[d] = (porDeptoMap[d] || 0) + 1; });
           const porDept = Object.entries(porDeptoMap).sort((a, b) => b[1] - a[1]);
@@ -205,7 +229,7 @@
           // selecionado — dias presenciais, dias em home office e dias com
           // alguma alteração feita pelo RH (rh.ponto_registros.alterado_pelo_rh).
           const ativos = base.colaboradores.filter((c) => c.status !== "INATIVO");
-          const noPeriodo = base.pontoRegistros.filter((r) => r.data >= inicioPeriodo);
+          const noPeriodo = base.pontoRegistros.filter((r) => noPeriodoData(r.data));
           const porColab = {};
           ativos.forEach((c) => { porColab[c.id] = { nome: c.nome, presencial: 0, homeOffice: 0, alteradoRH: 0 }; });
           noPeriodo.forEach((r) => {
@@ -241,7 +265,7 @@
           };
         },
         ferias: () => {
-          const noPeriodo = base.ferias.filter((f) => f.solicitadoEm && f.solicitadoEm >= inicioPeriodo);
+          const noPeriodo = base.ferias.filter((f) => noPeriodoData(f.solicitadoEm));
           const aprov = noPeriodo.filter((f) => f.status === "APROVADA").length;
           const pend = noPeriodo.filter((f) => f.status === "PENDENTE" || f.status === "EM_ANALISE").length;
           const rec = noPeriodo.filter((f) => f.status === "RECUSADA").length;
@@ -267,7 +291,7 @@
           };
         },
         solicitacoes: () => {
-          const noPeriodo = base.solicitacoes.filter((s) => s.data && s.data >= inicioPeriodo);
+          const noPeriodo = base.solicitacoes.filter((s) => noPeriodoData(s.data));
           const total = noPeriodo.length;
           const resolvidas = noPeriodo.filter((s) => (s.statusExibicao || s.status) === "RESOLVIDA" || s.status === "RECUSADA").length;
           const abertas = total - resolvidas;
@@ -293,7 +317,7 @@
           };
         },
         documentos: () => {
-          const noPeriodo = base.documentos.filter((d) => d.data && d.data >= inicioPeriodo);
+          const noPeriodo = base.documentos.filter((d) => noPeriodoData(d.data));
           const publicadosOuAssinados = noPeriodo.filter((d) => d.status === "PUBLICADO" || d.status === "ASSINADO").length;
           const pendentesRows = base.documentos.filter((d) => d.status === "PENDENTE" || d.status === "AGUARDANDO_IMPORTACAO");
           const vencendo15 = base.documentos.filter((d) => d.prazo && d.status !== "ASSINADO" && d.status !== "PUBLICADO" && d.prazo >= rhTodayIso() && d.prazo <= new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10)).length;
@@ -332,7 +356,7 @@
         },
       };
       geradores.faltas = () => {
-        const faltas = base.ocorrencias.filter((l) => l.categoria === "FALTA" && l.data >= inicioPeriodo);
+        const faltas = base.ocorrencias.filter((l) => l.categoria === "FALTA" && noPeriodoData(l.data));
         const just = faltas.filter((l) => l.justificacao === "JUSTIFICADA").length;
         const naoJust = faltas.filter((l) => l.justificacao === "NAO_JUSTIFICADA").length;
         const emAnalise = faltas.filter((l) => l.justificacao === "EM_ANALISE").length;
@@ -358,7 +382,7 @@
         };
       };
       geradores.abonos = () => {
-        const linhas = base.ocorrencias.filter((l) => ["ABONO", "ATESTADO", "FERIAS"].includes(l.categoria) && l.dataFim >= inicioPeriodo);
+        const linhas = base.ocorrencias.filter((l) => ["ABONO", "ATESTADO", "FERIAS"].includes(l.categoria) && String(l.dataFim || l.data || "").slice(0, 10) >= inicioPeriodo && String(l.dataInicio || l.data || l.dataFim || "").slice(0, 10) <= fimPeriodo);
         const atestados = linhas.filter((l) => l.categoria === "ATESTADO");
         return {
           titulo: "Relatório de Abonos, Atestados e Férias",
@@ -429,7 +453,20 @@
               <button type="button" data-p="mes" class="active">30 dias</button>
               <button type="button" data-p="trimestre">Trimestre</button>
               <button type="button" data-p="ano">Ano</button>
+              <button type="button" data-p="custom">${ICONS.calendar || ""}<span>Personalizado</span></button>
             </div>
+          </div>
+
+          <div class="card card-p periodo-custom-bar" id="periodo-custom" hidden>
+            <div class="field"><label>Data inicial</label><input type="date" id="pc-inicio" value="${periodoCustom.inicio}" max="${rhTodayIso()}" /></div>
+            <div class="field"><label>Data final</label><input type="date" id="pc-fim" value="${periodoCustom.fim}" /></div>
+            <div class="periodo-atalhos">
+              <button type="button" class="btn-ghost" data-atalho="mes-atual">Mês atual</button>
+              <button type="button" class="btn-ghost" data-atalho="mes-anterior">Mês anterior</button>
+              <button type="button" class="btn-ghost" data-atalho="ano-atual">Este ano</button>
+            </div>
+            <button type="button" class="btn-primary auto" id="pc-aplicar">${ICONS.checkCircle}<span>Aplicar período</span></button>
+            <p class="periodo-custom-resumo" id="pc-resumo"></p>
           </div>
 
           <div class="grid-3-even" id="cards-grid"></div>
@@ -465,9 +502,47 @@
           document.querySelectorAll("[data-p]").forEach((b) => b.classList.remove("active"));
           btn.classList.add("active");
           periodo = btn.dataset.p;
+          document.getElementById("periodo-custom").hidden = periodo !== "custom";
+          atualizarResumoPeriodo();
           if (selecionado) mostrarResultado(selecionado.id, selecionado.nome);
         })
       );
+
+      const pcInicio = document.getElementById("pc-inicio");
+      const pcFim = document.getElementById("pc-fim");
+      function atualizarResumoPeriodo() {
+        const el = document.getElementById("pc-resumo");
+        if (!el) return;
+        const dias = Math.round((new Date(periodoCustom.fim) - new Date(periodoCustom.inicio)) / 86400000) + 1;
+        el.textContent = `Relatórios de ${fmtDate(periodoCustom.inicio)} a ${fmtDate(periodoCustom.fim)} (${dias} dia${dias === 1 ? "" : "s"}).`;
+      }
+      async function aplicarPeriodoCustom() {
+        const ini = pcInicio.value, fim = pcFim.value;
+        if (!ini || !fim) { showToast("Informe a data inicial e a data final.", "error"); return; }
+        if (ini > fim) { showToast("A data inicial não pode ser depois da data final.", "error"); return; }
+        periodoCustom.inicio = ini;
+        periodoCustom.fim = fim;
+        // Ocorrências vêm carregadas só do último ano — período mais antigo recarrega.
+        if (!base.ocorrenciasInicio || ini < base.ocorrenciasInicio) {
+          const btn = document.getElementById("pc-aplicar");
+          btn.disabled = true;
+          await carregarOcorrencias(ini);
+          btn.disabled = false;
+        }
+        atualizarResumoPeriodo();
+        if (selecionado) mostrarResultado(selecionado.id, selecionado.nome);
+        else showToast("Período aplicado. Agora clique em “Gerar relatório” no relatório desejado.", "success");
+      }
+      document.getElementById("pc-aplicar").addEventListener("click", aplicarPeriodoCustom);
+      document.querySelectorAll("[data-atalho]").forEach((b) => b.addEventListener("click", () => {
+        const hoje = new Date();
+        const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        if (b.dataset.atalho === "mes-atual") { pcInicio.value = iso(new Date(hoje.getFullYear(), hoje.getMonth(), 1)); pcFim.value = rhTodayIso(); }
+        else if (b.dataset.atalho === "mes-anterior") { pcInicio.value = iso(new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1)); pcFim.value = iso(new Date(hoje.getFullYear(), hoje.getMonth(), 0)); }
+        else { pcInicio.value = `${hoje.getFullYear()}-01-01`; pcFim.value = rhTodayIso(); }
+        aplicarPeriodoCustom();
+      }));
+      atualizarResumoPeriodo();
 
       document.querySelectorAll("[data-gerar]").forEach((btn) =>
         btn.addEventListener("click", () => mostrarResultado(btn.dataset.gerar, btn.dataset.nome))
