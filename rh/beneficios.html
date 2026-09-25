@@ -35,6 +35,16 @@
     .tone-swatch-grid { display: flex; flex-wrap: wrap; gap: 0.5rem; }
     .tone-swatch { width: 30px; height: 30px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; box-shadow: inset 0 0 0 1px rgba(15,23,42,0.06); }
     .tone-swatch.is-active { border-color: var(--text); }
+    .benef-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; justify-content: flex-end; }
+    .benef-actions select { min-width: 200px; }
+    .benef-add-wrap { position: relative; }
+    #btn-novo-beneficio svg:last-child { width: 15px; height: 15px; margin-left: 0.1rem; opacity: 0.85; }
+    .benef-add-menu { width: 18.5rem; }
+    .benef-add-menu .dd-item { align-items: flex-start; }
+    .benef-add-menu .dd-item svg { margin-top: 0.15rem; }
+    .benef-add-menu .dd-item span { display: flex; flex-direction: column; gap: 0.1rem; }
+    .benef-add-menu .dd-item small { font-size: 0.75rem; color: var(--text-faint); font-weight: 500; }
+    @media (max-width: 640px) { .benef-actions { width: 100%; justify-content: stretch; } .benef-actions select { flex: 1; min-width: 0; } }
   </style>
 </head>
 <body>
@@ -157,7 +167,16 @@
               <h1 class="page-title">Benefícios</h1>
               <p class="page-sub">Cadastre os benefícios da empresa e escolha se valem para todos ou só para colaboradores específicos.</p>
             </div>
-            <button type="button" class="btn-primary auto" id="btn-novo-beneficio">${ICONS.plus}<span>Novo benefício</span></button>
+            <div class="benef-actions">
+              <select id="f-concessao-colab" title="Filtrar benefícios por colaborador">${rhOpcoesColaboradoresHtml(colaboradoresTodos, filtroConcessaoColab, { incluirVazio: true, labelVazio: "Todos os colaboradores" })}</select>
+              <div class="benef-add-wrap">
+                <button type="button" class="btn-primary auto" id="btn-novo-beneficio" aria-haspopup="menu" aria-expanded="false">${ICONS.plus}<span>Novo benefício</span>${ICONS.chevronDown}</button>
+                <div class="dropdown-panel benef-add-menu" id="menu-novo-beneficio" role="menu">
+                  <button type="button" class="dd-item" data-acao-novo="catalogo" role="menuitem">${ICONS.gift}<span><strong>Cadastrar benefício</strong><small>Catálogo da empresa: todos ou específicos</small></span></button>
+                  <button type="button" class="dd-item" data-acao-novo="concessao" role="menuitem">${ICONS.user}<span><strong>Registrar para colaborador</strong><small>Valor, início, periodicidade e desconto</small></span></button>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div id="kpi-grid"></div>
@@ -168,11 +187,7 @@
             <div class="row-between" style="margin-bottom:.9rem;flex-wrap:wrap;gap:.7rem">
               <div>
                 <h2 style="margin:0">Benefícios por colaborador</h2>
-                <p class="page-sub" style="margin:.25rem 0 0">Registre o benefício concedido a cada pessoa: início, valor, periodicidade e se houve desconto — com opção de informar o colaborador.</p>
-              </div>
-              <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center">
-                <select id="f-concessao-colab" style="min-width:200px">${rhOpcoesColaboradoresHtml(colaboradoresTodos, filtroConcessaoColab, { incluirVazio: true, labelVazio: "Todos os colaboradores" })}</select>
-                <button type="button" class="btn-primary auto" id="btn-nova-concessao">${ICONS.plus}<span>Registrar benefício</span></button>
+                <p class="page-sub" style="margin:.25rem 0 0">Benefício concedido a cada pessoa: início, valor, periodicidade e se houve desconto. Use o filtro no topo para ver um colaborador.</p>
               </div>
             </div>
             <div id="concessoes-wrap"></div>
@@ -181,9 +196,28 @@
       `;
       renderConcessoes();
       document.getElementById("f-concessao-colab").addEventListener("change", (e) => { filtroConcessaoColab = e.target.value; renderConcessoes(); });
-      document.getElementById("btn-nova-concessao").addEventListener("click", () =>
-        rhAbrirModalConcessao({ colaboradores: colaboradoresTodos, catalogo: cacheBeneficios, colaboradorFixoId: filtroConcessaoColab || null, session, onSaved: async () => { await refrescarConcessoes(); render(); } })
+      const btnNovo = document.getElementById("btn-novo-beneficio");
+      const menuNovo = document.getElementById("menu-novo-beneficio");
+      const fecharMenu = () => { menuNovo.classList.remove("open"); btnNovo.setAttribute("aria-expanded", "false"); };
+      btnNovo.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const abrir = !menuNovo.classList.contains("open");
+        menuNovo.classList.toggle("open", abrir);
+        btnNovo.setAttribute("aria-expanded", String(abrir));
+      });
+      menuNovo.querySelectorAll("[data-acao-novo]").forEach((item) =>
+        item.addEventListener("click", () => {
+          fecharMenu();
+          if (item.dataset.acaoNovo === "catalogo") abrirModalNovo();
+          else rhAbrirModalConcessao({ colaboradores: colaboradoresTodos, catalogo: cacheBeneficios, colaboradorFixoId: filtroConcessaoColab || null, session, onSaved: async () => { await refrescarConcessoes(); render(); } });
+        })
       );
+      if (!window.__benefMenuWired) {
+        window.__benefMenuWired = true;
+        const fecharGlobal = () => { document.getElementById("menu-novo-beneficio")?.classList.remove("open"); document.getElementById("btn-novo-beneficio")?.setAttribute("aria-expanded", "false"); };
+        document.addEventListener("click", (e) => { if (!e.target.closest(".benef-add-wrap")) fecharGlobal(); });
+        document.addEventListener("keydown", (e) => { if (e.key === "Escape") fecharGlobal(); });
+      }
 
       renderKpiGrid(document.getElementById("kpi-grid"), [
         { label: "Benefícios cadastrados", value: total, tone: "indigo", icon: ICONS.heart },
@@ -193,7 +227,6 @@
       ]);
 
       renderBeneficiosGrid();
-      document.getElementById("btn-novo-beneficio").addEventListener("click", () => abrirModalNovo());
     }
 
     function renderConcessoes() {
@@ -203,7 +236,7 @@
       const rows = cacheConcessoes.filter((c) => !filtroConcessaoColab || c.colaborador_id === filtroConcessaoColab);
       wrap.innerHTML = rows.length
         ? `<div class="mini-list">${rows.map((c) => rhConcessaoCardHtml(c, { podeEditar: true, mostrarColaborador: true })).join("")}</div>`
-        : emptyStateHtml({ icon: ICONS.heart, title: "Nenhum benefício individual registrado", desc: "Use “Registrar benefício” para lançar valor, início e desconto de um benefício para um colaborador." });
+        : emptyStateHtml({ icon: ICONS.heart, title: "Nenhum benefício individual registrado", desc: "Use “Novo benefício” → “Registrar para colaborador” para lançar valor, início e desconto de um benefício para um colaborador." });
       wrap.querySelectorAll("[data-editar-concessao]").forEach((b) =>
         b.addEventListener("click", () =>
           rhAbrirModalConcessao({ colaboradores: colaboradoresTodos, catalogo: cacheBeneficios, concessao: cacheConcessoes.find((x) => x.id === b.dataset.editarConcessao), session, onSaved: async () => { await refrescarConcessoes(); render(); } })
