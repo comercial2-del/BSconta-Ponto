@@ -798,8 +798,48 @@ function geoLinkHtml(geo) {
 // a partir dos dígitos da data sempre que o registro não tinha geo real
 // salvo — removido. Sem geo real salvo (registro antigo), não há link —
 // nunca mostramos uma localização que não foi realmente coletada.
+// Histórico: um pin por batida (Entrada / Saída intervalo / Retorno /
+// Saída) quando o registro tem geo.batidas; senão, o pin único do dia. O
+// título do pin mostra o local e a distância até a sede, para o RH conferir.
+// Sem localização salva (registro antigo ou lançado pelo RH), mostra o aviso
+// "Sem localização" — nunca um pin inventado.
+const GEO_BATIDAS_ORDEM = [
+  ["entrada", "E", "Entrada"],
+  ["intervaloSaida", "I", "Saída p/ intervalo"],
+  ["intervaloVolta", "R", "Retorno do intervalo"],
+  ["saida", "S", "Saída"],
+];
+
+function geoTituloPonto(g, rotulo) {
+  const partes = [rotulo];
+  if (g.local && LOCAL_PONTO_LABELS[g.local]) partes.push(LOCAL_PONTO_LABELS[g.local]);
+  if (typeof EMPRESA_INFO !== "undefined" && Number.isFinite(Number(EMPRESA_INFO.lat))) {
+    const d = Math.round(distanciaMetros(Number(g.lat), Number(g.lng), EMPRESA_INFO.lat, EMPRESA_INFO.lng));
+    partes.push(`a ~${fmtDistancia(d)} da sede`);
+  }
+  if (Number.isFinite(Number(g.precisao))) partes.push(`precisão ~${Math.round(Number(g.precisao))} m`);
+  return partes.join(" · ") + " — abrir no Google Maps";
+}
+
+function geoPinPonto(g, letra, rotulo) {
+  const titulo = esc(geoTituloPonto(g, rotulo));
+  return `<a href="https://www.google.com/maps?q=${encodeURIComponent(g.lat + "," + g.lng)}" target="_blank" rel="noopener" class="geo-link geo-link-batida" title="${titulo}" aria-label="${titulo}">${ICONS.mapPin}${letra ? `<b>${letra}</b>` : ""}</a>`;
+}
+
+function geoValido(g) {
+  return g && Number.isFinite(Number(g.lat)) && Number.isFinite(Number(g.lng));
+}
+
 function geoLinkForPonto(geo, iso) {
-  return geoLinkHtml(geo);
+  if (!geoValido(geo)) {
+    return `<span class="geo-none" title="Este registro não tem localização salva (feito antes da localização obrigatória ou lançado pelo RH).">Sem localização</span>`;
+  }
+  const batidas = geo.batidas && typeof geo.batidas === "object" ? geo.batidas : null;
+  const pins = batidas
+    ? GEO_BATIDAS_ORDEM.filter(([k]) => geoValido(batidas[k])).map(([k, letra, rotulo]) => geoPinPonto(batidas[k], letra, rotulo))
+    : [];
+  if (!pins.length) return `<span class="geo-pins">${geoPinPonto(geo, "", "Localização do ponto")}</span>`;
+  return `<span class="geo-pins">${pins.join("")}</span>`;
 }
 
 /**
