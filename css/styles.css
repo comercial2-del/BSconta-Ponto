@@ -1458,3 +1458,14 @@ canvas { max-width: 100%; }
   .document-card-actions .btn-primary, .document-card-actions .btn-ghost { flex:1; min-width:11rem; }
   .modal-doc-preview { width:calc(100vw - 1rem); height:90vh; }
 }
+
+/* Modal de localização obrigatória (toda batida de ponto) — os cartões
+   "Na empresa"/"Home Office" são só indicativos: o local é definido pela
+   distância até a sede, não por escolha. */
+div.local-choice { cursor: default; }
+div.local-choice:hover { transform: none; box-shadow: none; }
+div.local-choice.locked { border-style: dashed; }
+.local-actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 1.1rem; }
+.local-actions .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+.local-actions svg { width: 16px; height: 16px; }
+#modal-local-ponto .local-choice.suggested::before { content: "Seu local"; }
