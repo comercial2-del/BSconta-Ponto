@@ -970,6 +970,11 @@ canvas { max-width: 100%; }
 .geo-link:hover { background: var(--surface-2); color: var(--indigo-600); transform: translateY(-1px); }
 .geo-link:focus-visible { outline: 2px solid var(--indigo-500); outline-offset: 2px; }
 .geo-link svg { width: 16px; height: 16px; }
+.geo-pins { display: inline-flex; align-items: center; gap: 0.1rem; margin-left: 0.25rem; vertical-align: middle; }
+.geo-pins .geo-link { margin-left: 0; }
+.geo-link-batida { width: auto; min-width: 27px; padding: 0 0.25rem; gap: 0.1rem; }
+.geo-link-batida b { font-size: 0.62rem; font-weight: 700; line-height: 1; }
+.geo-none { display: inline-block; margin-left: 0.4rem; font-size: 0.68rem; font-weight: 600; color: var(--text-faint); white-space: nowrap; vertical-align: middle; }
 
 .modal-sm { max-width: 24rem; }
 .local-status { display: flex; align-items: center; gap: 0.55rem; font-size: 0.85rem; color: var(--text-soft); margin-bottom: 1.1rem; line-height: 1.5; }
