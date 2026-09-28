@@ -811,7 +811,7 @@ const GEO_BATIDAS_ORDEM = [
 ];
 
 function geoTituloPonto(g, rotulo) {
-  const partes = [rotulo];
+  const partes = [g.origem === "RH" ? `${rotulo} (definido pelo RH)` : rotulo];
   if (g.local && LOCAL_PONTO_LABELS[g.local]) partes.push(LOCAL_PONTO_LABELS[g.local]);
   if (typeof EMPRESA_INFO !== "undefined" && Number.isFinite(Number(EMPRESA_INFO.lat))) {
     const d = Math.round(distanciaMetros(Number(g.lat), Number(g.lng), EMPRESA_INFO.lat, EMPRESA_INFO.lng));
@@ -900,7 +900,6 @@ function abrirModalLocalPonto(opcoesOuCallback, talvezCallback) {
           </div>
           <p class="local-empresa-end">${ICONS.mapPin}<span>${esc(EMPRESA_INFO.nome)} · ${esc(EMPRESA_INFO.endereco)}</span></p>
           <div class="local-actions">
-            <button type="button" class="btn-ghost local-cancel">Cancelar</button>
             <button type="button" class="btn-primary local-confirm" disabled>${ICONS.clock}<span class="local-confirm-label"></span></button>
           </div>
         </div>
@@ -915,7 +914,6 @@ function abrirModalLocalPonto(opcoesOuCallback, talvezCallback) {
   const statusEl = overlay.querySelector("#local-ponto-status");
   const cards = overlay.querySelectorAll(".local-choice");
   const btnConfirm = overlay.querySelector(".local-confirm");
-  const btnCancel = overlay.querySelector(".local-cancel");
 
   let geoResult = null;
   let localResult = null;
@@ -964,18 +962,18 @@ function abrirModalLocalPonto(opcoesOuCallback, talvezCallback) {
     overlay.classList.remove("open");
     tentativa++;
     btnConfirm.onclick = null;
-    btnCancel.onclick = null;
   }
 
   if (!overlay.dataset.wired) {
     overlay.dataset.wired = "1";
     overlay.addEventListener("click", (e) => {
       if (e.target.closest(".local-retry")) overlay._retry?.();
+      // Sem botão "Cancelar": clicar fora do quadro fecha a janela.
+      else if (e.target === overlay) overlay._fechar?.();
     });
   }
   overlay._retry = obterLocalizacao;
-
-  btnCancel.onclick = () => fechar();
+  overlay._fechar = fechar;
   btnConfirm.onclick = () => {
     if (!geoResult || !localResult) {
       showToast("Para registrar o ponto é necessário permitir o acesso à localização.", "error");
