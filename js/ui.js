@@ -722,23 +722,62 @@ function distanciaMetros(lat1, lng1, lat2, lng2) {
 }
 
 /**
- * Tenta obter a localização real do navegador (Geolocation API). Resolve
- * sempre (nunca rejeita) com { ok, lat, lng, precisao } ou { ok:false,
- * motivo } — quem chama decide o que mostrar quando falhar (o colaborador
- * sempre pode escolher o local manualmente).
+ * Obtém a localização real do navegador (Geolocation API). Resolve sempre
+ * (nunca rejeita) com { ok:true, lat, lng, precisao } ou { ok:false,
+ * codigo, motivo }.
+ *
+ * Por que alguns colaboradores "com localização ligada" não conseguiam: a
+ * versão anterior fazia UMA tentativa só, em alta precisão (GPS puro), com
+ * timeout curto (5 s nas batidas depois da entrada). Dentro de prédio ou em
+ * computador/notebook sem GPS essa leitura estoura o tempo — e o ponto era
+ * gravado mesmo assim, sem localização. Agora:
+ *   1ª tentativa: alta precisão (GPS), sem cache antigo;
+ *   2ª tentativa (se a 1ª falhar por tempo/indisponível): precisão normal
+ *      (Wi-Fi/rede), aceitando uma leitura de até 2 min atrás;
+ * e cada tipo de falha devolve uma mensagem clara de como resolver.
  */
-function capturarLocalizacao(timeoutMs = 8000) {
-  return new Promise((resolve) => {
-    if (!("geolocation" in navigator)) {
-      resolve({ ok: false, motivo: "Este navegador não suporta localização." });
-      return;
+function capturarLocalizacao(timeoutMs = 15000) {
+  const MSG_NEGADA =
+    "O acesso à localização foi bloqueado. Permita a localização para este site nas configurações do navegador (ícone de cadeado ao lado do endereço) e tente de novo.";
+  const MSG_INDISPONIVEL =
+    "Não foi possível obter sua localização. Verifique se a localização/GPS do dispositivo está ativada e tente de novo.";
+  const MSG_TEMPO =
+    "A localização demorou demais para responder. Verifique se a localização/GPS está ativada (de preferência com Wi-Fi ligado) e tente de novo.";
+
+  const tentar = (opts) =>
+    new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ ok: true, lat: pos.coords.latitude, lng: pos.coords.longitude, precisao: Math.round(pos.coords.accuracy) }),
+        (err) =>
+          resolve({
+            ok: false,
+            codigo: err.code === 1 ? "NEGADA" : err.code === 3 ? "TEMPO" : "INDISPONIVEL",
+            motivo: err.code === 1 ? MSG_NEGADA : err.code === 3 ? MSG_TEMPO : MSG_INDISPONIVEL,
+          }),
+        opts
+      );
+    });
+
+  return (async () => {
+    if (typeof window !== "undefined" && window.isSecureContext === false) {
+      return { ok: false, codigo: "INSEGURO", motivo: "A localização só funciona com o sistema aberto em endereço seguro (https)." };
     }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ ok: true, lat: pos.coords.latitude, lng: pos.coords.longitude, precisao: Math.round(pos.coords.accuracy) }),
-      (err) => resolve({ ok: false, motivo: err.code === 1 ? "Permissão de localização negada." : "Não foi possível obter sua localização." }),
-      { enableHighAccuracy: true, timeout: timeoutMs, maximumAge: 60000 }
-    );
-  });
+    if (!("geolocation" in navigator)) {
+      return { ok: false, codigo: "SEM_SUPORTE", motivo: "Este navegador não suporta localização. Use um navegador atualizado (Chrome, Edge, Safari) para registrar o ponto." };
+    }
+    try {
+      if (navigator.permissions?.query) {
+        const st = await navigator.permissions.query({ name: "geolocation" });
+        if (st.state === "denied") return { ok: false, codigo: "NEGADA", motivo: MSG_NEGADA };
+      }
+    } catch (e) {
+      /* Safari antigo não suporta permissions.query para geolocation — segue normalmente. */
+    }
+    const r1 = await tentar({ enableHighAccuracy: true, timeout: timeoutMs, maximumAge: 0 });
+    if (r1.ok || r1.codigo === "NEGADA") return r1;
+    const r2 = await tentar({ enableHighAccuracy: false, timeout: timeoutMs, maximumAge: 120000 });
+    return r2.ok ? r2 : r1;
+  })();
 }
 
 function localBadgeHtml(local) {
@@ -748,7 +787,7 @@ function localBadgeHtml(local) {
 }
 
 function geoLinkHtml(geo) {
-  if (!geo) return "";
+  if (!geo || !Number.isFinite(Number(geo.lat)) || !Number.isFinite(Number(geo.lng))) return "";
   const precisao = Number.isFinite(Number(geo.precisao)) ? ` (precisão ~${Math.round(Number(geo.precisao))}m)` : "";
   return `<a href="https://www.google.com/maps?q=${encodeURIComponent(geo.lat + "," + geo.lng)}" target="_blank" rel="noopener" class="geo-link" title="Abrir localização do ponto no Google Maps${precisao}" aria-label="Abrir localização do ponto no Google Maps">${ICONS.mapPin}</a>`;
 }
@@ -757,25 +796,26 @@ function geoLinkHtml(geo) {
 // RH). ATENÇÃO: existia aqui um gerador de coordenadas FALSAS
 // (DEMO_GEO_POINTS / demoGeoForDate), que inventava uma latitude/longitude
 // a partir dos dígitos da data sempre que o registro não tinha geo real
-// salvo — ou seja, o pin do mapa podia abrir uma localização inventada,
-// nunca capturada de fato, sem nenhuma indicação visual de que era falsa.
-// Isso é exatamente o tipo de "localização mockada/de desenvolvimento
-// usada indevidamente" que não pode existir no fluxo real: removido.
-// Agora, sem geo real salvo (registro antigo, ou local marcado sem
-// permissão de localização concedida na hora), simplesmente não há link —
+// salvo — removido. Sem geo real salvo (registro antigo), não há link —
 // nunca mostramos uma localização que não foi realmente coletada.
 function geoLinkForPonto(geo, iso) {
   return geoLinkHtml(geo);
 }
 
 /**
- * Verifica se uma leitura de localização está dentro da área da empresa.
- * Considera a imprecisão do GPS até o teto EMPRESA_INFO.toleranciaPrecisaoMaxMetros.
+ * Classifica uma leitura de localização:
+ *   - precisão pior que EMPRESA_INFO.precisaoMaximaMetros → não validada;
+ *   - distância até a sede <= EMPRESA_INFO.raioPresencialMetros (500 m) →
+ *     PRESENCIAL ("Na empresa");
+ *   - acima disso → HOME_OFFICE.
+ * Mesma regra do trigger rh.ponto_validar_localizacao no banco.
  */
 function avaliarLocalEmpresa(geo) {
   const dist = Math.round(distanciaMetros(geo.lat, geo.lng, EMPRESA_INFO.lat, EMPRESA_INFO.lng));
-  const tolerancia = Math.min(Number(geo.precisao) || 0, EMPRESA_INFO.toleranciaPrecisaoMaxMetros ?? 100);
-  return { dist, naEmpresa: dist - tolerancia <= EMPRESA_INFO.raioPresencialMetros };
+  const precisaoMax = EMPRESA_INFO.precisaoMaximaMetros || 2000;
+  const valida = Number.isFinite(dist) && !(Number(geo.precisao) > precisaoMax);
+  const naEmpresa = valida && dist <= EMPRESA_INFO.raioPresencialMetros;
+  return { dist, valida, naEmpresa, local: naEmpresa ? "PRESENCIAL" : "HOME_OFFICE" };
 }
 
 function fmtDistancia(m) {
@@ -783,88 +823,108 @@ function fmtDistancia(m) {
 }
 
 /**
- * Abre (criando se preciso) o modal de "onde você está registrando o
- * ponto" — chamado no PRIMEIRO ponto do dia.
+ * Modal de verificação de localização — chamado em TODA batida de ponto
+ * (entrada, saída/retorno do intervalo e saída).
  *
- * TRAVA DE LOCALIZAÇÃO: "Na empresa" só fica liberado quando o navegador
- * devolve uma localização dentro do raio da sede (EMPRESA_INFO). Fora do
- * raio, com permissão negada ou sem GPS, o botão fica bloqueado e só dá pra
- * registrar como Home Office — evita marcar "Na empresa" por engano.
- * Home Office é sempre permitido. `onConfirm(local, geo)` ao confirmar.
+ * LOCALIZAÇÃO OBRIGATÓRIA: o botão "Registrar" só é liberado depois que o
+ * navegador devolve uma localização válida. O local é definido
+ * automaticamente pela distância até a sede (EMPRESA_INFO):
+ *   até 500 m → "Na empresa"; acima → "Home Office".
+ * Sem localização (GPS desligado, permissão negada, indisponível, precisão
+ * ruim demais) o ponto NÃO é registrado e a tela explica o que fazer.
+ *
+ * Uso: abrirModalLocalPonto(onConfirm) ou
+ *      abrirModalLocalPonto({ titulo, rotuloAcao }, onConfirm)
+ * `onConfirm(local, geo)` recebe "PRESENCIAL"/"HOME_OFFICE" e
+ * { lat, lng, precisao, distancia_m, capturado_em }.
  */
-function abrirModalLocalPonto(onConfirm) {
+function abrirModalLocalPonto(opcoesOuCallback, talvezCallback) {
+  const opcoes = typeof opcoesOuCallback === "function" ? {} : opcoesOuCallback || {};
+  const onConfirm = typeof opcoesOuCallback === "function" ? opcoesOuCallback : talvezCallback;
+  const titulo = opcoes.titulo || "Registrar ponto";
+  const rotuloAcao = opcoes.rotuloAcao || "Registrar ponto";
+
   let overlay = document.getElementById("modal-local-ponto");
   if (!overlay) {
     overlay = document.createElement("div");
     overlay.id = "modal-local-ponto";
     overlay.className = "modal-overlay";
     overlay.innerHTML = `
-      <div class="modal modal-sm">
-        <div class="modal-header"><h3>Onde você está registrando o ponto?</h3></div>
+      <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="local-ponto-titulo">
+        <div class="modal-header"><h3 id="local-ponto-titulo"></h3></div>
         <div class="modal-body">
-          <div id="local-ponto-status" class="local-status"></div>
+          <div id="local-ponto-status" class="local-status" aria-live="polite"></div>
           <div class="local-choice-grid">
-            <button type="button" class="local-choice" data-local="HOME_OFFICE">${ICONS.home}<span>Home Office</span></button>
-            <button type="button" class="local-choice" data-local="PRESENCIAL">${ICONS.building}<span>Na empresa</span><small class="local-lock-note"></small></button>
+            <div class="local-choice locked" data-local="PRESENCIAL">${ICONS.building}<span>Na empresa</span><small class="local-lock-note">até ${EMPRESA_INFO.raioPresencialMetros} m da sede</small></div>
+            <div class="local-choice locked" data-local="HOME_OFFICE">${ICONS.home}<span>Home Office</span><small class="local-lock-note">fora da área da empresa</small></div>
           </div>
           <p class="local-empresa-end">${ICONS.mapPin}<span>${esc(EMPRESA_INFO.nome)} · ${esc(EMPRESA_INFO.endereco)}</span></p>
+          <div class="local-actions">
+            <button type="button" class="btn-ghost local-cancel">Cancelar</button>
+            <button type="button" class="btn-primary local-confirm" disabled>${ICONS.clock}<span class="local-confirm-label"></span></button>
+          </div>
         </div>
       </div>
     `;
     document.body.appendChild(overlay);
   }
+  overlay.querySelector("#local-ponto-titulo").textContent = titulo;
+  overlay.querySelector(".local-confirm-label").textContent = rotuloAcao;
   overlay.classList.add("open");
+
   const statusEl = overlay.querySelector("#local-ponto-status");
-  const choices = overlay.querySelectorAll(".local-choice");
-  const btnEmpresa = overlay.querySelector('[data-local="PRESENCIAL"]');
-  const noteEmpresa = btnEmpresa.querySelector(".local-lock-note");
+  const cards = overlay.querySelectorAll(".local-choice");
+  const btnConfirm = overlay.querySelector(".local-confirm");
+  const btnCancel = overlay.querySelector(".local-cancel");
 
   let geoResult = null;
-  let empresaLiberada = false;
+  let localResult = null;
   let tentativa = 0;
 
-  function bloquearEmpresa(nota) {
-    empresaLiberada = false;
-    btnEmpresa.disabled = true;
-    btnEmpresa.classList.add("locked");
-    btnEmpresa.setAttribute("aria-disabled", "true");
-    noteEmpresa.textContent = nota;
+  function travar() {
+    geoResult = null;
+    localResult = null;
+    btnConfirm.disabled = true;
+    cards.forEach((c) => { c.classList.remove("suggested"); c.classList.add("locked"); });
   }
 
   function obterLocalizacao() {
     const minha = ++tentativa;
-    geoResult = null;
-    choices.forEach((b) => b.classList.remove("suggested"));
-    bloquearEmpresa("Verificando…");
+    travar();
     statusEl.className = "local-status";
-    statusEl.innerHTML = `<span class="spinner spinner-sm"></span> Obtendo sua localização…`;
-    capturarLocalizacao(12000).then((res) => {
+    statusEl.innerHTML = `<span class="spinner spinner-sm"></span> Obtendo sua localização… (obrigatória para registrar o ponto)`;
+    capturarLocalizacao().then((res) => {
       if (minha !== tentativa || !overlay.classList.contains("open")) return;
       if (!res.ok) {
-        bloquearEmpresa("Precisa da localização");
         statusEl.className = "local-status warn";
-        statusEl.innerHTML = `${ICONS.alertCircle}<span>${esc(res.motivo)} Para marcar <strong>Na empresa</strong>, permita a localização no navegador. <button type="button" class="local-retry">${ICONS.refresh}Tentar de novo</button></span>`;
-        overlay.querySelector('[data-local="HOME_OFFICE"]').classList.add("suggested");
+        statusEl.innerHTML = `${ICONS.alertCircle}<span><strong>Localização obrigatória.</strong> ${esc(res.motivo)} O ponto não foi registrado. <button type="button" class="local-retry">${ICONS.refresh}Tentar de novo</button></span>`;
         return;
       }
-      geoResult = { lat: res.lat, lng: res.lng, precisao: res.precisao };
-      const { dist, naEmpresa } = avaliarLocalEmpresa(geoResult);
-      if (naEmpresa) {
-        empresaLiberada = true;
-        btnEmpresa.disabled = false;
-        btnEmpresa.classList.remove("locked");
-        btnEmpresa.removeAttribute("aria-disabled");
-        noteEmpresa.textContent = "";
-        btnEmpresa.classList.add("suggested");
-        statusEl.className = "local-status ok";
-        statusEl.innerHTML = `${ICONS.mapPin}<span>Você está <strong>na empresa</strong> (a ~${fmtDistancia(dist)}, precisão ~${res.precisao} m). Confirme abaixo:</span>`;
-      } else {
-        bloquearEmpresa("Fora da empresa");
-        overlay.querySelector('[data-local="HOME_OFFICE"]').classList.add("suggested");
+      const geo = { lat: res.lat, lng: res.lng, precisao: res.precisao };
+      const av = avaliarLocalEmpresa(geo);
+      if (!av.valida) {
         statusEl.className = "local-status warn";
-        statusEl.innerHTML = `${ICONS.alertCircle}<span>Você está a <strong>~${fmtDistancia(dist)}</strong> da empresa (precisão ~${res.precisao} m). "Na empresa" só pode ser marcado dentro de ${EMPRESA_INFO.raioPresencialMetros} m da sede. <button type="button" class="local-retry">${ICONS.refresh}Verificar de novo</button></span>`;
+        statusEl.innerHTML = `${ICONS.alertCircle}<span>A localização recebida está imprecisa demais (~${fmtDistancia(res.precisao)}) para validar onde você está. Ative o GPS/Wi-Fi do dispositivo e tente de novo. O ponto não foi registrado. <button type="button" class="local-retry">${ICONS.refresh}Tentar de novo</button></span>`;
+        return;
       }
+      geoResult = { ...geo, distancia_m: av.dist, capturado_em: new Date().toISOString() };
+      localResult = av.local;
+      const card = overlay.querySelector(`[data-local="${av.local}"]`);
+      card.classList.remove("locked");
+      card.classList.add("suggested");
+      btnConfirm.disabled = false;
+      statusEl.className = "local-status ok";
+      statusEl.innerHTML = av.naEmpresa
+        ? `${ICONS.mapPin}<span>Localização confirmada: você está <strong>na empresa</strong> (a ~${fmtDistancia(av.dist)} da sede, precisão ~${res.precisao} m).</span>`
+        : `${ICONS.mapPin}<span>Localização confirmada: você está a <strong>~${fmtDistancia(av.dist)}</strong> da sede (fora do raio de ${EMPRESA_INFO.raioPresencialMetros} m) — o ponto será registrado como <strong>Home Office</strong>. <button type="button" class="local-retry">${ICONS.refresh}Verificar de novo</button></span>`;
     });
+  }
+
+  function fechar() {
+    overlay.classList.remove("open");
+    tentativa++;
+    btnConfirm.onclick = null;
+    btnCancel.onclick = null;
   }
 
   if (!overlay.dataset.wired) {
@@ -874,21 +934,20 @@ function abrirModalLocalPonto(onConfirm) {
     });
   }
   overlay._retry = obterLocalizacao;
-  obterLocalizacao();
 
-  const handler = (e) => {
-    const btn = e.target.closest(".local-choice");
-    if (!btn) return;
-    if (btn.dataset.local === "PRESENCIAL" && !empresaLiberada) {
-      showToast("Para marcar \u201cNa empresa\u201d você precisa estar no local e com a localização permitida.", "error");
+  btnCancel.onclick = () => fechar();
+  btnConfirm.onclick = () => {
+    if (!geoResult || !localResult) {
+      showToast("Para registrar o ponto é necessário permitir o acesso à localização.", "error");
       return;
     }
-    overlay.classList.remove("open");
-    tentativa++;
-    choices.forEach((b) => b.removeEventListener("click", handler));
-    onConfirm(btn.dataset.local, geoResult);
+    const local = localResult;
+    const geo = geoResult;
+    fechar();
+    onConfirm(local, geo);
   };
-  choices.forEach((b) => b.addEventListener("click", handler));
+
+  obterLocalizacao();
 }
 
 // ---------------------------------------------------------------------------

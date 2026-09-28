@@ -37,9 +37,46 @@ function rhParseHora(hhmm) {
 function rhHoraCurta(t) {
   return t ? String(t).slice(0, 5) : null;
 }
+/** Fuso oficial do ponto. O "dia de ponto" é SEMPRE o dia civil de
+ * Brasília (00:00 → 23:59), independentemente do fuso configurado no
+ * aparelho — e o banco usa o mesmo fuso (rh.hoje_ponto(), migração 27).
+ * Antes o banco comparava com current_date (UTC no Supabase), então das
+ * 21:00 às 23:59 o colaborador não conseguia registrar ponto. */
+const RH_FUSO_PONTO = "America/Sao_Paulo";
+
+/** Data de hoje (YYYY-MM-DD) no fuso do ponto. A cada 24 h (meia-noite de
+ * Brasília) vira um novo dia de ponto; nada do dia anterior é apagado —
+ * cada dia é uma linha própria em rh.ponto_registros. */
 function rhTodayIso() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  try {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: RH_FUSO_PONTO, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  } catch (e) {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+}
+
+/** Hora atual (HH:MM) no fuso do ponto. */
+function rhHoraAgoraPonto() {
+  try {
+    return new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: RH_FUSO_PONTO });
+  } catch (e) {
+    return new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  }
+}
+
+const RH_BATIDAS_LABELS = { entrada: "Entrada", intervaloSaida: "Saída intervalo", intervaloVolta: "Retorno intervalo", saida: "Saída" };
+
+/** Dia JÁ ENCERRADO (data anterior a hoje) com entrada registrada mas sem
+ * todas as batidas — o colaborador esqueceu de bater algum ponto. Não
+ * altera nada no banco: só identifica, para o histórico mostrar
+ * "Registro incompleto" e quais batidas faltaram (em vez de "em andamento").
+ * O esquecimento não trava nada: o dia seguinte começa normalmente. */
+function rhBatidasFaltando(rec, hojeIso) {
+  if (!rec || !rec.entrada || !rec.data || rec.data >= (hojeIso || rhTodayIso())) return [];
+  const incompleto = !rec.saida || (rec.intervaloSaida && !rec.intervaloVolta);
+  if (!incompleto) return [];
+  return ["intervaloSaida", "intervaloVolta", "saida"].filter((k) => !rec[k]).map((k) => RH_BATIDAS_LABELS[k]);
 }
 
 const RH_DIAS_SEMANA_CODIGO = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"];
@@ -250,7 +287,13 @@ async function rhCarregarPonto(colaboradorId) {
   // por isso sempre mostrava certo). Corrige a causa raiz aqui, na origem
   // do dado, em vez de remendar cada tela que consome `historico`.
   // descontoAlmocoH: almoço acima do mínimo não compensado (ver rhDescontoAlmocoHoras).
-  const historico = todasLinhas.map((r) => ({ ...rhMapPontoRow(r), descontoAlmocoH: rhDescontoAlmocoHoras(r, config, intervaloMinimoMin) }));
+  // batidasFaltando: dias já encerrados em que alguma batida foi esquecida
+  // (ver rhBatidasFaltando) — o histórico mostra "Registro incompleto".
+  const historico = todasLinhas.map((r) => {
+    const rec = { ...rhMapPontoRow(r), descontoAlmocoH: rhDescontoAlmocoHoras(r, config, intervaloMinimoMin) };
+    rec.batidasFaltando = rhBatidasFaltando(rec, hojeIso);
+    return rec;
+  });
   if (!linhaHoje) historico.push({ ...hoje });
   historico.sort((a, b) => a.data.localeCompare(b.data));
 
@@ -278,11 +321,21 @@ async function rhCarregarPonto(colaboradorId) {
  * REAL do colaborador (rh.colaboradores) antes de calcular — nunca mais
  * "08:00"/8h fixos pra todo mundo (ver rhConfigJornada / rhCalcularDia). */
 async function rhSalvarPontoHoje(colaboradorId, diaHoje) {
+  // Virada do dia: se a tela foi carregada ontem e ficou aberta, os horários
+  // em memória são do dia ANTERIOR — nunca gravá-los na data de hoje (isso
+  // misturaria os dois dias). Quem chama recarrega a tela e o novo dia
+  // começa vazio; o dia anterior continua salvo como estava no banco.
+  const hojeIso = rhTodayIso();
+  if (diaHoje?.data && diaHoje.data !== hojeIso) {
+    const erro = new Error("Um novo dia de ponto começou. A tela foi atualizada — registre o ponto novamente.");
+    erro.code = "DIA_VIROU";
+    throw erro;
+  }
   const config = await rhBuscarConfigJornada(colaboradorId);
   const calculo = rhCalcularDia({ entrada: diaHoje.entrada, intervalo_saida: diaHoje.intervaloSaida, intervalo_volta: diaHoje.intervaloVolta, saida: diaHoje.saida }, config);
   const payload = {
     colaborador_id: colaboradorId,
-    data: rhTodayIso(),
+    data: hojeIso,
     entrada: diaHoje.entrada || null,
     intervalo_saida: diaHoje.intervaloSaida || null,
     intervalo_volta: diaHoje.intervaloVolta || null,

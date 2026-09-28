@@ -15,10 +15,10 @@
 // O que continua aqui é só o que ainda é usado de verdade por outras telas:
 //   - assetPath(): monta o caminho de assets/ (logo, ícone) relativo à
 //     página atual — não é dado fictício, é utilitário de caminho.
-//   - EMPRESA_INFO: endereço/coordenadas REAIS da sede. No primeiro ponto
-//     do dia, "Na empresa" só fica liberado se a localização do navegador
-//     estiver dentro do raio da sede (ver abrirModalLocalPonto() em
-//     js/ui.js); fora do raio, ou sem localização, só "Home Office".
+//   - EMPRESA_INFO: endereço/coordenadas REAIS da sede. Em TODA batida de
+//     ponto a localização é obrigatória: dentro do raio da sede = "Na
+//     empresa"; fora do raio = "Home Office"; sem localização = o ponto não
+//     é registrado (ver abrirModalLocalPonto() em js/ui.js).
 //   - DEMO: mantido como um objeto vazio, de propósito — colaborador/
 //     ponto.html usa `DEMO.ponto` como uma "gaveta" em memória para guardar
 //     os dados REAIS do dia carregados de rh.ponto_registros
@@ -32,20 +32,28 @@ function assetPath(name) {
 }
 
 // Endereço/coordenadas da sede — ver explicação acima.
-// Global Tower — R. Queluzita, 34, Sala 1701-1712, Fernão Dias, BH/MG.
-// Coordenadas tiradas do Google Maps (plus code 435F+QP Fernão Dias).
-// raioPresencialMetros: distância máxima até a sede para o colaborador
-// poder marcar "Na empresa" no primeiro ponto do dia (trava em js/ui.js).
+// Global Tower (região do Minas Shopping) — R. Queluzita, 34, Sala
+// 1701-1712, Fernão Dias, BH/MG. Coordenadas tiradas do Google Maps
+// (plus code 435F+QP Fernão Dias).
+//
+// REGRA DE LOCALIZAÇÃO (vale para TODA batida de ponto — entrada, intervalo,
+// retorno e saída — ver abrirModalLocalPonto() em js/ui.js):
+//   * A localização é OBRIGATÓRIA. Sem localização (GPS desligado, permissão
+//     negada, indisponível) o ponto NÃO é registrado.
+//   * Até raioPresencialMetros (500 m) da sede → "Na empresa" (PRESENCIAL).
+//   * Acima disso → "Home Office".
+//   * Leitura com precisão pior que precisaoMaximaMetros é recusada (não dá
+//     para validar onde a pessoa está) — o colaborador precisa tentar de novo.
+// A MESMA regra (coordenadas, raio e precisão) é garantida no banco pelo
+// trigger rh.ponto_validar_localizacao (db/supabase/27_ponto_localizacao_e_virada_dia.sql).
+// Se mudar algum valor aqui, mude lá também.
 const EMPRESA_INFO = {
-  nome: "BSconta — Global Tower",
+  nome: "BSconta — Global Tower (Minas Shopping)",
   endereco: "R. Queluzita, 34 — Sala 1701-1712, Fernão Dias, Belo Horizonte/MG, 31910-252",
   lat: -19.8730016,
   lng: -43.9256631,
-  raioPresencialMetros: 200,
-  // Tolerância extra pela imprecisão do GPS (dentro de prédio a precisão
-  // costuma cair). Só usamos até este teto, pra uma leitura muito
-  // imprecisa (ex.: ±3 km) não liberar "Na empresa" de longe.
-  toleranciaPrecisaoMaxMetros: 100,
+  raioPresencialMetros: 500,
+  precisaoMaximaMetros: 2000,
 };
 
 // Gaveta em memória para dados reais carregados em runtime — ver explicação
