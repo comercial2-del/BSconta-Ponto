@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Ponto / Jornada — BSconta+ RH</title>
   <link rel="icon" type="image/png" href="../assets/bsconta-icon.png" />
-  <link rel="stylesheet" href="../css/styles.css?v=20260928b" />
-  <link rel="stylesheet" href="../css/theme-v2.css?v=20260928b" />
+  <link rel="stylesheet" href="../css/styles.css?v=20260928c" />
+  <link rel="stylesheet" href="../css/theme-v2.css?v=20260928c" />
 
 <style id="colaborador-ponto-history-polish">
 /* Jornada / Histórico do colaborador — visual compacto e alinhado à referência */
@@ -126,14 +126,14 @@
   </div>
 
   <script>window.BASE_PATH = "../";</script>
-  <script src="../js/demo-data.js?v=20260928b"></script>
-  <script src="../js/ui.js?v=20260928b"></script>
+  <script src="../js/demo-data.js?v=20260928c"></script>
+  <script src="../js/ui.js?v=20260928c"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="../js/supabase-client.js?v=20260928b"></script>
-  <script src="../js/rh-supabase-auth.js?v=20260928b"></script>
-  <script src="../js/rh-ponto-data.js?v=20260928b"></script>
-  <script src="../js/rh-historia-data.js?v=20260928b"></script>
-  <script src="../js/rh-historia-ui.js?v=20260928b"></script>
+  <script src="../js/supabase-client.js?v=20260928c"></script>
+  <script src="../js/rh-supabase-auth.js?v=20260928c"></script>
+  <script src="../js/rh-ponto-data.js?v=20260928c"></script>
+  <script src="../js/rh-historia-data.js?v=20260928c"></script>
+  <script src="../js/rh-historia-ui.js?v=20260928c"></script>
   <script>
 (async function () {
     const session = await requireRoleReal("COLABORADOR");
@@ -767,9 +767,16 @@
           if (h) { h.textContent = bloqueioPrevio; h.classList.add("is-error"); }
           return;
         }
-        // LOCALIZAÇÃO OBRIGATÓRIA EM TODA BATIDA: o modal só libera o registro
+        // LOCALIZAÇÃO OBRIGATÓRIA NA ENTRADA: o modal só libera o registro
         // com uma localização válida; o local (Na empresa / Home Office) sai
         // da distância até a sede (raio de 500 m) — ver abrirModalLocalPonto.
+        // Localização só na ENTRADA (primeiro ponto do dia): define o local
+        // do dia (Na empresa / Home Office). As demais batidas registram
+        // direto, mantendo o local e a localização da entrada.
+        if (nextStep.key !== "entrada") {
+          registrarProximoPontoUI(nextStep, DEMO.ponto.hoje.local, null);
+          return;
+        }
         abrirModalLocalPonto({ titulo: nextStep.ctaLabel || "Registrar ponto", rotuloAcao: "Registrar ponto" }, (local, geo) => {
           registrarProximoPontoUI(nextStep, local, geo);
         });
@@ -805,7 +812,7 @@
         const p = DEMO.ponto;
         const antes = { local: p.hoje.local, geo: p.hoje.geo, entrada: p.hoje.entrada, intervaloSaida: p.hoje.intervaloSaida, intervaloVolta: p.hoje.intervaloVolta, saida: p.hoje.saida };
         try {
-          if (!geo || !Number.isFinite(Number(geo.lat)) || !Number.isFinite(Number(geo.lng))) {
+          if (nextStep.key === "entrada" && (!geo || !Number.isFinite(Number(geo.lat)) || !Number.isFinite(Number(geo.lng)))) {
             throw new Error("é necessário permitir o acesso à localização para registrar o ponto.");
           }
           if (await verificarViradaDoDia()) return;
@@ -821,14 +828,14 @@
             if (h) { h.textContent = bloqueio; h.classList.add("is-error"); }
             return;
           }
-          p.hoje.geo = geoComBatida(p.hoje.geo, nextStep.key, local, geo);
+          if (geo) p.hoje.geo = geoComBatida(p.hoje.geo, nextStep.key, local, geo);
           if (nextStep.key === "entrada") { p.hoje.entrada = hora; p.hoje.local = local; }
           else if (nextStep.key === "intervaloSaida") p.hoje.intervaloSaida = hora;
           else if (nextStep.key === "intervaloVolta") p.hoje.intervaloVolta = hora;
           else if (nextStep.key === "saida") p.hoje.saida = hora;
           else throw new Error("Etapa de ponto desconhecida.");
           await persistirPonto();
-          showToast(`✓ Ponto registrado com sucesso (${LOCAL_PONTO_LABELS[local] || local}) — horário registrado: ${hora}.`, "success");
+          showToast(`✓ Ponto registrado com sucesso${LOCAL_PONTO_LABELS[p.hoje.local] ? ` (${LOCAL_PONTO_LABELS[p.hoje.local]})` : ""} — horário registrado: ${hora}.`, "success");
           render();
           requestAnimationFrame(piscarSucesso);
         } catch (err) {
@@ -1437,7 +1444,7 @@
               <td>${fmtDate(h.data)}</td>
               <td>${h.entrada || "—"}</td>
               <td>${h.saida || (h.batidasFaltando?.length ? "Não registrada" : h.data === todayIso() && h.entrada ? "Em andamento" : "—")}</td>
-              <td>${h.intervaloSaida && h.intervaloVolta ? `${h.intervaloSaida}–${h.intervaloVolta}` : "—"}</td>
+              <td>${h.intervaloSaida && h.intervaloVolta ? `${h.intervaloSaida}–${h.intervaloVolta}` : "—"}${Number(h.descontoAlmocoH) > 0 ? `<small class="intervalo-excesso" title="Intervalo passou do mínimo (1h) e não foi compensado no dia — conta como horas negativas no banco de horas.">${fmtMinutos(-Math.round(Number(h.descontoAlmocoH) * 60))} intervalo</small>` : ""}</td>
               <td class="cell-num">${h.horasTrabalhadas != null ? fmtHoras(h.horasTrabalhadas) : "—"}</td>
               <td class="cell-num">${h.horasExtras ? fmtDuracao(h.horasExtras, { sinal: true }) : "—"}</td>
               <td class="cell-num">${h.atrasoMin ? fmtMinutos(-h.atrasoMin) : "—"}</td>
@@ -1473,6 +1480,6 @@
   
 })();
 </script>
-  <script src="../js/ui-effects.js?v=20260928b"></script>
+  <script src="../js/ui-effects.js?v=20260928c"></script>
 </body>
 </html>
