@@ -1473,4 +1473,8 @@ div.local-choice.locked { border-style: dashed; }
 .local-actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 1.1rem; }
 .local-actions .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
 .local-actions svg { width: 16px; height: 16px; }
+.local-actions .local-confirm { flex: 1; justify-content: center; }
+#modal-local-ponto { cursor: pointer; }
+#modal-local-ponto .modal { cursor: default; }
 #modal-local-ponto .local-choice.suggested::before { content: "Seu local"; }
+.intervalo-excesso { display: block; margin-top: 0.15rem; font-size: 0.66rem; font-weight: 700; color: #d92d20; white-space: nowrap; }
