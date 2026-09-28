@@ -199,6 +199,92 @@
       });
       return;
     }
+    // ------------------------------------------------------------------
+    // Virada do dia (ciclo de 24 h). À meia-noite (Brasília) o dia de ponto
+    // atual se encerra e começa um novo, automaticamente — mesmo com a tela
+    // aberta a noite toda. Nada é apagado: o dia anterior já está salvo em
+    // rh.ponto_registros (uma linha por dia) e continua no histórico,
+    // completo ou não. Um esquecimento (ex.: não bateu a saída) fica
+    // identificado no histórico como "Registro incompleto" e NÃO trava o
+    // dia seguinte, que sempre começa do zero pela Entrada.
+    // ------------------------------------------------------------------
+    let diaCarregado = todayIso();
+    let _recarregandoDia = false;
+    async function verificarViradaDoDia({ avisar = true } = {}) {
+      if (_recarregandoDia || todayIso() === diaCarregado) return false;
+      _recarregandoDia = true;
+      try {
+        document.getElementById("modal-local-ponto")?.classList.remove("open");
+        await carregarTudo();
+        diaCarregado = todayIso();
+        diaSelecionado = diaCarregado;
+        render();
+        if (avisar) showToast("Novo dia de ponto iniciado. Os registros do dia anterior continuam salvos no histórico.", "info");
+      } catch (e) {
+        console.error("Falha ao iniciar o novo dia de ponto", e);
+      } finally {
+        _recarregandoDia = false;
+      }
+      return true;
+    }
+    // ------------------------------------------------------------------
+    // Atualização automática SILENCIOSA — substitui o "F5 / Ctrl+R" que os
+    // colaboradores precisavam fazer. A cada 60 s (e sempre que a aba volta
+    // a ficar visível) os dados do ponto são buscados de novo no banco, em
+    // segundo plano: sem recarregar a página, sem spinner, sem piscar.
+    // A tela só é redesenhada se algo realmente mudou (ex.: RH aprovou um
+    // ajuste, abono novo, ponto batido em outro aparelho), mantendo a
+    // posição de rolagem. Nunca atualiza enquanto há um modal aberto, uma
+    // batida em andamento ou o colaborador digitando num campo — para não
+    // atrapalhar o que ele está fazendo.
+    // ------------------------------------------------------------------
+    const ATUALIZACAO_SILENCIOSA_MS = 60000;
+    let _batendoPonto = false;
+    let _atualizandoSilencioso = false;
+    function estadoAtualSerializado() {
+      try { return JSON.stringify([DEMO.ponto, pendentesMap, meusAbonosTodos, configPonto]); } catch (e) { return ""; }
+    }
+    function usuarioOcupado() {
+      if (_batendoPonto || _recarregandoDia) return true;
+      if (document.querySelector(".modal-overlay.open")) return true;
+      const ativo = document.activeElement;
+      return !!(ativo && /^(INPUT|TEXTAREA|SELECT)$/.test(ativo.tagName));
+    }
+    async function atualizarSilenciosamente() {
+      if (_atualizandoSilencioso || !navigator.onLine || document.visibilityState === "hidden") return;
+      if (await verificarViradaDoDia()) return;
+      if (usuarioOcupado()) return;
+      _atualizandoSilencioso = true;
+      const antes = estadoAtualSerializado();
+      const backup = { ponto: DEMO.ponto, pendentesMap, meusAbonosTodos, meusAbonos, configPonto };
+      try {
+        await carregarTudo();
+        if (usuarioOcupado()) {
+          // Começou uma ação enquanto buscava: não mexe na tela agora.
+          return;
+        }
+        if (estadoAtualSerializado() !== antes) {
+          const scrollY = window.scrollY;
+          const content = document.getElementById("content");
+          const contentScroll = content ? content.scrollTop : 0;
+          render();
+          if (content) content.scrollTop = contentScroll;
+          window.scrollTo(0, scrollY);
+        }
+      } catch (e) {
+        // Falha de rede momentânea: mantém o que já estava na tela e tenta no próximo ciclo.
+        DEMO.ponto = backup.ponto; pendentesMap = backup.pendentesMap; meusAbonosTodos = backup.meusAbonosTodos; meusAbonos = backup.meusAbonos; configPonto = backup.configPonto;
+        console.warn("Atualização automática do ponto falhou; tenta de novo no próximo ciclo.", e);
+      } finally {
+        _atualizandoSilencioso = false;
+      }
+    }
+    setInterval(() => verificarViradaDoDia(), 30000);
+    setInterval(() => atualizarSilenciosamente(), ATUALIZACAO_SILENCIOSA_MS);
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") atualizarSilenciosamente(); });
+    window.addEventListener("focus", () => atualizarSilenciosamente());
+    window.addEventListener("online", () => atualizarSilenciosamente());
+
     document.querySelector("#modal-ajuste-ponto .modal-close").innerHTML = ICONS.x;
     document.getElementById("btn-enviar-ajuste-ponto").innerHTML = `${ICONS.send}<span>Enviar ao RH</span>`;
     document.querySelector('#modal-ajuste-ponto [data-modo="dia"] .ajuste-modo-icon').innerHTML = ICONS.calendar;
@@ -211,9 +297,9 @@
     let rangeInicio = null, rangeFim = null;
     let _clockInterval = null;
 
+    // Dia de ponto = dia civil de Brasília (ver rhTodayIso em js/rh-ponto-data.js).
     function todayIso() {
-      const d = new Date();
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      return rhTodayIso();
     }
     function porData(iso) { return DEMO.ponto.historico.find((h) => h.data === iso); }
     // Lê os itens de um ajuste pendente aceitando o formato atual
@@ -667,28 +753,26 @@
 
       document.getElementById("btn-ajustar-ponto")?.addEventListener("click", abrirModalAjustePonto);
 
-      document.getElementById("btn-bater")?.addEventListener("click", () => {
+      document.getElementById("btn-bater")?.addEventListener("click", async () => {
         if (!navigator.onLine) { showToast("Sem conexão. Não foi possível registrar o ponto.", "error"); render(); return; }
-        if (!p.hoje.entrada) {
-          abrirModalLocalPonto(async (local, geo) => {
-            const antes = { local: p.hoje.local, geo: p.hoje.geo, entrada: p.hoje.entrada };
-            try {
-              p.hoje.local = local;
-              p.hoje.geo = geo;
-              p.hoje.entrada = horaAgora();
-              await persistirPonto();
-              showToast(`✓ Ponto registrado com sucesso — horário registrado: ${p.hoje.entrada}.`, "success");
-              render();
-              requestAnimationFrame(piscarSucesso);
-            } catch (erro) {
-              Object.assign(p.hoje, antes);
-              showToast("Não foi possível registrar o ponto: " + (erro?.message || erro), "error");
-              render();
-            }
-          });
-        } else {
-          registrarProximoPontoUI(nextStep);
+        // Virou o dia com a tela aberta: recarrega (novo dia começa vazio) em
+        // vez de gravar a batida em cima dos horários do dia anterior.
+        if (await verificarViradaDoDia()) return;
+        // Regra do intervalo checada ANTES de pedir a localização (evita
+        // pedir GPS para depois recusar a batida). Revalidada na confirmação.
+        const bloqueioPrevio = rhValidarBatidaIntervalo(nextStep.key, horaAgora(), p.hoje, configPonto);
+        if (bloqueioPrevio) {
+          showToast(bloqueioPrevio, "error");
+          const h = document.getElementById("cta-hint");
+          if (h) { h.textContent = bloqueioPrevio; h.classList.add("is-error"); }
+          return;
         }
+        // LOCALIZAÇÃO OBRIGATÓRIA EM TODA BATIDA: o modal só libera o registro
+        // com uma localização válida; o local (Na empresa / Home Office) sai
+        // da distância até a sede (raio de 500 m) — ver abrirModalLocalPonto.
+        abrirModalLocalPonto({ titulo: nextStep.ctaLabel || "Registrar ponto", rotuloAcao: "Registrar ponto" }, (local, geo) => {
+          registrarProximoPontoUI(nextStep, local, geo);
+        });
       });
     }
 
@@ -699,47 +783,57 @@
       setTimeout(() => btn.classList.remove("just-saved"), 750);
     }
 
-    function registrarProximoPontoUI(nextStep) {
+    /** Junta a leitura desta batida ao geo do dia. Mantém lat/lng/precisao
+     * no topo (última leitura — é o que o pin do mapa abre) e guarda a
+     * leitura de CADA batida em geo.batidas, para o histórico ter a
+     * localização de todas as marcações do dia, não só da última. */
+    function geoComBatida(geoAnterior, key, local, geo) {
+      const batidas = { ...(geoAnterior && typeof geoAnterior.batidas === "object" ? geoAnterior.batidas : {}) };
+      batidas[key] = { ...geo, local };
+      return { ...geo, local, batidas };
+    }
+
+    function registrarProximoPontoUI(nextStep, local, geo) {
       const btn = document.getElementById("btn-bater");
-      const hint = document.getElementById("cta-hint");
       if (btn) {
         btn.disabled = true;
         btn.classList.add("is-saving");
         btn.innerHTML = `<span class="spinner spinner-sm"></span><span>Registrando...</span>`;
       }
-      setTimeout(async () => {
+      _batendoPonto = true;
+      (async () => {
         const p = DEMO.ponto;
-        const antes = { geo: p.hoje.geo, intervaloSaida: p.hoje.intervaloSaida, intervaloVolta: p.hoje.intervaloVolta, saida: p.hoje.saida };
+        const antes = { local: p.hoje.local, geo: p.hoje.geo, entrada: p.hoje.entrada, intervaloSaida: p.hoje.intervaloSaida, intervaloVolta: p.hoje.intervaloVolta, saida: p.hoje.saida };
         try {
-          let geo = null;
-          if (typeof capturarLocalizacao === "function") {
-            const res = await capturarLocalizacao(5000);
-            if (res.ok) geo = { lat: res.lat, lng: res.lng, precisao: res.precisao };
+          if (!geo || !Number.isFinite(Number(geo.lat)) || !Number.isFinite(Number(geo.lng))) {
+            throw new Error("é necessário permitir o acesso à localização para registrar o ponto.");
           }
+          if (await verificarViradaDoDia()) return;
           const hora = horaAgora();
           // Regra do intervalo (mínimo de 60 min por padrão e, se o RH
           // configurou, horário mínimo para iniciar o almoço). A mesma regra
           // também é garantida no banco (trigger), então não dá para burlar.
           const bloqueio = rhValidarBatidaIntervalo(nextStep.key, hora, p.hoje, configPonto);
           if (bloqueio) {
-            if (btn) { btn.disabled = false; btn.classList.remove("is-saving"); }
             showToast(bloqueio, "error");
             render();
             const h = document.getElementById("cta-hint");
             if (h) { h.textContent = bloqueio; h.classList.add("is-error"); }
             return;
           }
-          if (geo) p.hoje.geo = geo;
-          if (nextStep.key === "intervaloSaida") p.hoje.intervaloSaida = hora;
+          p.hoje.geo = geoComBatida(p.hoje.geo, nextStep.key, local, geo);
+          if (nextStep.key === "entrada") { p.hoje.entrada = hora; p.hoje.local = local; }
+          else if (nextStep.key === "intervaloSaida") p.hoje.intervaloSaida = hora;
           else if (nextStep.key === "intervaloVolta") p.hoje.intervaloVolta = hora;
           else if (nextStep.key === "saida") p.hoje.saida = hora;
           else throw new Error("Etapa de ponto desconhecida.");
           await persistirPonto();
-          showToast(`✓ Ponto registrado com sucesso — horário registrado: ${hora}.`, "success");
+          showToast(`✓ Ponto registrado com sucesso (${LOCAL_PONTO_LABELS[local] || local}) — horário registrado: ${hora}.`, "success");
           render();
           requestAnimationFrame(piscarSucesso);
         } catch (err) {
           Object.assign(p.hoje, antes);
+          if (err?.code === "DIA_VIROU") { await verificarViradaDoDia({ avisar: false }); showToast(err.message, "info"); return; }
           // Redesenha a tela: o botão volta ao rótulo da etapa (antes ficava
           // preso em "Registrando...") e o motivo do erro aparece por extenso.
           const motivo = "Não foi possível registrar o ponto: " + (err?.message || err);
@@ -747,12 +841,14 @@
           const h = document.getElementById("cta-hint");
           if (h) { h.textContent = motivo; h.classList.add("is-error"); }
           showToast(motivo, "error");
+        } finally {
+          _batendoPonto = false;
         }
-      }, 450);
+      })();
     }
 
     function horaAgora() {
-      return new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      return rhHoraAgoraPonto();
     }
 
     // ------------------------------------------------------------------
@@ -1189,6 +1285,12 @@
         bucket = "pendente";
         statusLabel = "Ajuste pendente";
         metaLabel = rec.pendenteAjuste.modo === "dia" ? "Ajuste do dia aguardando RH" : "Ajuste de ponto aguardando RH";
+      } else if (rec && rec.batidasFaltando?.length) {
+        // Dia encerrado com batida esquecida: fica identificado no histórico
+        // (nada foi apagado) — o colaborador pode pedir o ajuste ao RH.
+        bucket = "atraso"; statusLabel = "Registro incompleto";
+        timeLabel = rec.entrada ? `${rec.entrada} – ${rec.saida || "sem saída"}` : "";
+        metaLabel = `Não registrado: ${rec.batidasFaltando.join(", ")}`;
       } else if (rec) {
         if (rec.status === "falta") {
           bucket = "falta"; statusLabel = "Falta";
@@ -1331,13 +1433,13 @@
                 (h) => `<tr>
               <td>${fmtDate(h.data)}</td>
               <td>${h.entrada || "—"}</td>
-              <td>${h.saida || (h.status === "hoje" ? "Em andamento" : "—")}</td>
+              <td>${h.saida || (h.batidasFaltando?.length ? "Não registrada" : h.data === todayIso() && h.entrada ? "Em andamento" : "—")}</td>
               <td>${h.intervaloSaida && h.intervaloVolta ? `${h.intervaloSaida}–${h.intervaloVolta}` : "—"}</td>
               <td class="cell-num">${h.horasTrabalhadas != null ? fmtHoras(h.horasTrabalhadas) : "—"}</td>
               <td class="cell-num">${h.horasExtras ? fmtDuracao(h.horasExtras, { sinal: true }) : "—"}</td>
               <td class="cell-num">${h.atrasoMin ? fmtMinutos(-h.atrasoMin) : "—"}</td>
               <td>${localBadgeHtml(h.local)}${geoLinkForPonto(h.geo, h.data)}</td>
-              <td>${statusPillPonto(h.status)}</td>
+              <td>${h.batidasFaltando?.length ? `<span class="status-badge status-ATRASO" title="Não registrado: ${esc(h.batidasFaltando.join(", "))}">Incompleto</span>` : statusPillPonto(h.status)}</td>
               <td>${h.alteradoPeloRH ? `<span class="badge-alterado" title="${esc(h.alteradoPeloRH.motivo)} — ${fmtDate(h.alteradoPeloRH.em.slice(0,10))}">${ICONS.edit}Alterado</span>` : "—"}</td>
             </tr>`
               )
