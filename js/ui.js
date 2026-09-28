@@ -1065,3 +1065,49 @@ function initLembretePonto(horarioPrevisto, pontoHoje) {
   checarUmaVez();
   setInterval(checarUmaVez, 20000);
 }
+
+// ---------------------------------------------------------------------------
+// ATUALIZAÇÃO AUTOMÁTICA DO SISTEMA
+// Cada publicação nova troca BSCONTA_VERSAO aqui E o "v" de /version.json
+// (os dois precisam ser iguais). A cada 2 min e ao voltar para a aba, a
+// página confere /version.json; se a versão publicada for outra, recarrega
+// sozinha — só quando ninguém está batendo ponto, com janela aberta ou
+// digitando. Recarrega no máximo 1 vez por versão (evita loop se algum
+// arquivo ainda vier do cache).
+// ---------------------------------------------------------------------------
+const BSCONTA_VERSAO = "20260928d";
+(function iniciarAtualizacaoAutomatica() {
+  if (typeof window === "undefined" || typeof fetch !== "function") return;
+  const base = window.BASE_PATH || "./";
+  let pendente = null;
+  function ocupado() {
+    try {
+      if (typeof window.bscontaOcupado === "function" && window.bscontaOcupado()) return true;
+    } catch (e) { /* segue */ }
+    if (document.querySelector(".modal-overlay.open, .modal.open, dialog[open]")) return true;
+    const ativo = document.activeElement;
+    return !!(ativo && /^(INPUT|TEXTAREA|SELECT)$/.test(ativo.tagName));
+  }
+  function jaRecarregouPara(v) {
+    try { return sessionStorage.getItem("bsconta_reload_versao") === v; } catch (e) { return false; }
+  }
+  function tentarRecarregar() {
+    if (!pendente || jaRecarregouPara(pendente) || ocupado()) return;
+    try { sessionStorage.setItem("bsconta_reload_versao", pendente); } catch (e) { return; }
+    location.reload();
+  }
+  async function conferir() {
+    if (!navigator.onLine) return;
+    try {
+      const r = await fetch(base + "version.json?t=" + Date.now(), { cache: "no-store" });
+      if (!r.ok) return;
+      const { v } = await r.json();
+      if (v && v !== BSCONTA_VERSAO && !jaRecarregouPara(v)) pendente = v;
+    } catch (e) { /* sem rede / sem arquivo: tenta depois */ }
+    tentarRecarregar();
+  }
+  setTimeout(conferir, 15000);
+  setInterval(conferir, 120000);
+  setInterval(tentarRecarregar, 15000);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") conferir(); });
+})();
