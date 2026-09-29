@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Ponto / Jornada — BSconta+ RH</title>
   <link rel="icon" type="image/png" href="../assets/bsconta-icon.png" />
-  <link rel="stylesheet" href="../css/styles.css?v=20260929b" />
-  <link rel="stylesheet" href="../css/theme-v2.css?v=20260929b" />
+  <link rel="stylesheet" href="../css/styles.css?v=20260929c" />
+  <link rel="stylesheet" href="../css/theme-v2.css?v=20260929c" />
 
 <style id="colaborador-ponto-history-polish">
 /* Jornada / Histórico do colaborador — visual compacto e alinhado à referência */
@@ -126,14 +126,14 @@
   </div>
 
   <script>window.BASE_PATH = "../";</script>
-  <script src="../js/demo-data.js?v=20260929b"></script>
-  <script src="../js/ui.js?v=20260929b"></script>
+  <script src="../js/demo-data.js?v=20260929c"></script>
+  <script src="../js/ui.js?v=20260929c"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="../js/supabase-client.js?v=20260929b"></script>
-  <script src="../js/rh-supabase-auth.js?v=20260929b"></script>
-  <script src="../js/rh-ponto-data.js?v=20260929b"></script>
-  <script src="../js/rh-historia-data.js?v=20260929b"></script>
-  <script src="../js/rh-historia-ui.js?v=20260929b"></script>
+  <script src="../js/supabase-client.js?v=20260929c"></script>
+  <script src="../js/rh-supabase-auth.js?v=20260929c"></script>
+  <script src="../js/rh-ponto-data.js?v=20260929c"></script>
+  <script src="../js/rh-historia-data.js?v=20260929c"></script>
+  <script src="../js/rh-historia-ui.js?v=20260929c"></script>
   <script>
 (async function () {
     const session = await requireRoleReal("COLABORADOR");
@@ -161,6 +161,13 @@
       pendentesMap = await rhDiasComAjustePendente(session.employeeId);
       aplicarPendentes();
       configPonto = await rhCarregarConfigPonto();
+      // Intervalo mínimo da pessoa: se o intervalo cadastrado dela for menor
+      // que o da empresa (ex.: estagiário com 30 min), vale o dela — o banco
+      // aplica a mesma regra (rh.intervalo_minimo_validacao, script 30).
+      const intervaloPessoa = Number(DEMO.ponto?.intervaloCadastradoMin);
+      if (Number(configPonto.intervalo_minimo_min) > 0 && intervaloPessoa > 0) {
+        configPonto = { ...configPonto, intervalo_minimo_min: Math.min(Number(configPonto.intervalo_minimo_min), intervaloPessoa) };
+      }
       try { meusAbonosTodos = await rhListarAbonos({ colaboradorId: session.employeeId }); } catch (e) { meusAbonosTodos = []; }
       meusAbonos = meusAbonosTodos.filter((a) => a.status === "APROVADO");
     }
@@ -1481,6 +1488,6 @@
   
 })();
 </script>
-  <script src="../js/ui-effects.js?v=20260929b"></script>
+  <script src="../js/ui-effects.js?v=20260929c"></script>
 </body>
 </html>
