@@ -145,7 +145,7 @@ function rhCalcularSaldoExibicao(colaborador, saldoRow, historico, hojeIso) {
  * de cadastro do RH, não um bug da tela. */
 async function rhCarregarFeriasColaborador(colaboradorId) {
   const [{ data: colaborador, error: colabErr }, { data: saldoRow, error: saldoErr }, { data: solicRows, error: solicErr }] = await Promise.all([
-    sb.from("colaboradores").select("id, nome, admissao").eq("id", colaboradorId).single(),
+    sb.from("colaboradores").select("id, nome, admissao, ferias_aviso_ignorar_ate").eq("id", colaboradorId).single(),
     sb.from("ferias_saldos").select("*").eq("colaborador_id", colaboradorId).maybeSingle(),
     sb.from("ferias_solicitacoes").select("*").eq("colaborador_id", colaboradorId).order("solicitado_em", { ascending: false }),
   ]);
@@ -286,7 +286,7 @@ async function rhCarregarFeriasRH() {
  * para o menos urgente. */
 async function rhListarLembretesFerias() {
   const [{ data: colaboradores, error: colabErr }, feriasRH] = await Promise.all([
-    sb.from("colaboradores").select("id, nome, admissao").neq("status", "INATIVO").order("nome"),
+    sb.from("colaboradores").select("id, nome, admissao, ferias_aviso_ignorar_ate").neq("status", "INATIVO").order("nome"),
     rhCarregarFeriasRH(),
   ]);
   if (colabErr) throw colabErr;
@@ -368,6 +368,13 @@ function rhBlocosFerias15(dataInicioIso, quantidadeBlocos) {
   return blocos;
 }
 
+/** true se o RH dispensou o aviso do período aquisitivo que começa em
+ * `inicioPeriodoIso` (colaboradores.ferias_aviso_ignorar_ate). */
+function rhFeriasAvisoDispensado(colaborador, inicioPeriodoIso) {
+  const ate = colaborador?.ferias_aviso_ignorar_ate;
+  return !!(ate && inicioPeriodoIso && String(inicioPeriodoIso) <= String(ate).slice(0, 10));
+}
+
 /** Item "Lembrete de férias": calcula o fim do período aquisitivo VIGENTE de
  * um colaborador (admissão + 1 ano, repetido a cada aniversário) a partir da
  * data de admissão — sem depender de rh.ferias_saldos.periodo_aquisitivo_fim
@@ -379,6 +386,10 @@ function rhCalcularAvisoFerias(colaborador, hojeIso) {
   hojeIso = hojeIso || rhTodayIso();
   const vigente = rhPeriodoAquisitivoVigente(colaborador.admissao, hojeIso);
   if (!vigente) return null;
+  // Aviso dispensado pelo RH (férias já tiradas/resolvidas): ignora os
+  // períodos que começaram até rh.colaboradores.ferias_aviso_ignorar_ate —
+  // o próximo período volta a avisar normalmente (script 30).
+  if (rhFeriasAvisoDispensado(colaborador, vigente.inicio)) return null;
 
   const hoje = new Date(hojeIso + "T00:00:00");
   const fimPeriodo = new Date(vigente.fim + "T00:00:00");

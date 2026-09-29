@@ -1078,7 +1078,7 @@ function initLembretePonto(horarioPrevisto, pontoHoje) {
 // digitando. Recarrega no máximo 1 vez por versão (evita loop se algum
 // arquivo ainda vier do cache).
 // ---------------------------------------------------------------------------
-const BSCONTA_VERSAO = "20260929b";
+const BSCONTA_VERSAO = "20260929c";
 (function iniciarAtualizacaoAutomatica() {
   if (typeof window === "undefined" || typeof fetch !== "function") return;
   const base = window.BASE_PATH || "./";

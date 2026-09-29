@@ -419,7 +419,7 @@ async function rhNavBadges() {
       // Item "Lembrete de férias": colaboradores com o período aquisitivo
       // vigente perto de vencer (ou já vencido) e ainda sem férias
       // programadas — ver rhContarAvisosFerias abaixo.
-      sb.from("colaboradores").select("id, nome, admissao").neq("status", "INATIVO"),
+      sb.from("colaboradores").select("id, nome, admissao, ferias_aviso_ignorar_ate").neq("status", "INATIVO"),
       sb.from("ferias_solicitacoes").select("colaborador_id, inicio, status").in("status", ["APROVADA", "PRE_APROVADA", "PENDENTE", "EM_ANALISE"]),
     ]);
     if (geraisRes.error) throw geraisRes.error;
@@ -435,7 +435,15 @@ async function rhNavBadges() {
       const abonosRes = await sb.from("colaborador_abonos").select("id", { count: "exact", head: true }).eq("status", "PENDENTE");
       if (!abonosRes.error) abonosPendentes = abonosRes.count || 0;
     } catch (e) { /* sem migração 22 */ }
+    // Comunicados do Sistema ainda não visualizados (compensações automáticas
+    // do banco de horas — migração 30). Sem a migração, fica de fora.
+    let comunicadosSistemaNovos = 0;
+    try {
+      const sisRes = await sb.from("banco_horas_compensacoes").select("id", { count: "exact", head: true }).is("visualizado_em", null);
+      if (!sisRes.error) comunicadosSistemaNovos = sisRes.count || 0;
+    } catch (e) { /* sem migração 30 */ }
     return {
+      "comunicados.html": comunicadosSistemaNovos,
       // Abonos ficam dentro de Jornada / Ponto — o contador aparece nesse item.
       "ponto.html": abonosPendentes,
       "solicitacoes.html": (geraisRes.count || 0) + (feriasRes.count || 0),
@@ -475,6 +483,8 @@ function rhContarAvisosFerias(colaboradores, solicitacoes) {
     if (diasParaVencer > RH_FERIAS_AVISO_DIAS_BADGE) return;
     const inicioIso = isoOf(inicioPeriodo);
     const fimIso = isoOf(fimPeriodo);
+    // Aviso dispensado pelo RH para este período (script 30).
+    if (c.ferias_aviso_ignorar_ate && inicioIso <= String(c.ferias_aviso_ignorar_ate).slice(0, 10)) return;
     const jaProgramada = solicitacoes.some((f) => f.colaborador_id === c.id && f.inicio >= inicioIso && f.inicio <= fimIso);
     if (!jaProgramada) total++;
   });

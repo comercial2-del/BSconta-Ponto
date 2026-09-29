@@ -422,13 +422,14 @@ async function rhListarAuditoriaColaborador(colaboradorId, limite = 100) {
 }
 
 // ---------------------------------------------------------------------------
-// Sub-navegação da área de Jornada (Jornada | Ajustes | Abonos | História)
+// Sub-navegação da área de Jornada (Jornada | Ajustes | Abonos | Banco de Horas | História)
 // ---------------------------------------------------------------------------
 function rhSubnavJornadaHtml(ativo, { ajustesPendentes = 0 } = {}) {
   const itens = [
     { id: "hoje", href: "ponto.html", label: "Jornada de Ponto", icon: ICONS.users },
     { id: "ajustes", href: "ponto.html#ajustes", label: "Ajustes Pendentes", icon: ICONS.alertCircle, badge: ajustesPendentes },
     { id: "abonos", href: "abonos.html", label: "Abonos", icon: ICONS.clipboardCheck },
+    { id: "banco", href: "banco-horas.html", label: "Banco de Horas", icon: ICONS.clock },
     { id: "historia", href: "historia.html", label: "Histórico do Colaborador", icon: ICONS.timeline },
   ];
   return `

@@ -114,14 +114,22 @@ function rhConfigJornada(colaborador) {
   } else if (colaborador?.meta_diaria_horas != null) {
     metaDiariaHoras = Number(colaborador.meta_diaria_horas);
   }
+  // Intervalo cadastrado da pessoa (intervalo_fim − intervalo_inicio, em
+  // min). Quando é MENOR que o intervalo mínimo da empresa (ex.: estagiário
+  // com 30 min), vale o dele — mesma regra de rh.intervalo_minimo_validacao
+  // no banco (script 30).
+  const ii = rhParseHora(rhHoraCurta(colaborador?.intervalo_inicio));
+  const fi = rhParseHora(rhHoraCurta(colaborador?.intervalo_fim));
+  const intervaloCadastradoMin = ii != null && fi != null && fi > ii ? fi - ii : null;
   return {
     horarioEntradaPrevisto: rhHoraCurta(colaborador?.horario_entrada) || null,
     metaDiariaHoras,
     diasTrabalho,
+    intervaloCadastradoMin,
   };
 }
 
-const RH_COLABORADOR_JORNADA_COLS = "horario_entrada, horario_saida, meta_diaria_horas, horas_semanais, dias_trabalho";
+const RH_COLABORADOR_JORNADA_COLS = "horario_entrada, horario_saida, meta_diaria_horas, horas_semanais, dias_trabalho, intervalo_inicio, intervalo_fim";
 
 /** Tolerância de atraso: só é atraso quando a entrada passa de 15 min do
  * horário previsto; dentro da tolerância não lança minutos de atraso.
@@ -214,14 +222,27 @@ function rhDescontoAlmocoHoras(row, config, intervaloMinimoMin) {
   const sai = hora("saida", "saida");
   if (ent === null || intSai === null || intVolta === null || sai === null) return 0;
   if (row.data && config?.diasTrabalho && !rhEhDiaDeTrabalho(config.diasTrabalho, row.data)) return 0;
-  const minimo = Number(intervaloMinimoMin) > 0 ? Number(intervaloMinimoMin) : 60;
+  // Jornada que valia NO DIA (rh.ponto_registros.meta_horas / intervalo_min,
+  // script 30) — trocar a jornada não recalcula o passado. Registro sem
+  // esses campos: usa a jornada atual.
+  const valorDia = (snake, camel) => { const v = row[snake] != null ? row[snake] : row[camel]; return v != null && v !== "" && Number.isFinite(Number(v)) ? Number(v) : null; };
+  const minimo = valorDia("intervalo_min", "intervaloMin") ?? rhIntervaloMinimoEfetivo(config, intervaloMinimoMin);
   const excessoMin = (intVolta - intSai) - minimo;
   if (excessoMin <= 0) return 0;
-  const metaHoras = config?.metaDiariaHoras != null ? config.metaDiariaHoras : RH_META_DIARIA_FALLBACK;
+  const metaHoras = valorDia("meta_horas", "metaHoras") ?? (config?.metaDiariaHoras != null ? config.metaDiariaHoras : RH_META_DIARIA_FALLBACK);
   const trabalhadosMin = Math.max(0, intSai - ent) + Math.max(0, sai - intVolta);
   const faltandoMin = metaHoras * 60 - trabalhadosMin;
   if (faltandoMin <= 0) return 0;
   return Math.min(excessoMin, faltandoMin) / 60;
+}
+
+/** Intervalo mínimo para o CÁLCULO do banco de horas: o da empresa (0/sem
+ * config → 60), ou o intervalo cadastrado da pessoa se for menor. Igual a
+ * rh.intervalo_minimo_calculo no banco. */
+function rhIntervaloMinimoEfetivo(config, intervaloMinimoMin) {
+  const empresa = Number(intervaloMinimoMin) > 0 ? Number(intervaloMinimoMin) : 60;
+  const pessoa = Number(config?.intervaloCadastradoMin);
+  return pessoa > 0 ? Math.min(empresa, pessoa) : empresa;
 }
 
 /** Intervalo mínimo configurado pelo RH (rh.configuracoes_ponto), só para o
@@ -251,6 +272,8 @@ function rhMapPontoRow(row) {
     geo: row.geo,
     alteradoPeloRH: row.alterado_pelo_rh,
     pendenteAjuste: row.pendente_ajuste,
+    metaHoras: row.meta_horas != null ? Number(row.meta_horas) : null,
+    intervaloMin: row.intervalo_min != null ? Number(row.intervalo_min) : null,
   };
 }
 
@@ -311,6 +334,7 @@ async function rhCarregarPonto(colaboradorId) {
     historico,
     metaDiaria: config.metaDiariaHoras,
     diasTrabalho: config.diasTrabalho,
+    intervaloCadastradoMin: config.intervaloCadastradoMin,
     saldoBancoHoras: horasAcumuladas - horasDevendo,
   };
 }
