@@ -823,7 +823,7 @@ function geoTituloPonto(g, rotulo) {
 
 function geoPinPonto(g, letra, rotulo) {
   const titulo = esc(geoTituloPonto(g, rotulo));
-  return `<a href="https://www.google.com/maps?q=${encodeURIComponent(g.lat + "," + g.lng)}" target="_blank" rel="noopener" class="geo-link geo-link-batida" title="${titulo}" aria-label="${titulo}">${ICONS.mapPin}${letra ? `<b>${letra}</b>` : ""}</a>`;
+  return `<a href="https://www.google.com/maps?q=${encodeURIComponent(g.lat + "," + g.lng)}" target="_blank" rel="noopener" class="geo-link geo-link-batida" title="${titulo}" aria-label="${titulo}">${ICONS.mapPin}</a>`;
 }
 
 function geoValido(g) {
@@ -1078,7 +1078,7 @@ function initLembretePonto(horarioPrevisto, pontoHoje) {
 // digitando. Recarrega no máximo 1 vez por versão (evita loop se algum
 // arquivo ainda vier do cache).
 // ---------------------------------------------------------------------------
-const BSCONTA_VERSAO = "20260929a";
+const BSCONTA_VERSAO = "20260929b";
 (function iniciarAtualizacaoAutomatica() {
   if (typeof window === "undefined" || typeof fetch !== "function") return;
   const base = window.BASE_PATH || "./";
