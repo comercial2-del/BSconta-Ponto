@@ -54,6 +54,12 @@ const EMPRESA_INFO = {
   lng: -43.9256631,
   raioPresencialMetros: 500,
   precisaoMaximaMetros: 2000,
+  // Folga pela imprecisão do GPS/Wi-Fi: computadores e alguns celulares
+  // localizam por Wi-Fi/rede com erro de 100–300 m, então quem está DENTRO
+  // do prédio pode aparecer a ~500–600 m. A leitura conta como "Na empresa"
+  // se (distância − precisão informada) ≤ raio, com a folga limitada a
+  // toleranciaPrecisaoMaxMetros (no máx. 500 + 300 = 800 m do centro).
+  toleranciaPrecisaoMaxMetros: 300,
 };
 
 // Gaveta em memória para dados reais carregados em runtime — ver explicação

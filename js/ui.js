@@ -845,7 +845,8 @@ function geoLinkForPonto(geo, iso) {
 /**
  * Classifica uma leitura de localização:
  *   - precisão pior que EMPRESA_INFO.precisaoMaximaMetros → não validada;
- *   - distância até a sede <= EMPRESA_INFO.raioPresencialMetros (500 m) →
+ *   - distância até a sede, descontada a precisão da leitura (folga de até
+ *     EMPRESA_INFO.toleranciaPrecisaoMaxMetros), <= raioPresencialMetros (500 m) →
  *     PRESENCIAL ("Na empresa");
  *   - acima disso → HOME_OFFICE.
  * Mesma regra do trigger rh.ponto_validar_localizacao no banco.
@@ -854,7 +855,9 @@ function avaliarLocalEmpresa(geo) {
   const dist = Math.round(distanciaMetros(geo.lat, geo.lng, EMPRESA_INFO.lat, EMPRESA_INFO.lng));
   const precisaoMax = EMPRESA_INFO.precisaoMaximaMetros || 2000;
   const valida = Number.isFinite(dist) && !(Number(geo.precisao) > precisaoMax);
-  const naEmpresa = valida && dist <= EMPRESA_INFO.raioPresencialMetros;
+  const prec = Number(geo.precisao);
+  const folga = Number.isFinite(prec) && prec > 0 ? Math.min(prec, EMPRESA_INFO.toleranciaPrecisaoMaxMetros ?? 300) : 0;
+  const naEmpresa = valida && dist - folga <= EMPRESA_INFO.raioPresencialMetros;
   return { dist, valida, naEmpresa, local: naEmpresa ? "PRESENCIAL" : "HOME_OFFICE" };
 }
 
@@ -1075,7 +1078,7 @@ function initLembretePonto(horarioPrevisto, pontoHoje) {
 // digitando. Recarrega no máximo 1 vez por versão (evita loop se algum
 // arquivo ainda vier do cache).
 // ---------------------------------------------------------------------------
-const BSCONTA_VERSAO = "20260928d";
+const BSCONTA_VERSAO = "20260929a";
 (function iniciarAtualizacaoAutomatica() {
   if (typeof window === "undefined" || typeof fetch !== "function") return;
   const base = window.BASE_PATH || "./";
