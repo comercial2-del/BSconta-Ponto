@@ -11,7 +11,8 @@
     .bh-num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
     .bh-pos { color: var(--emerald-700); font-weight: 700; }
     .bh-neg { color: var(--red-600); font-weight: 700; }
-    .bh-motivo { max-width: 360px; font-size: .8rem; color: var(--text-muted); }
+    .bh-motivo-row td { padding-top: 0 !important; font-size: .8rem; color: var(--text-muted); white-space: normal; }
+    .bh-comp-row td { border-bottom: 0 !important; }
     .bh-actions { display: flex; gap: .5rem; flex-wrap: wrap; align-items: flex-end; }
     .bh-regra { font-size: .82rem; color: var(--text-muted); margin: 0; line-height: 1.5; }
   </style>
@@ -127,9 +128,9 @@
             </div>
             <div class="table-scroll">
               ${compensacoes.length ? `<table>
-                <thead><tr><th>Data</th><th>Colaborador</th><th class="bh-num">Extras disponíveis</th><th class="bh-num">Horas devidas</th><th class="bh-num">Compensadas</th><th class="bh-num">Saldo anterior</th><th class="bh-num">Saldo após</th><th class="bh-num">Extras restantes</th><th>Motivo</th><th>Situação</th></tr></thead>
+                <thead><tr><th>Data</th><th>Colaborador</th><th class="bh-num">Extras disponíveis</th><th class="bh-num">Horas devidas</th><th class="bh-num">Compensadas</th><th class="bh-num">Saldo anterior</th><th class="bh-num">Saldo após</th><th class="bh-num">Extras restantes</th><th>Situação</th></tr></thead>
                 <tbody>
-                  ${compensacoes.map((c) => `<tr>
+                  ${compensacoes.map((c) => `<tr class="bh-comp-row">
                     <td>${fmtDate(c.dataReferencia)}<div class="hint">proc. ${new Date(c.processadoEm).toLocaleDateString("pt-BR")}</div></td>
                     <td>${esc(c.colaboradorNome)}</td>
                     <td class="bh-num">${h(c.extrasDisponiveisMin)}</td>
@@ -138,9 +139,9 @@
                     <td class="bh-num">${hSaldo(c.saldoAnteriorMin)}</td>
                     <td class="bh-num">${hSaldo(c.saldoAposMin)}</td>
                     <td class="bh-num">${h(c.extrasRestantesMin)}${c.devidasRestantesMin > 0 ? `<div class="hint">devendo ${h(c.devidasRestantesMin)}</div>` : ""}</td>
-                    <td class="bh-motivo">${esc(c.motivo)}</td>
                     <td>${c.status === "CANCELADA" ? '<span class="badge badge-neutral">Cancelada</span>' : c.visualizadoEm ? '<span class="badge badge-green">Visualizada</span>' : '<span class="badge badge-admin">Nova</span>'}</td>
-                  </tr>`).join("")}
+                  </tr>
+                  <tr class="bh-motivo-row"><td colspan="9"><span class="hint">Motivo:</span> ${esc(c.motivo)}</td></tr>`).join("")}
                 </tbody>
               </table>` : emptyStateHtml({ icon: ICONS.clock, title: "Nenhuma compensação neste período", desc: "Ajuste o colaborador ou o período." })}
             </div>
@@ -174,9 +175,9 @@
 
       renderKpiGrid(document.getElementById("kpi-grid"), [
         { label: "Compensações novas (não vistas)", value: novas, tone: "indigo", icon: ICONS.bell },
-        { label: "Horas compensadas no período", value: h(totalCompensado), tone: "green", icon: ICONS.checkCircle },
+        { label: "Horas compensadas no período", value: h(totalCompensado), format: "text", tone: "green", icon: ICONS.checkCircle },
         { label: "Colaboradores com horas devidas", value: comDevidas, tone: "red", icon: ICONS.alertCircle },
-        { label: "Horas extras disponíveis (equipe)", value: h(totalExtras), tone: "amber", icon: ICONS.clock },
+        { label: "Horas extras disponíveis (equipe)", value: h(totalExtras), format: "text", tone: "amber", icon: ICONS.clock },
       ]);
 
       const aplicar = async () => {
