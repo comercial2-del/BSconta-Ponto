@@ -57,6 +57,7 @@
   <script src="../js/supabase-client.js"></script>
   <script src="../js/rh-supabase-auth.js"></script>
   <script src="../js/rh-comunicados-data.js"></script>
+  <script src="../js/rh-banco-horas-data.js?v=20260929c"></script>
   <script>
 (async function () {
     const session = await requireRoleReal("RH");
@@ -67,6 +68,18 @@
     let cacheDepartamentos = [];
     let cacheColaboradores = [];
     let comunicadoEditandoId = null;
+    // "Comunicados do Sistema": avisos gerados automaticamente (hoje, as
+    // compensações do banco de horas — script 30). Ficam em "Novos" até o
+    // RH visualizar; depois vão para "Arquivados".
+    let aba = location.hash === "#sistema" ? "sistema" : "rh";
+    let segSistema = "NOVOS";
+    let cacheSistema = [];
+    let erroSistema = "";
+    async function refrescarSistema() {
+      erroSistema = "";
+      try { cacheSistema = await rhListarCompensacoes(); }
+      catch (e) { cacheSistema = []; erroSistema = rhMensagemErroSupabase(e); }
+    }
     // Quem visualizou cada comunicado (rh.comunicados_leituras) e quem é o
     // público dele — carregado à parte: se falhar, a lista continua igual.
     let cacheLeituras = [];
@@ -172,11 +185,26 @@
             <button type="button" class="btn-primary auto" id="btn-novo">${ICONS.megaphone}<span>Novo comunicado</span></button>
           </div>
 
-          <div id="kpi-grid"></div>
+          <div class="card card-p" style="padding:0.4rem">
+            <div class="tabs subnav-jornada" style="border-bottom:none">
+              <button type="button" class="tab-btn ${aba === "rh" ? "active" : ""}" data-aba-com="rh">${ICONS.megaphone}<span style="margin-left:0.4rem">Comunicados</span></button>
+              <button type="button" class="tab-btn ${aba === "sistema" ? "active" : ""}" data-aba-com="sistema">${ICONS.bell}<span style="margin-left:0.4rem">Comunicados do Sistema</span>${cacheSistema.filter((c) => !c.visualizadoEm).length ? `<span class="badge badge-red" style="margin-left:0.4rem">${cacheSistema.filter((c) => !c.visualizadoEm).length}</span>` : ""}</button>
+            </div>
+          </div>
 
-          <div id="lista" class="space-y"></div>
+          <div id="painel-rh" class="space-y" ${aba === "rh" ? "" : "hidden"}>
+            <div id="kpi-grid"></div>
+            <div id="lista" class="space-y"></div>
+          </div>
+          <div id="painel-sistema" class="space-y" ${aba === "sistema" ? "" : "hidden"}></div>
         </div>
       `;
+      document.querySelectorAll("[data-aba-com]").forEach((b) => b.addEventListener("click", () => {
+        aba = b.dataset.abaCom;
+        history.replaceState(null, "", aba === "sistema" ? "#sistema" : location.pathname);
+        render();
+      }));
+      renderSistema();
 
       renderKpiGrid(document.getElementById("kpi-grid"), [
         { label: "Publicados", value: publicados, tone: "green", icon: ICONS.checkCircle },
@@ -194,6 +222,69 @@
       });
 
       renderLista();
+    }
+
+    function renderSistema() {
+      const painel = document.getElementById("painel-sistema");
+      if (!painel) return;
+      const novos = cacheSistema.filter((c) => !c.visualizadoEm);
+      const arquivados = cacheSistema.filter((c) => c.visualizadoEm);
+      const lista = segSistema === "NOVOS" ? novos : arquivados;
+      const linha = (rotulo, valor) => `<div style="display:flex;justify-content:space-between;gap:1rem;padding:.3rem 0;border-bottom:1px solid var(--surface-2);font-size:.86rem"><span style="color:var(--text-muted)">${rotulo}</span><strong style="font-variant-numeric:tabular-nums">${valor}</strong></div>`;
+      painel.innerHTML = `
+        ${erroSistema ? `<div class="notice">${esc(erroSistema)}</div>` : ""}
+        <div class="card card-p">
+          <div class="row-between" style="gap:.8rem;flex-wrap:wrap">
+            <div class="seg-tabs">
+              <button type="button" data-seg-sis="NOVOS" class="${segSistema === "NOVOS" ? "active" : ""}">Novos<span class="count">${novos.length}</span></button>
+              <button type="button" data-seg-sis="ARQUIVADOS" class="${segSistema === "ARQUIVADOS" ? "active" : ""}">Arquivados<span class="count">${arquivados.length}</span></button>
+            </div>
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+              <a href="banco-horas.html" class="btn-ghost" style="width:auto">${ICONS.reports}<span>Relatório de compensações</span></a>
+              ${segSistema === "NOVOS" && novos.length ? `<button type="button" class="btn-primary auto" id="btn-ver-todos">${ICONS.check}<span>Marcar todos como visualizados</span></button>` : ""}
+            </div>
+          </div>
+          <p class="hint" style="margin:.7rem 0 0">Avisos automáticos do sistema. Hoje: cada compensação automática do banco de horas (horas extras abatendo horas devidas). Depois de visualizado, o aviso fica em Arquivados.</p>
+        </div>
+        ${lista.length ? lista.map((c) => `
+          <div class="announcement-card" style="${c.visualizadoEm ? "opacity:.85" : ""}">
+            <div class="row-between" style="gap:.6rem;flex-wrap:wrap">
+              <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
+                <span class="badge ${c.status === "CANCELADA" ? "badge-neutral" : "badge-admin"}">${ICONS.clock}${c.status === "CANCELADA" ? "Compensação cancelada" : "Compensação automática"}</span>
+                <h3 style="margin:0">${esc(c.colaboradorNome)}</h3>
+              </div>
+              <span class="hint">${new Date(c.recalculadoEm || c.processadoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</span>
+            </div>
+            <div style="margin-top:.6rem;max-width:520px">
+              ${linha("Colaborador", esc(c.colaboradorNome))}
+              ${linha("Horas extras disponíveis", fmtMinutos(c.extrasDisponiveisMin))}
+              ${linha("Horas devidas", fmtMinutos(c.devidasMin))}
+              ${linha("Horas abatidas automaticamente", fmtMinutos(c.abatidoMin))}
+              ${linha("Saldo restante", fmtMinutos(c.extrasRestantesMin) + (c.devidasRestantesMin > 0 ? ` <span style="color:var(--red-600)">(ainda devendo ${fmtMinutos(c.devidasRestantesMin)})</span>` : ""))}
+              ${linha("Data da compensação", `${new Date(c.processadoEm).toLocaleDateString("pt-BR")} · referente a ${fmtDate(c.dataReferencia)}`)}
+            </div>
+            <p style="margin:0.6rem 0 0;font-size:0.82rem;color:var(--text-muted)">${esc(c.motivo)}</p>
+            <div style="margin-top:0.7rem;display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap">
+              <span class="hint">${c.visualizadoEm ? `Visualizado em ${new Date(c.visualizadoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}${c.visualizadoPor ? ` por ${esc(c.visualizadoPor)}` : ""}` : "Ainda não visualizado"}</span>
+              ${c.visualizadoEm ? "" : `<button type="button" class="btn-ghost" style="width:auto;padding:0.4rem 0.7rem" data-visto="${c.id}">${ICONS.eye}<span>Visualizado — arquivar</span></button>`}
+            </div>
+          </div>`).join("") : emptyStateHtml({ icon: ICONS.bell, title: segSistema === "NOVOS" ? "Nenhum comunicado novo do sistema" : "Nenhum comunicado arquivado", desc: segSistema === "NOVOS" ? "Quando houver uma compensação automática no banco de horas, ela aparece aqui." : "Os comunicados visualizados ficam guardados aqui." })}`;
+      painel.querySelectorAll("[data-seg-sis]").forEach((b) => b.addEventListener("click", () => { segSistema = b.dataset.segSis; renderSistema(); }));
+      const marcar = async (ids, botao) => {
+        if (botao) botao.disabled = true;
+        try {
+          await rhMarcarCompensacoesVisualizadas(ids, session.name);
+          await refrescarSistema();
+          showToast(ids.length > 1 ? "Comunicados arquivados." : "Comunicado arquivado.", "success");
+          render();
+        } catch (err) {
+          showToast(rhMensagemErroSupabase(err), "error");
+          if (botao) botao.disabled = false;
+        }
+      };
+      painel.querySelectorAll("[data-visto]").forEach((b) => b.addEventListener("click", () => marcar([b.dataset.visto], b)));
+      const todos = document.getElementById("btn-ver-todos");
+      if (todos) todos.addEventListener("click", () => marcar(novos.map((c) => c.id), todos));
     }
 
     function abrirModalEditar(id) {
@@ -296,7 +387,8 @@
       renderTopHeader(document.getElementById("top-header"), session, { notifications: [] });
       document.getElementById("content").innerHTML = `<div class="loading-wrap"><div class="spinner"></div></div>`;
       try {
-        await Promise.all([refrescarComunicados(), refrescarVisualizacoes()]);
+        await rhProcessarBancoHoras();
+        await Promise.all([refrescarComunicados(), refrescarVisualizacoes(), refrescarSistema()]);
         render();
         wireModalClosers();
       } catch (err) {

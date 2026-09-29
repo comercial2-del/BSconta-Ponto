@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Banco de Horas — BSconta+ RH</title>
+  <link rel="icon" type="image/png" href="../assets/bsconta-icon.png" />
+  <link rel="stylesheet" href="../css/styles.css?v=20260929c" />
+  <link rel="stylesheet" href="../css/theme-v2.css?v=20260929c" />
+  <style>
+    .bh-num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .bh-pos { color: var(--emerald-700); font-weight: 700; }
+    .bh-neg { color: var(--red-600); font-weight: 700; }
+    .bh-motivo { max-width: 360px; font-size: .8rem; color: var(--text-muted); }
+    .bh-actions { display: flex; gap: .5rem; flex-wrap: wrap; align-items: flex-end; }
+    .bh-regra { font-size: .82rem; color: var(--text-muted); margin: 0; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <div id="app-header"></div>
+    <div class="app-content">
+      <main class="main">
+        <div id="top-header" class="top-header"></div>
+        <div id="content"><div class="loading-wrap"><div class="spinner"></div></div></div>
+      </main>
+    </div>
+  </div>
+
+  <script>window.BASE_PATH = "../";</script>
+  <script src="../js/demo-data.js?v=20260929c"></script>
+  <script src="../js/ui.js?v=20260929c"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/supabase-client.js?v=20260929c"></script>
+  <script src="../js/rh-supabase-auth.js?v=20260929c"></script>
+  <script src="../js/rh-historia-data.js?v=20260929c"></script>
+  <script src="../js/rh-historia-ui.js?v=20260929c"></script>
+  <script src="../js/rh-banco-horas-data.js?v=20260929c"></script>
+  <script>
+(async function () {
+    const session = await requireRoleReal("RH");
+    if (!session) return;
+
+    const hojeIso = rhTodayIsoLocal();
+    const noventaDiasAtras = (() => { const d = new Date(); d.setDate(d.getDate() - 90); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })();
+    const f = { colaborador: "", de: noventaDiasAtras, ate: hojeIso };
+
+    let colaboradores = [];
+    let resumo = {};
+    let compensacoes = [];
+    let movimentos = [];
+    let erro = "";
+
+    const h = (min) => fmtMinutos(min);
+    const hSaldo = (min) => `<span class="${min > 0 ? "bh-pos" : min < 0 ? "bh-neg" : ""}">${fmtMinutos(min, { sinal: true })}</span>`;
+
+    async function carregarResumo() {
+      resumo = await rhResumoBancoHoras();
+    }
+    async function carregarRelatorio() {
+      [compensacoes, movimentos] = await Promise.all([
+        rhListarCompensacoes({ colaboradorId: f.colaborador || null, inicio: f.de || null, fim: f.ate || null }),
+        rhListarMovimentosBancoHoras({ colaboradorId: f.colaborador || null, inicio: f.de || null, fim: f.ate || null }),
+      ]);
+    }
+
+    function render() {
+      const ativas = compensacoes.filter((c) => c.status === "ATIVA");
+      const totalCompensado = ativas.reduce((t, c) => t + c.abatidoMin, 0);
+      const novas = compensacoes.filter((c) => !c.visualizadoEm).length;
+      const ativos = colaboradores.filter((c) => c.status !== "INATIVO");
+      const comDevidas = ativos.filter((c) => (resumo[c.id]?.devidasMin || 0) > 0).length;
+      const totalExtras = ativos.reduce((t, c) => t + (resumo[c.id]?.extrasMin || 0), 0);
+
+      document.getElementById("content").innerHTML = `
+        <div class="space-y">
+          <div class="row-between">
+            <div>
+              <h1 class="page-title">Banco de Horas</h1>
+              <p class="page-sub">Horas extras, horas devidas e compensações automáticas de cada colaborador.</p>
+            </div>
+            <button type="button" class="btn-ghost" style="width:auto" id="btn-recalcular">${ICONS.refresh}<span>Recalcular agora</span></button>
+          </div>
+
+          ${rhSubnavJornadaHtml("banco")}
+
+          ${erro ? `<div class="notice">${esc(erro)}</div>` : ""}
+
+          <div class="card card-p">
+            <p class="bh-regra"><strong>Como funciona:</strong> horas trabalhadas além da jornada prevista viram <strong>horas extras</strong>; atraso e intervalo acima do mínimo (não compensado no dia) viram <strong>horas devidas</strong>. Sempre que houver horas extras acumuladas e horas devidas, o sistema abate automaticamente (ex.: +5h extras e 2h devidas → abate 2h → restam +3h) e registra a compensação. Processado todo dia às 00:20 e sempre que esta tela abre. Cada compensação aparece em <a href="comunicados.html#sistema">Comunicados → Comunicados do Sistema</a>.</p>
+          </div>
+
+          <div id="kpi-grid"></div>
+
+          <div class="card card-p">
+            <h2 style="margin-top:0">Situação atual por colaborador</h2>
+            <div class="table-scroll">
+              <table>
+                <thead><tr><th>Colaborador</th><th class="bh-num">Horas extras disponíveis</th><th class="bh-num">Horas devidas pendentes</th><th class="bh-num">Saldo</th><th>Atualizado até</th></tr></thead>
+                <tbody>
+                  ${ativos.map((c) => {
+                    const r = resumo[c.id];
+                    return `<tr>
+                      <td><div class="person-cell"><span class="avatar avatar-sm ${avatarColorClass(c.nome)}">${avatarInner(c.nome)}</span>${esc(c.nome)}</div></td>
+                      <td class="bh-num">${r ? h(r.extrasMin) : "—"}</td>
+                      <td class="bh-num">${r ? (r.devidasMin > 0 ? `<span class="bh-neg">${h(r.devidasMin)}</span>` : h(0)) : "—"}</td>
+                      <td class="bh-num">${r ? hSaldo(r.saldoMin) : "—"}</td>
+                      <td>${r ? fmtDate(r.ateData) : "Sem registros"}</td>
+                    </tr>`;
+                  }).join("")}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card card-p">
+            <div class="row-between" style="align-items:flex-end;gap:1rem;flex-wrap:wrap">
+              <h2 style="margin:0">Relatório de compensações</h2>
+            </div>
+            <div class="hist-filters" style="margin:.8rem 0 1rem">
+              <div class="field"><label>Colaborador</label><select id="f-colaborador">${rhOpcoesColaboradoresHtml(colaboradores, f.colaborador, { incluirVazio: true, labelVazio: "Todos" })}</select></div>
+              <div class="field"><label>De</label><input type="date" id="f-de" value="${f.de}" /></div>
+              <div class="field"><label>Até</label><input type="date" id="f-ate" value="${f.ate}" /></div>
+            </div>
+            <div class="bh-actions" style="margin-bottom:1rem">
+              <button type="button" class="btn-ghost" style="width:auto" id="btn-csv-comp" ${compensacoes.length ? "" : "disabled"}>${ICONS.download}<span>Exportar compensações (.csv)</span></button>
+            </div>
+            <div class="table-scroll">
+              ${compensacoes.length ? `<table>
+                <thead><tr><th>Data</th><th>Colaborador</th><th class="bh-num">Extras disponíveis</th><th class="bh-num">Horas devidas</th><th class="bh-num">Compensadas</th><th class="bh-num">Saldo anterior</th><th class="bh-num">Saldo após</th><th class="bh-num">Extras restantes</th><th>Motivo</th><th>Situação</th></tr></thead>
+                <tbody>
+                  ${compensacoes.map((c) => `<tr>
+                    <td>${fmtDate(c.dataReferencia)}<div class="hint">proc. ${new Date(c.processadoEm).toLocaleDateString("pt-BR")}</div></td>
+                    <td>${esc(c.colaboradorNome)}</td>
+                    <td class="bh-num">${h(c.extrasDisponiveisMin)}</td>
+                    <td class="bh-num">${h(c.devidasMin)}</td>
+                    <td class="bh-num"><strong>${h(c.abatidoMin)}</strong></td>
+                    <td class="bh-num">${hSaldo(c.saldoAnteriorMin)}</td>
+                    <td class="bh-num">${hSaldo(c.saldoAposMin)}</td>
+                    <td class="bh-num">${h(c.extrasRestantesMin)}${c.devidasRestantesMin > 0 ? `<div class="hint">devendo ${h(c.devidasRestantesMin)}</div>` : ""}</td>
+                    <td class="bh-motivo">${esc(c.motivo)}</td>
+                    <td>${c.status === "CANCELADA" ? '<span class="badge badge-neutral">Cancelada</span>' : c.visualizadoEm ? '<span class="badge badge-green">Visualizada</span>' : '<span class="badge badge-admin">Nova</span>'}</td>
+                  </tr>`).join("")}
+                </tbody>
+              </table>` : emptyStateHtml({ icon: ICONS.clock, title: "Nenhuma compensação neste período", desc: "Ajuste o colaborador ou o período." })}
+            </div>
+          </div>
+
+          <div class="card card-p">
+            <div class="row-between" style="align-items:center;gap:1rem;flex-wrap:wrap">
+              <h2 style="margin:0">Histórico das movimentações</h2>
+              <button type="button" class="btn-ghost" style="width:auto" id="btn-csv-mov" ${movimentos.length ? "" : "disabled"}>${ICONS.download}<span>Exportar movimentações (.csv)</span></button>
+            </div>
+            <p class="hint" style="margin:.4rem 0 1rem">Mesmo filtro de colaborador e período acima. Só aparecem os dias com horas extras ou horas devidas.</p>
+            <div class="table-scroll">
+              ${movimentos.length ? `<table>
+                <thead><tr><th>Data</th><th>Colaborador</th><th class="bh-num">Horas extras geradas</th><th class="bh-num">Horas devidas</th><th class="bh-num">Compensado</th><th class="bh-num">Extras após</th><th class="bh-num">Devidas após</th><th class="bh-num">Saldo após</th></tr></thead>
+                <tbody>
+                  ${movimentos.slice().reverse().map((m) => `<tr>
+                    <td>${m.tipo === "SALDO_INICIAL" ? `Até ${fmtDate(m.data)}<div class="hint">saldo acumulado anterior</div>` : fmtDate(m.data)}</td>
+                    <td>${esc(m.colaboradorNome)}</td>
+                    <td class="bh-num">${m.extrasMin ? `<span class="bh-pos">+${h(m.extrasMin)}</span>` : "—"}</td>
+                    <td class="bh-num">${m.devidasMin ? `<span class="bh-neg">-${h(m.devidasMin)}</span>${m.tipo === "DIA" ? `<div class="hint">${[m.atrasoMin ? `atraso ${h(m.atrasoMin)}` : "", m.intervaloExcedenteMin ? `intervalo ${h(m.intervaloExcedenteMin)}` : ""].filter(Boolean).join(" · ")}</div>` : ""}` : "—"}</td>
+                    <td class="bh-num">${m.compensadoMin ? `<strong>${h(m.compensadoMin)}</strong>` : "—"}</td>
+                    <td class="bh-num">${h(m.extrasAposMin)}</td>
+                    <td class="bh-num">${h(m.devidasAposMin)}</td>
+                    <td class="bh-num">${hSaldo(m.saldoAposMin)}</td>
+                  </tr>`).join("")}
+                </tbody>
+              </table>` : emptyStateHtml({ icon: ICONS.timeline, title: "Nenhuma movimentação neste período", desc: "Ajuste o colaborador ou o período." })}
+            </div>
+          </div>
+        </div>`;
+
+      renderKpiGrid(document.getElementById("kpi-grid"), [
+        { label: "Compensações novas (não vistas)", value: novas, tone: "indigo", icon: ICONS.bell },
+        { label: "Horas compensadas no período", value: h(totalCompensado), tone: "green", icon: ICONS.checkCircle },
+        { label: "Colaboradores com horas devidas", value: comDevidas, tone: "red", icon: ICONS.alertCircle },
+        { label: "Horas extras disponíveis (equipe)", value: h(totalExtras), tone: "amber", icon: ICONS.clock },
+      ]);
+
+      const aplicar = async () => {
+        f.colaborador = document.getElementById("f-colaborador").value;
+        f.de = document.getElementById("f-de").value;
+        f.ate = document.getElementById("f-ate").value;
+        try { await carregarRelatorio(); } catch (err) { showToast(rhMensagemErroSupabase(err), "error"); }
+        render();
+      };
+      ["f-colaborador", "f-de", "f-ate"].forEach((id) => document.getElementById(id).addEventListener("change", aplicar));
+      document.getElementById("btn-csv-comp").addEventListener("click", () => rhBaixarArquivo(`compensacoes-banco-horas-${hojeIso}.csv`, rhCompensacoesParaCsv(compensacoes)));
+      document.getElementById("btn-csv-mov").addEventListener("click", () => rhBaixarArquivo(`movimentacoes-banco-horas-${hojeIso}.csv`, rhMovimentosParaCsv(movimentos)));
+      document.getElementById("btn-recalcular").addEventListener("click", async (e) => {
+        const b = e.currentTarget;
+        b.disabled = true;
+        const n = await rhProcessarBancoHoras();
+        try { await Promise.all([carregarResumo(), carregarRelatorio()]); } catch (err) { showToast(rhMensagemErroSupabase(err), "error"); }
+        showToast(n == null ? "Não foi possível recalcular agora." : n ? `${n} compensação(ões) nova(s) ou atualizada(s).` : "Banco de horas já estava em dia.", n == null ? "error" : "success");
+        render();
+      });
+    }
+
+    renderShell(session, withBadges(NAV_RH, await rhNavBadges()));
+    renderTopHeader(document.getElementById("top-header"), session, { notifications: [] });
+    try {
+      colaboradores = await rhListarColaboradoresBasico();
+      await rhProcessarBancoHoras();
+      await Promise.all([carregarResumo(), carregarRelatorio()]);
+    } catch (err) {
+      erro = rhMensagemErroSupabase(err);
+    }
+    render();
+})();
+</script>
+  <script src="../js/ui-effects.js?v=20260929c"></script>
+</body>
+</html>

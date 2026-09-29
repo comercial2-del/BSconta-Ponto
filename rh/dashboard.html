@@ -53,7 +53,7 @@
       const em30diasIso = em30dias.toISOString().slice(0, 10);
 
       const [{ data: colabRows, error: e1 }, { data: pontoHojeRows, error: e2 }, feriasRH, solicitacoesRH, { data: dadosPessoaisRows, error: e3 }] = await Promise.all([
-        sb.from("colaboradores").select(`id, nome, departamento, status, admissao, ${RH_COLABORADOR_JORNADA_COLS}`).order("nome"),
+        sb.from("colaboradores").select(`id, nome, departamento, status, admissao, ferias_aviso_ignorar_ate, ${RH_COLABORADOR_JORNADA_COLS}`).order("nome"),
         sb.from("ponto_registros").select("colaborador_id, entrada, local").eq("data", hojeIso),
         rhCarregarFeriasRH(),
         rhCarregarSolicitacoesRH(),

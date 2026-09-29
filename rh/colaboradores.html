@@ -206,6 +206,11 @@
               </select>
             </div>
             <div class="field"><label>Data de admissão</label><input id="edit-admissao" type="date" /></div>
+            <div class="field">
+              <label>Aviso de férias dispensado até</label>
+              <input id="edit-ferias-aviso-ate" type="date" />
+              <p class="field-hint" style="margin:.3rem 0 0;font-size:.78rem;color:var(--text-faint)">Use quando as férias do período atual já foram tiradas: o lembrete de férias ignora os períodos aquisitivos que começam até esta data e volta a avisar no próximo período. Em branco = avisa normalmente.</p>
+            </div>
             <div class="field"><label>Status</label>
               <select id="edit-status"><option value="ATIVO">Ativo</option><option value="AFASTADO">Afastado</option><option value="INATIVO">Inativo</option></select>
             </div>
@@ -220,6 +225,7 @@
             <div class="field"><label>Saída</label><input id="edit-horario-saida" type="time" /></div>
             <div class="field"><label>Início do intervalo</label><input id="edit-intervalo-inicio" type="time" /></div>
             <div class="field"><label>Fim do intervalo</label><input id="edit-intervalo-fim" type="time" /></div>
+            <p class="field-hint full" style="grid-column:1/-1;margin:-.2rem 0 0;font-size:.78rem;color:var(--text-faint)">Se o intervalo cadastrado for menor que o intervalo mínimo da empresa (ex.: estagiário com 30 min), o ponto dessa pessoa passa a exigir só o intervalo dela.</p>
             <div class="field full"><label>Dias de trabalho</label><div id="edit-dias" style="display:flex;flex-wrap:wrap;gap:.45rem"></div></div>
             <div class="field"><label>Horas semanais</label><input id="edit-horas-semanais" type="number" min="0" max="60" step="0.01" placeholder="Ex.: 44 ou 42,83 (42h50)" title="Use ponto para casas decimais. Ex.: 42.5 = 42h30, 42.83 = 42h50." /></div>
 
@@ -271,6 +277,7 @@
         dataNascimento: row.data_nascimento || null,
         status: row.status,
         dataDesligamento: row.data_desligamento || null,
+        feriasAvisoIgnorarAte: row.ferias_aviso_ignorar_ate || null,
         horarioEntrada: row.horario_entrada || null,
         horarioSaida: row.horario_saida || null,
         intervaloInicio: row.intervalo_inicio || null,
@@ -570,6 +577,7 @@
           document.getElementById("edit-salario").value = data[0].salario != null ? data[0].salario : "";
         });
       document.getElementById("edit-data-desligamento").value = employee.dataDesligamento || "";
+      document.getElementById("edit-ferias-aviso-ate").value = employee.feriasAvisoIgnorarAte || "";
       document.getElementById("edit-horario-entrada").value = employee.horarioEntrada || "";
       document.getElementById("edit-horario-saida").value = employee.horarioSaida || "";
       document.getElementById("edit-intervalo-inicio").value = employee.intervaloInicio || "";
@@ -661,6 +669,7 @@
               departamento: document.getElementById("edit-departamento").value,
               admissao: document.getElementById("edit-admissao").value || null,
               data_desligamento: document.getElementById("edit-data-desligamento").value || null,
+              ferias_aviso_ignorar_ate: document.getElementById("edit-ferias-aviso-ate").value || null,
               horario_entrada: document.getElementById("edit-horario-entrada").value || null,
               horario_saida: document.getElementById("edit-horario-saida").value || null,
               intervalo_inicio: document.getElementById("edit-intervalo-inicio").value || null,

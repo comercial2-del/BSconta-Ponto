@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Jornada / Ponto — BSconta+ RH</title>
   <link rel="icon" type="image/png" href="../assets/bsconta-icon.png" />
-  <link rel="stylesheet" href="../css/styles.css?v=20260929b" />
-  <link rel="stylesheet" href="../css/theme-v2.css?v=20260929b" />
+  <link rel="stylesheet" href="../css/styles.css?v=20260929c" />
+  <link rel="stylesheet" href="../css/theme-v2.css?v=20260929c" />
   <style>
     /* Ajuste visual exclusivo da tela Jornada / Ponto.
        Mantém o restante do sistema intacto e usa o mesmo padrão compacto
@@ -92,13 +92,13 @@
   </div>
 
   <script>window.BASE_PATH = "../";</script>
-  <script src="../js/demo-data.js?v=20260929b"></script>
-  <script src="../js/ui.js?v=20260929b"></script>
+  <script src="../js/demo-data.js?v=20260929c"></script>
+  <script src="../js/ui.js?v=20260929c"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="../js/supabase-client.js?v=20260929b"></script>
-  <script src="../js/rh-supabase-auth.js?v=20260929b"></script>
-  <script src="../js/rh-ponto-data.js?v=20260929b"></script>
-  <script src="../js/rh-historia-data.js?v=20260929b"></script>
+  <script src="../js/supabase-client.js?v=20260929c"></script>
+  <script src="../js/rh-supabase-auth.js?v=20260929c"></script>
+  <script src="../js/rh-ponto-data.js?v=20260929c"></script>
+  <script src="../js/rh-historia-data.js?v=20260929c"></script>
   <script>
 (async function () {
     const session = await requireRoleReal("RH");
@@ -146,7 +146,7 @@
       const hojeIso = todayIso();
       const [{ data: linhasHojeRows, error: e1 }, { data: linhasResto, error: e2 }, intervaloMinimoMin] = await Promise.all([
         sb.from("ponto_registros").select("*").eq("data", hojeIso),
-        sb.from("ponto_registros").select("colaborador_id, data, entrada, intervalo_saida, intervalo_volta, saida, atraso_min, horas_extras").neq("data", hojeIso),
+        sb.from("ponto_registros").select("colaborador_id, data, entrada, intervalo_saida, intervalo_volta, saida, atraso_min, horas_extras, meta_horas, intervalo_min").neq("data", hojeIso),
         rhIntervaloMinimoConfigurado(),
       ]);
       if (e1) throw e1;
@@ -230,6 +230,7 @@
               <button type="button" class="tab-btn ${abaAtiva === "ajustes" ? "active" : ""}" data-aba="ajustes">${ICONS.alertCircle}<span style="margin-left:0.4rem">Ajustes pendentes</span>${ajustesPendentes().length ? `<span class="badge badge-red" style="margin-left:0.4rem">${ajustesPendentes().length}</span>` : ""}</button>
               <button type="button" class="tab-btn ${abaAtiva === "historico" ? "active" : ""}" data-aba="historico">${ICONS.calendar}<span style="margin-left:0.4rem">Histórico por colaborador</span></button>
               <a class="tab-btn" href="abonos.html">${ICONS.clipboardCheck}<span style="margin-left:0.4rem">Abonos</span></a>
+              <a class="tab-btn" href="banco-horas.html">${ICONS.clock}<span style="margin-left:0.4rem">Banco de Horas</span></a>
               <a class="tab-btn" href="historia.html">${ICONS.timeline}<span style="margin-left:0.4rem">Histórico do Colaborador</span></a>
             </div>
           </div>
@@ -942,6 +943,6 @@
 
 })();
 </script>
-  <script src="../js/ui-effects.js?v=20260929b"></script>
+  <script src="../js/ui-effects.js?v=20260929c"></script>
 </body>
 </html>

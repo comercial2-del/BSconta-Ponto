@@ -95,7 +95,7 @@
     }
 
     async function carregarColaboradoresAtivos() {
-      const { data, error } = await sb.from("colaboradores").select("id, nome, admissao").neq("status", "INATIVO").order("nome");
+      const { data, error } = await sb.from("colaboradores").select("id, nome, admissao, ferias_aviso_ignorar_ate").neq("status", "INATIVO").order("nome");
       if (error) throw error;
       colaboradoresAtivos = data || [];
     }
