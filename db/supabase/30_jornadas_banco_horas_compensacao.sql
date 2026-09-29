@@ -11,7 +11,7 @@
 --      O intervalo mínimo passa a respeitar o intervalo cadastrado da pessoa
 --      quando ele for MENOR que o da empresa (caso do estagiário).
 --   3. Férias: colaboradores.ferias_aviso_ignorar_ate — o aviso de férias
---      ignora períodos aquisitivos que terminam até essa data. Iara: já tirou
+--      ignora períodos aquisitivos que começam até essa data. Iara: já tirou
 --      as férias do período que termina em 24/11/2026; o próximo aviso é o do
 --      período seguinte.
 --   4. Banco de horas: compensação automática (horas extras acumuladas
@@ -139,6 +139,15 @@ update rh.colaboradores
    set horario_saida = '17:30', horas_semanais = 42.5, meta_diaria_horas = 8.5
  where tipo is distinct from 'ESTAGIARIO';
 
+-- O dia de HOJE (ainda em andamento) já segue a jornada nova — o cálculo da
+-- saída no navegador usa a jornada atual, então o registro do dia também.
+alter table rh.ponto_registros disable trigger trg_ponto_fixar_jornada;
+update rh.ponto_registros
+   set meta_horas = rh.meta_diaria_colaborador(colaborador_id),
+       intervalo_min = rh.intervalo_minimo_calculo(colaborador_id)
+ where data >= (now() at time zone 'America/Sao_Paulo')::date;
+alter table rh.ponto_registros enable trigger trg_ponto_fixar_jornada;
+
 -- Validação do intervalo passa a usar o intervalo efetivo do colaborador.
 create or replace function rh.ponto_validar_intervalo()
 returns trigger
@@ -236,7 +245,7 @@ create trigger trg_ponto_validar_intervalo
 -- 3. Férias: dispensar o aviso de um período aquisitivo já resolvido
 -- -----------------------------------------------------------------------------
 alter table rh.colaboradores add column if not exists ferias_aviso_ignorar_ate date;
-comment on column rh.colaboradores.ferias_aviso_ignorar_ate is 'O lembrete de férias ignora períodos aquisitivos que terminam até esta data (férias já tiradas/resolvidas fora do sistema). Null = avisa normalmente.';
+comment on column rh.colaboradores.ferias_aviso_ignorar_ate is 'O lembrete de férias ignora períodos aquisitivos que começam até esta data (férias já tiradas/resolvidas fora do sistema). Null = avisa normalmente.';
 
 -- Iara: férias já retiradas — ignora o período aquisitivo atual (25/11/2025 a
 -- 24/11/2026); o próximo aviso será o do período seguinte.
