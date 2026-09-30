@@ -11,6 +11,11 @@
     .doc-icon-btn.doc-icon-danger { color: var(--red-600); }
     .doc-icon-btn.doc-icon-danger:hover { background: var(--red-50); border-color: var(--red-200, #fecaca); }
     .seg-tabs button svg { width: 15px; height: 15px; }
+    .status-badge.status-RECEBIDO { background: var(--amber-50, #fffbeb); color: var(--amber-700, #b45309); }
+    .status-badge.status-CONFERIDO { background: var(--green-50, #f0fdf4); color: var(--green-700, #15803d); }
+    .doc-name-cell em { display: block; font-style: normal; font-size: .75rem; color: var(--text-faint); margin-top: .15rem; max-width: 280px; }
+    .badge-colab { background: var(--indigo-50, #eef2ff); color: var(--indigo-700, #4338ca); }
+    #conf-obs { width: 100%; min-height: 80px; resize: vertical; font: inherit; }
   </style>
 </head>
 <body>
@@ -77,6 +82,16 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="modal-conferir" aria-hidden="true">
+    <div class="modal modal-sm">
+      <div class="modal-header"><div><h3>Marcar como conferido</h3><p class="modal-subtitle" id="conf-subtitle"></p></div><button class="modal-close" data-close-modal aria-label="Fechar"></button></div>
+      <div class="modal-body">
+        <div class="field"><label for="conf-obs">Retorno para o colaborador (opcional)</label><textarea id="conf-obs" maxlength="600" placeholder="Ex.: Atestado recebido e lançado no ponto."></textarea></div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn-ghost" data-close-modal>Cancelar</button><button type="button" class="btn-primary auto" id="btn-conf-ok">Confirmar conferência</button></div>
+    </div>
+  </div>
+
   <script>window.BASE_PATH = "../";</script>
   <script src="../js/demo-data.js"></script>
   <script src="../js/ui.js"></script>
@@ -89,7 +104,8 @@
     const session = await requireRoleReal("RH");
     if (!session) return;
     let employeeDirectory = [];
-    const statusLabels = { ...STATUS_LABELS, PENDENTE: "Pendente de assinatura", ASSINADO: "Assinado", AGUARDANDO_IMPORTACAO: "Aguardando importação" };
+    const statusLabels = { ...STATUS_LABELS, PENDENTE: "Pendente de assinatura", ASSINADO: "Assinado", AGUARDANDO_IMPORTACAO: "Aguardando importação", RECEBIDO: "Recebido — a conferir", CONFERIDO: "Conferido" };
+    let conferirId = null;
     let state = { colaborador: "", tipo: "", status: "", workflow: "" };
     let selectedFile = null;
     let previewUrl = null;
@@ -101,7 +117,7 @@
 
     function docStatusClass(status) { return `status-badge status-${status}`; }
     function docStatus(status) { return `<span class="${docStatusClass(status)}">${statusLabels[status] || status}</span>`; }
-    function origemLabel(origem) { return ({ ENVIADO_RH: "Enviado pelo RH", IMPORTADO_PREPARADO: "Importado preparado", GOVBR: "GOV.BR", EXTERNA: "Importado assinado", LEGADO: "Publicado" })[origem] || origem || "—"; }
+    function origemLabel(origem) { return ({ ENVIADO_RH: "Enviado pelo RH", IMPORTADO_PREPARADO: "Importado preparado", GOVBR: "GOV.BR", EXTERNA: "Importado assinado", LEGADO: "Publicado", ENVIADO_COLABORADOR: "Enviado pelo colaborador" })[origem] || origem || "—"; }
     function safeDocs() {
       return cacheDocs.filter((d) => {
         if (!!d.arquivadoRhEm !== !!state.arquivados) return false;
@@ -120,13 +136,14 @@
       const pendentes = assinatura.filter((d) => d.status === "PENDENTE" || d.status === "AGUARDANDO_IMPORTACAO").length;
       const assinados = assinatura.filter((d) => d.status === "ASSINADO").length;
       const publicados = docs.filter((d) => d.workflow === "PUBLICADO").length;
+      const recebidosColab = docs.filter((d) => d.workflow === "ENVIADO_COLABORADOR" && d.status === "RECEBIDO").length;
       const tipos = [...new Set(docs.map((d) => d.tipo).filter(Boolean))].sort();
       const colaboradores = [...new Set([...employeeDirectory.map((e) => e.nome), ...docs.map((d) => d.colaborador)].filter(Boolean))].sort((a,b) => a.localeCompare(b, 'pt-BR'));
 
       document.getElementById("content").innerHTML = `
         <div class="space-y">
           <div class="row-between">
-            <div><h1 class="page-title">Gestão de Documentos</h1><p class="page-sub">Envie documentos para assinatura, importe arquivos já preparados e acompanhe cada etapa.</p></div>
+            <div><h1 class="page-title">Gestão de Documentos</h1><p class="page-sub">Envie documentos para assinatura, receba os documentos enviados pelos colaboradores e acompanhe cada etapa.</p></div>
             <button type="button" class="btn-primary auto" id="btn-upload">${ICONS.plus}<span>Novo documento</span></button>
           </div>
 
@@ -150,8 +167,8 @@
             <div class="filters-row" style="margin-bottom:1rem">
               <select id="f-colaborador"><option value="">Todos os colaboradores</option>${colaboradores.map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join("")}</select>
               <select id="f-tipo"><option value="">Todos os tipos</option>${tipos.map((t) => `<option value="${esc(t)}">${esc(t)}</option>`).join("")}</select>
-              <select id="f-status"><option value="">Todos os status</option><option value="PENDENTE">Pendente</option><option value="ASSINADO">Assinado</option><option value="AGUARDANDO_IMPORTACAO">Aguardando importação</option><option value="PUBLICADO">Publicado</option></select>
-              <select id="f-workflow"><option value="">Todos os fluxos</option><option value="ASSINATURA">Para assinatura</option><option value="PUBLICADO">Publicados</option></select>
+              <select id="f-status"><option value="">Todos os status</option><option value="PENDENTE">Pendente</option><option value="ASSINADO">Assinado</option><option value="AGUARDANDO_IMPORTACAO">Aguardando importação</option><option value="PUBLICADO">Publicado</option><option value="RECEBIDO">Recebido (a conferir)</option><option value="CONFERIDO">Conferido</option></select>
+              <select id="f-workflow"><option value="">Todos os fluxos</option><option value="ASSINATURA">Para assinatura</option><option value="PUBLICADO">Publicados</option><option value="ENVIADO_COLABORADOR">Enviados pelo colaborador</option></select>
             </div>
             <div id="table-wrap"></div>
           </div>
@@ -163,7 +180,8 @@
         { label: "Pendentes", value: pendentes, tone: "amber", icon: ICONS.hourglass },
         { label: "Assinados", value: assinados, tone: "green", icon: ICONS.checkCircle },
         { label: "Publicados", value: publicados, tone: "teal", icon: ICONS.fileText },
-      ]);
+        { label: "Recebidos dos colaboradores", value: recebidosColab, tone: "orange", icon: ICONS.upload },
+      ], true);
 
       ["colaborador", "tipo", "status", "workflow"].forEach((key) => {
         document.getElementById(`f-${key}`).addEventListener("change", (e) => { state[key] = e.target.value; renderTable(); });
@@ -184,22 +202,23 @@
       document.getElementById("table-wrap").innerHTML = rows.length ? `
         <div class="table-scroll no-scrollbar">
           <table>
-            <thead><tr><th>Colaborador</th><th>Documento</th><th>Fluxo</th><th>Status</th><th>Enviado</th><th>Assinado</th><th style="width:1%">Ações</th></tr></thead>
+            <thead><tr><th>Colaborador</th><th>Documento</th><th>Fluxo</th><th>Status</th><th>Enviado</th><th>Assinado / conferido</th><th style="width:1%">Ações</th></tr></thead>
             <tbody>${rows.map((d) => `
               <tr>
                 <td><div class="person-cell"><span class="avatar avatar-sm ${avatarColorClass(d.colaborador)}">${avatarInner(d.colaborador)}</span><div><strong>${esc(d.colaborador)}</strong><div class="text-xs">${esc(d.colaboradorEmail || "")}</div></div></div></td>
-                <td><div class="doc-name-cell"><strong>${esc(d.titulo || d.tipo)}</strong><span>${esc(d.tipo)} • ${esc(d.competencia || "—")}</span></div></td>
-                <td><span class="badge badge-neutral">${esc(origemLabel(d.origem))}</span></td>
+                <td><div class="doc-name-cell"><strong>${esc(d.titulo || d.tipo)}</strong><span>${esc(d.tipo)} • ${esc(d.competencia || "—")}</span>${d.observacaoColab ? `<em title="${esc(d.observacaoColab)}">“${esc(d.observacaoColab.length > 90 ? d.observacaoColab.slice(0, 90) + "…" : d.observacaoColab)}”</em>` : ""}</div></td>
+                <td><span class="badge ${d.workflow === "ENVIADO_COLABORADOR" ? "badge-colab" : "badge-neutral"}">${esc(origemLabel(d.origem))}</span></td>
                 <td>${docStatus(d.status)}</td>
                 <td>${fmtDate(String(d.enviadoEm || d.data).slice(0,10))}</td>
-                <td>${d.assinadoEm ? fmtDate(String(d.assinadoEm).slice(0,10)) : "—"}</td>
+                <td>${d.assinadoEm ? fmtDate(String(d.assinadoEm).slice(0,10)) : d.conferidoEm ? `<span class="text-xs">Conferido</span><br>${fmtDate(String(d.conferidoEm).slice(0,10))}` : "—"}</td>
                 <td><div class="doc-actions-row">
                   <button type="button" class="btn-ghost doc-icon-btn" title="Visualizar documento" data-view="${esc(d.id)}">${ICONS.eye}</button>
+                  ${d.workflow === "ENVIADO_COLABORADOR" ? `<button type="button" class="btn-ghost doc-icon-btn" title="Baixar documento" data-download-orig="${esc(d.id)}">${ICONS.download}</button>${d.status === "RECEBIDO" ? `<button type="button" class="btn-ghost doc-icon-btn" title="Marcar como conferido" data-conferir="${esc(d.id)}">${ICONS.checkCircle}</button>` : `<button type="button" class="btn-ghost doc-icon-btn" title="Voltar para “a conferir”" data-desconferir="${esc(d.id)}">${ICONS.refresh}</button>`}` : ""}
                   ${d.workflow === "ASSINATURA" ? (d.status === "ASSINADO" ? `<button type="button" class="btn-ghost doc-icon-btn" title="Baixar documento assinado" data-download-signed="${esc(d.id)}">${ICONS.download}</button>` : `<button type="button" class="btn-ghost doc-icon-btn" title="Lembrar colaborador" data-remind="${esc(d.id)}">${ICONS.send}</button>`) : ""}
                   ${d.status === "ASSINADO" ? `<a class="btn-ghost doc-icon-btn" title="Validar assinatura" href="https://validar.iti.gov.br/" target="_blank" rel="noopener">${ICONS.shield}</a>` : ""}
                   ${d.arquivadoRhEm
                     ? `<button type="button" class="btn-ghost doc-icon-btn" title="Desarquivar documento" data-desarquivar="${esc(d.id)}">${ICONS.refresh}</button><button type="button" class="btn-ghost doc-icon-btn doc-icon-danger" title="Excluir documento" data-excluir="${esc(d.id)}">${ICONS.trash}</button>`
-                    : `<button type="button" class="btn-ghost doc-icon-btn" title="Arquivar documento" data-arquivar="${esc(d.id)}">${ICONS.archive}</button>${d.status !== "ASSINADO" && d.status !== "PUBLICADO" ? `<button type="button" class="btn-ghost doc-icon-btn doc-icon-danger" title="Excluir documento" data-excluir="${esc(d.id)}">${ICONS.trash}</button>` : ""}`}
+                    : `<button type="button" class="btn-ghost doc-icon-btn" title="Arquivar documento" data-arquivar="${esc(d.id)}">${ICONS.archive}</button>${d.status !== "ASSINADO" && d.status !== "PUBLICADO" && d.status !== "CONFERIDO" ? `<button type="button" class="btn-ghost doc-icon-btn doc-icon-danger" title="Excluir documento" data-excluir="${esc(d.id)}">${ICONS.trash}</button>` : ""}`}
                 </div></td>
               </tr>`).join("")}</tbody>
           </table>
@@ -209,6 +228,23 @@
 
       document.querySelectorAll("[data-view]").forEach((b) => b.addEventListener("click", () => { const d = cacheDocs.find((x) => x.id === b.dataset.view); openPreview(b.dataset.view, d?.status === "ASSINADO"); }));
       document.querySelectorAll("[data-download-signed]").forEach((b) => b.addEventListener("click", () => downloadDoc(b.dataset.downloadSigned, true)));
+      document.querySelectorAll("[data-download-orig]").forEach((b) => b.addEventListener("click", () => downloadDoc(b.dataset.downloadOrig, false)));
+      document.querySelectorAll("[data-conferir]").forEach((b) => b.addEventListener("click", () => {
+        const d = cacheDocs.find((x) => x.id === b.dataset.conferir); if (!d) return;
+        conferirId = d.id;
+        document.getElementById("conf-subtitle").textContent = `${d.titulo || d.tipo} — ${d.colaborador}`;
+        document.getElementById("conf-obs").value = "";
+        openModal("modal-conferir");
+      }));
+      document.querySelectorAll("[data-desconferir]").forEach((b) => b.addEventListener("click", async () => {
+        b.disabled = true;
+        try {
+          await rhConferirDocumentoRH(b.dataset.desconferir, false);
+          await refrescarDocumentos();
+          showToast("Documento voltou para “a conferir”.", "success");
+          render();
+        } catch (err) { showToast(rhErroMigracao31(err), "error"); b.disabled = false; }
+      }));
       document.querySelectorAll("[data-remind]").forEach((b) =>
         b.addEventListener("click", async () => {
           const d = cacheDocs.find((x) => x.id === b.dataset.remind);
@@ -250,8 +286,8 @@
           if (!d) return;
           const ok = await confirmDialog({
             title: "Excluir documento",
-            message: (d.status === "ASSINADO" || d.status === "PUBLICADO")
-              ? `Excluir DEFINITIVAMENTE "${d.titulo || d.tipo}" de ${d.colaborador}? Este documento está ${d.status === "ASSINADO" ? "assinado" : "publicado"} — o registro e os PDFs (original e assinado) serão apagados para o RH e para o colaborador. Esta ação não pode ser desfeita.`
+            message: (d.status === "ASSINADO" || d.status === "PUBLICADO" || d.status === "CONFERIDO")
+              ? `Excluir DEFINITIVAMENTE "${d.titulo || d.tipo}" de ${d.colaborador}? Este documento está ${d.status === "ASSINADO" ? "assinado" : d.status === "CONFERIDO" ? "conferido" : "publicado"} — o registro e os PDFs (original e assinado) serão apagados para o RH e para o colaborador. Esta ação não pode ser desfeita.`
               : `Excluir "${d.titulo || d.tipo}" de ${d.colaborador}? O arquivo também será removido do armazenamento. Esta ação não pode ser desfeita.`,
             confirmLabel: "Excluir",
             danger: true,
@@ -314,6 +350,7 @@
         return;
       }
       if (!blob) { showToast("O arquivo ainda não está disponível.", "info"); return; }
+      if (!signed && doc.arquivoMime && doc.arquivoMime !== "application/octet-stream" && blob.type !== doc.arquivoMime) blob = new Blob([blob], { type: doc.arquivoMime });
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       previewUrl = URL.createObjectURL(blob);
       document.getElementById("pdf-frame").src = previewUrl;
@@ -404,7 +441,7 @@
       document.getElementById("content").innerHTML = `<div class="loading-wrap"><div class="spinner"></div></div>`;
       try {
         await refrescarDocumentos();
-        const pendingBadge = cacheDocs.filter((d) => d.workflow === "ASSINATURA" && d.status !== "ASSINADO").length;
+        const pendingBadge = cacheDocs.filter((d) => (d.workflow === "ASSINATURA" && d.status !== "ASSINADO") || (d.workflow === "ENVIADO_COLABORADOR" && d.status === "RECEBIDO")).length;
         renderShell(session, withBadges(NAV_RH, { ...(await rhNavBadges()), "documentos.html": pendingBadge }));
         renderTopHeader(document.getElementById("top-header"), session, { notifications: [] });
         render();
@@ -420,6 +457,19 @@
         ["dragleave","drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("is-dragging"); }));
         drop.addEventListener("drop", (e) => { selectedFile = e.dataTransfer.files?.[0] || null; if (selectedFile) { input.value = ""; showSelectedFile(selectedFile); } });
         document.getElementById("form-document").addEventListener("submit", submitDocument);
+        document.querySelector("#modal-conferir .modal-close").innerHTML = ICONS.x;
+        document.getElementById("btn-conf-ok").addEventListener("click", async (ev) => {
+          if (!conferirId) return;
+          const btn = ev.currentTarget; btn.disabled = true;
+          try {
+            await rhConferirDocumentoRH(conferirId, true, document.getElementById("conf-obs").value);
+            await refrescarDocumentos();
+            closeModal("modal-conferir");
+            showToast("Documento marcado como conferido. O colaborador já vê o status.", "success");
+            render();
+          } catch (err) { showToast(rhErroMigracao31(err), "error"); }
+          finally { btn.disabled = false; conferirId = null; }
+        });
       } catch (err) {
         rhShowFatalError(rhMensagemErroSupabase(err));
       }
