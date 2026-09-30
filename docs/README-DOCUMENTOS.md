@@ -18,6 +18,14 @@
 - Botão Assinar com GOV.BR que abre o Assinador oficial.
 - Importação do PDF assinado por fluxo GOV.BR ou assinatura externa.
 - Registro de data e método de assinatura.
+- Aba **Recebidos do RH**: holerites e arquivos publicados pelo RH, com visualizar e baixar.
+- **Enviar documento ao RH** (aba *Enviados ao RH*): o colaborador envia PDF ou foto (JPG/PNG/WEBP, até 20 MB) com tipo, título, referência e mensagem. Status: *Aguardando conferência do RH* → *Conferido pelo RH* (com retorno opcional do RH). Enquanto não for conferido, o colaborador pode cancelar o envio.
+
+### RH — documentos recebidos dos colaboradores
+- Aparecem na Gestão de Documentos com o fluxo *Enviado pelo colaborador* (filtro próprio) e status *Recebido — a conferir*.
+- Ações: visualizar, baixar, marcar como conferido (com retorno ao colaborador) ou voltar para "a conferir".
+- Os recebidos a conferir entram no contador do menu Documentos.
+- Requer a migração `db/supabase/31_documentos_enviados_colaborador.sql`.
 
 ## Limite do protótipo
 
