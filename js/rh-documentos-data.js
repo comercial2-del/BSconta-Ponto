@@ -33,6 +33,12 @@ function rhCaminhoAssinadoDocumento(colaboradorId, documentoId, nomeArquivo) {
   return `${colaboradorId}/${documentoId}/assinado-${Date.now()}-${rhSlugArquivo(nomeArquivo)}`;
 }
 
+/** Tipo MIME pelo nome do arquivo (pré-visualização de imagem/PDF). */
+function rhMimeDoNome(nome) {
+  const ext = String(nome || "").toLowerCase().split(".").pop();
+  return ({ pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", heic: "image/heic" })[ext] || "application/octet-stream";
+}
+
 function rhMapDocumentoRow(row) {
   return {
     id: row.id,
@@ -56,6 +62,10 @@ function rhMapDocumentoRow(row) {
     arquivadoEm: row.arquivado_colab_em || null,
     arquivadoRhEm: row.arquivado_rh_em || null,
     removidoEm: row.removido_colab_em || null,
+    observacaoColab: row.observacao_colab || "",
+    observacaoRh: row.observacao_rh || "",
+    conferidoEm: row.conferido_em || null,
+    arquivoMime: rhMimeDoNome(row.arquivo_original_nome),
     data: row.enviado_em ? String(row.enviado_em).slice(0, 10) : row.created_at?.slice(0, 10),
   };
 }
@@ -145,7 +155,7 @@ async function rhColaboradorMarcarAguardandoImportacao(documentoId) {
 async function rhExcluirDocumentoRH(documento) {
   // Assinado/publicado é registro oficial: só pode ser excluído depois de
   // arquivado pelo RH (dupla etapa — ver 25_documentos_arquivar_rh.sql).
-  if ((documento.status === "ASSINADO" || documento.status === "PUBLICADO") && !documento.arquivadoRhEm) {
+  if ((documento.status === "ASSINADO" || documento.status === "PUBLICADO" || documento.status === "CONFERIDO") && !documento.arquivadoRhEm) {
     throw new Error("Arquive o documento antes de excluí-lo (documentos assinados ou publicados só podem ser excluídos a partir da aba Arquivados).");
   }
   const caminhos = [documento.arquivoPath, documento.arquivoAssinadoPath].filter(Boolean);
@@ -241,4 +251,78 @@ async function rhArquivarDocumentoRH(documentoId, arquivar) {
     if (/arquivado_rh_em/i.test(String(error.message))) throw new Error("Arquivar ainda não está ativo no banco. Rode db/supabase/25_documentos_arquivar_rh.sql no Supabase.");
     throw error;
   }
+}
+
+/* ============================================================================
+ * Documentos ENVIADOS PELO COLABORADOR para o RH (migração 31)
+ * workflow = ENVIADO_COLABORADOR; status RECEBIDO -> CONFERIDO
+ * ==========================================================================*/
+
+const RH_DOCS_ENVIO_TIPOS = ["Atestado médico", "Declaração de comparecimento", "Comprovante de residência", "Documento pessoal (RG/CPF/CNH)", "Certidão (nascimento/casamento)", "Certificado / diploma", "Comprovante de matrícula", "Dados bancários", "Outro"];
+const RH_DOCS_ENVIO_EXTENSOES = [".pdf", ".jpg", ".jpeg", ".png", ".webp"];
+const RH_DOCS_ENVIO_LIMITE_MB = 20;
+
+function rhUuid() {
+  if (window.crypto?.randomUUID) return crypto.randomUUID();
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => { const r = (Math.random() * 16) | 0; return (c === "x" ? r : (r & 0x3) | 0x8).toString(16); });
+}
+
+/** Colaborador envia um documento ao RH: sobe o arquivo na PRÓPRIA pasta do
+ * bucket e cria o registro via RPC (security definer). Se o registro falhar,
+ * remove o arquivo para não deixar órfão. */
+async function rhColaboradorEnviarDocumento({ colaboradorId, titulo, tipo, competencia, observacao, file }) {
+  if (!file) throw new Error("Selecione o arquivo.");
+  const nome = String(file.name || "").toLowerCase();
+  if (!RH_DOCS_ENVIO_EXTENSOES.some((ext) => nome.endsWith(ext))) throw new Error("Envie um PDF ou uma imagem (JPG, PNG ou WEBP).");
+  if (file.size > RH_DOCS_ENVIO_LIMITE_MB * 1024 * 1024) throw new Error(`O arquivo excede o limite de ${RH_DOCS_ENVIO_LIMITE_MB} MB.`);
+  if (!tipo) throw new Error("Selecione o tipo do documento.");
+
+  const documentoId = rhUuid();
+  const caminho = `${colaboradorId}/${documentoId}/enviado-${Date.now()}-${rhSlugArquivo(file.name)}`;
+  const { error: upErr } = await sb.storage.from(RH_DOCS_BUCKET).upload(caminho, file, { contentType: file.type || rhMimeDoNome(file.name) });
+  if (upErr) throw upErr;
+
+  const { error: rpcErr } = await sb.rpc("colaborador_enviar_documento", {
+    p_documento_id: documentoId,
+    p_titulo: titulo || tipo,
+    p_tipo: tipo,
+    p_competencia: competencia || null,
+    p_observacao: observacao || null,
+    p_arquivo_path: caminho,
+    p_arquivo_nome: file.name,
+  });
+  if (rpcErr) {
+    await sb.storage.from(RH_DOCS_BUCKET).remove([caminho]).catch(() => {});
+    throw rpcErr;
+  }
+  return documentoId;
+}
+
+/** Colaborador cancela um envio que o RH ainda não conferiu. */
+async function rhColaboradorCancelarEnvioDocumento(documentoId) {
+  const { data: caminho, error } = await sb.rpc("colaborador_cancelar_envio_documento", { p_documento_id: documentoId });
+  if (error) throw error;
+  if (caminho) {
+    const { error: rmErr } = await sb.storage.from(RH_DOCS_BUCKET).remove([caminho]);
+    if (rmErr) console.error("rhColaboradorCancelarEnvioDocumento: registro removido, arquivo ficou no Storage.", rmErr);
+  }
+}
+
+/** RH marca como conferido (ou volta para "recebido") um documento enviado
+ * pelo colaborador, com um retorno opcional que o colaborador vê. */
+async function rhConferirDocumentoRH(documentoId, conferido, observacaoRh) {
+  const patch = conferido
+    ? { status: "CONFERIDO", conferido_em: new Date().toISOString(), observacao_rh: observacaoRh ? String(observacaoRh).trim() : null }
+    : { status: "RECEBIDO", conferido_em: null };
+  const { error } = await sb.from("documentos").update(patch).eq("id", documentoId);
+  if (error) throw error;
+}
+
+/** Mensagem amigável quando a migração 31 ainda não foi aplicada. */
+function rhErroMigracao31(err) {
+  const msg = String(err?.message || err || "");
+  if (/colaborador_enviar_documento|colaborador_cancelar_envio_documento|documentos_status_check|observacao_colab|conferido_em|could not find the function|schema cache/i.test(msg)) {
+    return "O envio de documentos ao RH ainda não está ativo no banco. O RH precisa rodar db/supabase/31_documentos_enviados_colaborador.sql no Supabase.";
+  }
+  return rhMensagemErroSupabase(err);
 }
