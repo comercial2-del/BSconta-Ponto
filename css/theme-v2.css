@@ -1294,3 +1294,63 @@ td.cell-check input, th.cell-check input { width: 16px; height: 16px; accent-col
 .bf-destaque .is-desconto strong { color: var(--amber-700); }
 .bf-destaque .is-liquido { background: var(--emerald-50); border-color: var(--emerald-100); }
 .bf-destaque .is-liquido strong { color: var(--emerald-700); }
+
+/* ---------------------------------------------------------------------- */
+/* Solicitações — fluxo "Em análise" (acompanhamento) — 20261006a          */
+/* ---------------------------------------------------------------------- */
+.sol-tabs { align-items: center; }
+.sol-tabs button { display: inline-flex; align-items: center; gap: .38rem; }
+.sol-tabs button svg { width: 14px; height: 14px; flex-shrink: 0; }
+.sol-tabs .tab-sep { width: 1px; align-self: stretch; margin: .35rem .2rem; background: var(--border); }
+.sol-tabs .tab-count {
+  min-width: 1.25rem; height: 1.25rem; padding: 0 .38rem; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: .7rem; font-weight: 700; line-height: 1;
+  background: rgba(15, 23, 42, .07); color: var(--text-soft);
+}
+.sol-tabs button.tab-analise .tab-count { background: var(--indigo-100); color: var(--indigo-700); }
+.sol-tabs button.tab-analise.active { color: var(--indigo-700); }
+.sol-tabs button.tab-analise.active .tab-count { background: var(--indigo-600); color: #fff; }
+.sol-tabs button.tab-analise.has-items:not(.active) { color: var(--indigo-600); }
+
+.request-card.is-analise {
+  border-color: var(--indigo-100);
+  box-shadow: inset 4px 0 0 var(--indigo-500);
+  background: linear-gradient(90deg, rgba(238, 240, 255, .7), #fff 45%);
+}
+.request-card.is-analise:hover { box-shadow: inset 4px 0 0 var(--indigo-500), var(--shadow-sm); border-color: var(--indigo-300); }
+.sol-flag {
+  display: inline-flex; align-items: center; gap: .35rem; margin-top: .55rem;
+  font-size: .74rem; font-weight: 600; color: var(--indigo-700);
+}
+.sol-flag svg { width: 13px; height: 13px; }
+.sol-flag .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--indigo-500); box-shadow: 0 0 0 3px var(--indigo-100); animation: solPulse 1.8s ease-in-out infinite; }
+@keyframes solPulse { 50% { box-shadow: 0 0 0 5px rgba(224, 226, 255, .35); } }
+@media (prefers-reduced-motion: reduce) { .sol-flag .dot { animation: none; } }
+
+.sol-actions { margin-top: .7rem; display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: .5rem; }
+.sol-actions .btn-ghost { width: auto; padding: .4rem .7rem; }
+.btn-ghost.analise { color: var(--indigo-700); border-color: var(--indigo-100); background: var(--indigo-50); }
+.btn-ghost.analise:hover { background: var(--indigo-100); color: var(--indigo-700); border-color: var(--indigo-300); }
+.btn-ghost.concluir { color: var(--emerald-700); border-color: var(--emerald-100); background: #f0fdf6; }
+.btn-ghost.concluir:hover { background: var(--emerald-100); color: var(--emerald-700); }
+
+/* Modal "Responder / Continuar atendimento": destino da conversa */
+.sol-destino { display: grid; grid-template-columns: 1fr 1fr; gap: .55rem; }
+.sol-destino label {
+  position: relative; display: flex; gap: .6rem; align-items: flex-start; cursor: pointer;
+  border: 1.5px solid var(--border); border-radius: 11px; padding: .7rem .8rem;
+  transition: border-color .15s, background .15s, box-shadow .15s;
+}
+.sol-destino input { position: absolute; opacity: 0; pointer-events: none; }
+.sol-destino .ico { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; flex-shrink: 0; }
+.sol-destino .ico svg { width: 16px; height: 16px; }
+.sol-destino .opt-analise .ico { background: var(--indigo-50); color: var(--indigo-600); }
+.sol-destino .opt-concluir .ico { background: #f0fdf6; color: var(--emerald-700); }
+.sol-destino strong { display: block; font-size: .84rem; }
+.sol-destino small { display: block; font-size: .74rem; color: var(--text-faint); margin-top: .1rem; line-height: 1.35; }
+.sol-destino label:hover { border-color: var(--indigo-300); }
+.sol-destino .opt-analise:has(input:checked) { border-color: var(--indigo-500); background: var(--indigo-50); box-shadow: 0 0 0 3px rgba(224, 226, 255, .6); }
+.sol-destino .opt-concluir:has(input:checked) { border-color: #10b981; background: #f0fdf6; box-shadow: 0 0 0 3px rgba(209, 250, 229, .7); }
+.sol-destino input:focus-visible + .ico { outline: 2px solid var(--indigo-500); outline-offset: 2px; }
+@media (max-width: 560px) { .sol-destino { grid-template-columns: 1fr; } }
