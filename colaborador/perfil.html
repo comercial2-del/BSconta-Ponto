@@ -7,6 +7,8 @@
   <link rel="icon" type="image/png" href="../assets/bsconta-icon.png" />
   <link rel="stylesheet" href="../css/styles.css" />
   <link rel="stylesheet" href="../css/theme-v2.css" />
+  <link rel="stylesheet" href="../css/dark-mode.css?v=20261006c" />
+  <script src="../js/theme.js?v=20261006c"></script>
 </head>
 <body>
   <div class="app-shell">
@@ -164,6 +166,14 @@
               <h3 style="font-size:0.95rem;margin:0 0 0.3rem">Notificações do navegador (push)</h3>
               <p class="page-sub" style="margin:0 0 0.9rem">Recebe o aviso mesmo com o sistema fechado — é o que faz o lembrete de bater ponto funcionar sem precisar deixar a aba aberta. É por dispositivo/navegador — ative em cada um que for usar.</p>
               <div id="push-status-wrap" style="max-width:520px"><p class="hint">Verificando suporte deste navegador…</p></div>
+
+              <hr style="margin:1.6rem 0;border:none;border-top:1px solid var(--border)" />
+              <h3 style="font-size:0.95rem;margin:0 0 0.3rem">Sistema</h3>
+              <p class="page-sub" style="margin:0 0 0.9rem">Aparência do sistema. Fica salvo neste navegador/dispositivo.</p>
+              <label class="switch-row" for="pref-modo-escuro">
+                <span class="switch-text"><strong>Modo escuro</strong><small>Deixa as telas com fundo escuro, mais confortável à noite.</small></span>
+                <span class="switch"><input type="checkbox" role="switch" id="pref-modo-escuro" ${window.bscontaTema && window.bscontaTema.get() === "dark" ? "checked" : ""} /><span class="switch-track"></span></span>
+              </label>
             </div>
           </div>
         </div>
@@ -214,6 +224,12 @@
         } catch (err) {
           showToast(rhMensagemErroSupabase(err), "error");
         }
+      });
+
+      document.getElementById("pref-modo-escuro").addEventListener("change", (e) => {
+        const escuro = e.target.checked;
+        if (window.bscontaTema) window.bscontaTema.set(escuro ? "dark" : "light");
+        showToast(escuro ? "Modo escuro ativado." : "Modo escuro desativado.", "success");
       });
 
       document.getElementById("btn-senha").addEventListener("click", () => {
