@@ -154,7 +154,7 @@ async function rhArquivarSolicitacao(id, origem, arquivar, porNome) {
 /** Altera só o status de uma solicitação (fluxo de acompanhamento do RH):
  *   PENDENTE -> EM_ANALISE  ("Mover para em análise")
  *   EM_ANALISE -> RESOLVIDA ("Concluir")
- *   RESOLVIDA/RECUSADA -> EM_ANALISE ("Reabrir em análise")
+ *   RESOLVIDA/RECUSADA -> PENDENTE ("Reabrir")
  * Usa os status que já existem no check constraint de rh.solicitacoes
  * (PENDENTE, EM_ANALISE, RESOLVIDA, RECUSADA) — não precisa de migração.
  * `origem` = "ferias" usa rh.ferias_solicitacoes (que também aceita
