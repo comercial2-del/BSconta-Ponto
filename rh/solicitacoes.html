@@ -21,7 +21,7 @@
 
   <div class="modal-overlay" id="modal-responder">
     <div class="modal">
-      <div class="modal-header"><h3>Responder solicitação</h3><button class="modal-close" data-close-modal></button></div>
+      <div class="modal-header"><h3 id="responder-titulo">Responder solicitação</h3><button class="modal-close" data-close-modal></button></div>
       <form id="form-responder">
         <div class="modal-body">
           <div id="responder-resumo" class="request-card" style="margin-bottom:1rem"></div>
@@ -29,8 +29,12 @@
             <label>Resposta</label>
             <textarea id="responder-texto" rows="4" required placeholder="Descreva o retorno para o colaborador..."></textarea>
           </div>
-          <div class="field full" style="margin-top:0.6rem">
-            <label class="check-row"><input type="checkbox" id="responder-resolver" checked /> Marcar solicitação como resolvida</label>
+          <div class="field full" style="margin-top:0.8rem">
+            <label>Depois de enviar, a conversa fica</label>
+            <div class="sol-destino">
+              <label class="opt-analise"><input type="radio" name="responder-destino" value="ANALISE" /><span class="ico" data-ico="edit"></span><span><strong>Em análise</strong><small>Ainda há pendência — continuo acompanhando</small></span></label>
+              <label class="opt-concluir"><input type="radio" name="responder-destino" value="CONCLUIR" checked /><span class="ico" data-ico="checkCircle"></span><span><strong>Concluída</strong><small>Sem pendências — pronta para arquivar</small></span></label>
+            </div>
           </div>
         </div>
         <div class="modal-footer">
@@ -56,6 +60,9 @@
     const session = await requireRoleReal("RH");
     if (!session) return;
     document.querySelector("#modal-responder .modal-close").innerHTML = ICONS.x;
+    document.querySelectorAll("#modal-responder [data-ico]").forEach((el) => (el.innerHTML = ICONS[el.dataset.ico] || ""));
+    // Nesta tela o fluxo é: Pendente -> Em análise -> Concluída -> Arquivada.
+    const LABELS_SOL = { ...STATUS_LABELS, RESOLVIDA: "Concluída" };
 
     let cacheSolicitacoes = [];
     let state = { categoria: "", status: "", prioridade: "", visao: "TODAS" };
@@ -74,7 +81,8 @@
         // Arquivadas não aparecem na lista principal — só na visão "Arquivadas".
         if (state.visao === "ARQUIVADAS") { if (!s.arquivado) return false; }
         else if (s.arquivado) return false;
-        if (state.visao === "PENDENTES" && !["PENDENTE", "EM_ANALISE"].includes(statusFiltro(s))) return false;
+        if (state.visao === "PENDENTES" && statusFiltro(s) !== "PENDENTE") return false;
+        if (state.visao === "EM_ANALISE" && statusFiltro(s) !== "EM_ANALISE") return false;
         if (state.visao === "APROVADAS" && statusFiltro(s) !== "RESOLVIDA") return false;
         if (state.visao === "RECUSADAS" && statusFiltro(s) !== "RECUSADA") return false;
         if (state.categoria && s.categoria !== state.categoria) return false;
@@ -90,11 +98,45 @@
       return `<span class="badge ${cls}">${label}</span>`;
     }
 
+    /** Botões do card, conforme o momento da conversa:
+     *  Pendente   -> Responder · Em análise · Arquivar · Excluir
+     *  Em análise -> Continuar atendimento · Concluir · Arquivar · Excluir
+     *  Concluída/Recusada -> Reabrir em análise · Arquivar · Excluir
+     *  Arquivada  -> Desarquivar · Excluir
+     * Férias mantêm Aprovar/Recusar (fluxo real com débito de saldo). */
+    function acoesHtml(s) {
+      const st = s.status;
+      const ghost = (cls, attrs, icon, label) => `<button type="button" class="btn-ghost ${cls}" ${attrs}>${icon || ""}<span>${label}</span></button>`;
+      const btns = [];
+      if (!s.arquivado) {
+        if (s.origem === "ferias") {
+          if (["PENDENTE", "EM_ANALISE", "PRE_APROVADA"].includes(st)) {
+            btns.push(`<div class="approve-reject">
+                    <button type="button" class="approve" data-aprovar-ferias="${s.id}" aria-label="Aprovar">${ICONS.check}</button>
+                    <button type="button" class="reject" data-recusar-ferias="${s.id}" aria-label="Recusar">${ICONS.x}</button>
+                  </div>`);
+          }
+          if (st === "PENDENTE") btns.push(ghost("analise", `data-status="${s.id}" data-status-origem="ferias" data-status-novo="EM_ANALISE"`, ICONS.edit, "Em análise"));
+        } else if (st === "PENDENTE") {
+          btns.push(`<button type="button" class="btn-primary auto" data-responder="${s.id}">${ICONS.send}<span>Responder</span></button>`);
+          btns.push(ghost("analise", `data-status="${s.id}" data-status-origem="geral" data-status-novo="EM_ANALISE"`, ICONS.edit, "Em análise"));
+        } else if (st === "EM_ANALISE") {
+          btns.push(`<button type="button" class="btn-primary auto" data-responder="${s.id}">${ICONS.messageSquare}<span>Continuar atendimento</span></button>`);
+          btns.push(ghost("concluir", `data-status="${s.id}" data-status-origem="geral" data-status-novo="RESOLVIDA"`, ICONS.checkCircle, "Concluir"));
+        } else {
+          btns.push(ghost("analise", `data-status="${s.id}" data-status-origem="geral" data-status-novo="EM_ANALISE"`, ICONS.edit, "Reabrir em análise"));
+        }
+      }
+      btns.push(ghost("", `data-arquivar="${s.id}" data-arquivar-origem="${s.origem}" data-arquivar-acao="${s.arquivado ? "0" : "1"}"`, s.arquivado ? ICONS.refresh : ICONS.archive, s.arquivado ? "Desarquivar" : "Arquivar"));
+      btns.push(ghost("danger", `data-excluir="${s.id}" data-excluir-origem="${s.origem}"`, ICONS.trash, "Excluir"));
+      return btns.join("");
+    }
+
     function render() {
       const ativas = cacheSolicitacoes.filter((s) => !s.arquivado);
-      const abertas = ativas.filter((s) => statusFiltro(s) !== "RESOLVIDA").length;
+      const abertas = ativas.filter((s) => statusFiltro(s) === "PENDENTE").length;
       const emAnalise = ativas.filter((s) => statusFiltro(s) === "EM_ANALISE").length;
-      const altaPrioridade = ativas.filter((s) => s.prioridade === "alta" && statusFiltro(s) !== "RESOLVIDA").length;
+      const altaPrioridade = ativas.filter((s) => s.prioridade === "alta" && ["PENDENTE", "EM_ANALISE"].includes(statusFiltro(s))).length;
       const resolvidas = ativas.filter((s) => statusFiltro(s) === "RESOLVIDA").length;
       const arquivadas = cacheSolicitacoes.filter((s) => s.arquivado).length;
       const categorias = [...new Set(cacheSolicitacoes.map((s) => s.categoria))];
@@ -111,13 +153,16 @@
           <div id="kpi-grid"></div>
 
           <div class="card card-p">
-            <div class="period-buttons" style="margin-bottom:.8rem;width:fit-content;max-width:100%">
-              ${[["TODAS", "Todas"], ["PENDENTES", "Pendentes"], ["APROVADAS", "Aprovadas"], ["RECUSADAS", "Recusadas"], ["ARQUIVADAS", `Arquivadas${arquivadas ? ` (${arquivadas})` : ""}`]]
+            <div class="period-buttons sol-tabs" style="margin-bottom:.8rem;width:fit-content;max-width:100%">
+              ${[["TODAS", "Todas"], ["PENDENTES", "Pendentes"], ["APROVADAS", "Concluídas"], ["RECUSADAS", "Recusadas"]]
                 .map(([v, l]) => `<button type="button" data-visao="${v}" class="${state.visao === v ? "active" : ""}">${l}</button>`).join("")}
+              <span class="tab-sep" aria-hidden="true"></span>
+              <button type="button" data-visao="EM_ANALISE" title="Conversas com pendência, ainda em acompanhamento" class="tab-analise ${emAnalise ? "has-items" : ""} ${state.visao === "EM_ANALISE" ? "active" : ""}">${ICONS.edit}<span>Em análise</span><span class="tab-count">${emAnalise}</span></button>
+              <button type="button" data-visao="ARQUIVADAS" title="Conversas finalizadas, sem acompanhamento" class="${state.visao === "ARQUIVADAS" ? "active" : ""}">${ICONS.archive}<span>Arquivadas</span><span class="tab-count">${arquivadas}</span></button>
             </div>
             <div class="filters-row" style="margin-bottom:1rem">
               <select id="f-categoria"><option value="">Todas as categorias</option>${categorias.map((c) => `<option>${esc(c)}</option>`).join("")}</select>
-              <select id="f-status"><option value="">Todos os status</option><option value="PENDENTE">Pendente</option><option value="EM_ANALISE">Em análise</option><option value="RESOLVIDA">Resolvida</option></select>
+              <select id="f-status"><option value="">Todos os status</option><option value="PENDENTE">Pendente</option><option value="EM_ANALISE">Em análise</option><option value="RESOLVIDA">Concluída</option><option value="RECUSADA">Recusada</option></select>
               <select id="f-prioridade"><option value="">Toda prioridade</option><option value="alta">Alta</option><option value="normal">Normal</option><option value="baixa">Baixa</option></select>
             </div>
             <div id="list-wrap" class="space-y"></div>
@@ -129,7 +174,7 @@
         { label: "Solicitações abertas", value: abertas, tone: "amber", icon: ICONS.messageSquare },
         { label: "Em análise", value: emAnalise, tone: "indigo", icon: ICONS.clock },
         { label: "Alta prioridade em aberto", value: altaPrioridade, tone: "red", icon: ICONS.alertCircle },
-        { label: "Resolvidas", value: resolvidas, tone: "green", icon: ICONS.checkCircle },
+        { label: "Concluídas", value: resolvidas, tone: "green", icon: ICONS.checkCircle },
       ]);
 
       document.querySelectorAll("[data-visao]").forEach((b) => b.addEventListener("click", () => {
@@ -153,7 +198,7 @@
         ? rows
             .map(
               (s) => `
-          <div class="request-card">
+          <div class="request-card ${!s.arquivado && statusFiltro(s) === "EM_ANALISE" ? "is-analise" : ""}">
             <div class="row-between">
               <div style="display:flex;align-items:center;gap:0.6rem">
                 <span class="avatar avatar-sm ${avatarColorClass(s.colaborador)}">${avatarInner(s.colaborador)}</span>
@@ -164,11 +209,12 @@
               </div>
               <div style="display:flex;align-items:center;gap:0.5rem">
                 ${prioridadeBadge(s.prioridade)}
-                ${statusBadgeHtml(s.status, STATUS_LABELS)}
+                ${statusBadgeHtml(s.status, LABELS_SOL)}
                 ${s.arquivado ? `<span class="status-badge status-ARQUIVADO" title="${s.arquivadoPor ? "Arquivada por " + esc(s.arquivadoPor) : ""}">${ICONS.archive}Arquivada</span>` : ""}
               </div>
             </div>
             <p style="margin:0.6rem 0 0;font-size:0.85rem;color:var(--text-muted)">${esc(s.descricao)}</p>
+            ${!s.arquivado && statusFiltro(s) === "EM_ANALISE" ? `<div class="sol-flag"><span class="dot"></span>Em acompanhamento — ainda há pendência neste atendimento</div>` : ""}
             ${
               s.respostas.length
                 ? `<div style="margin-top:0.6rem;padding-top:0.6rem;border-top:1px solid var(--surface-2)">
@@ -176,22 +222,7 @@
               </div>`
                 : ""
             }
-            <div style="margin-top:0.7rem;display:flex;justify-content:flex-end;align-items:center;gap:0.5rem">
-              ${
-                s.origem === "ferias"
-                  ? s.status === "PENDENTE" || s.status === "EM_ANALISE" || s.status === "PRE_APROVADA"
-                    ? `<div class="approve-reject">
-                    <button type="button" class="approve" data-aprovar-ferias="${s.id}" aria-label="Aprovar">${ICONS.check}</button>
-                    <button type="button" class="reject" data-recusar-ferias="${s.id}" aria-label="Recusar">${ICONS.x}</button>
-                  </div>`
-                    : ""
-                  : s.status !== "RESOLVIDA" && s.status !== "RECUSADA"
-                  ? `<button type="button" class="btn-primary auto" data-responder="${s.id}">${ICONS.send}<span>Responder</span></button>`
-                  : ""
-              }
-              <button type="button" class="btn-ghost" style="width:auto;padding:0.4rem 0.7rem" data-arquivar="${s.id}" data-arquivar-origem="${s.origem}" data-arquivar-acao="${s.arquivado ? "0" : "1"}">${s.arquivado ? ICONS.refresh : ICONS.archive}<span>${s.arquivado ? "Desarquivar" : "Arquivar"}</span></button>
-              <button type="button" class="btn-ghost danger" style="width:auto;padding:0.4rem 0.7rem" data-excluir="${s.id}" data-excluir-origem="${s.origem}">${ICONS.trash || ""}<span>Excluir</span></button>
-            </div>
+            <div class="sol-actions">${acoesHtml(s)}</div>
           </div>`
             )
             .join("")
@@ -205,12 +236,21 @@
           const arquivar = b.dataset.arquivarAcao === "1";
           const s = cacheSolicitacoes.find((x) => x.id === b.dataset.arquivar);
           if (arquivar) {
-            const ok = await confirmDialog({
-              title: "Arquivar solicitação",
-              message: `A solicitação ${s?.protocolo || ""} de ${s?.colaborador || "colaborador"} sai da lista principal, mas NÃO é excluída — continua disponível em "Arquivadas" e pode ser desarquivada.`,
-              confirmLabel: "Arquivar",
-              icon: ICONS.archive,
-            });
+            const pendente = s && ["PENDENTE", "EM_ANALISE"].includes(statusFiltro(s));
+            const ok = await confirmDialog(pendente
+              ? {
+                  title: statusFiltro(s) === "EM_ANALISE" ? "Esta conversa ainda está em análise" : "Esta conversa ainda não foi concluída",
+                  message: `A solicitação ${s.protocolo || ""} de ${s.colaborador || "colaborador"} ainda tem pendência. O ideal é concluí-la antes de arquivar. Deseja arquivar mesmo assim?`,
+                  confirmLabel: "Arquivar mesmo assim",
+                  icon: ICONS.alertCircle,
+                  danger: true,
+                }
+              : {
+                  title: "Arquivar solicitação",
+                  message: `A solicitação ${s?.protocolo || ""} de ${s?.colaborador || "colaborador"} sai da lista principal, mas NÃO é excluída — continua disponível em "Arquivadas" e pode ser desarquivada.`,
+                  confirmLabel: "Arquivar",
+                  icon: ICONS.archive,
+                });
             if (!ok) return;
           }
           b.disabled = true;
@@ -221,6 +261,32 @@
             render();
           } catch (err) {
             showToast(rhErroMigracao22(err), "error");
+            b.disabled = false;
+          }
+        })
+      );
+
+      document.querySelectorAll("[data-status]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          const s = cacheSolicitacoes.find((x) => x.id === b.dataset.status);
+          const novo = b.dataset.statusNovo;
+          if (novo === "RESOLVIDA") {
+            const ok = await confirmDialog({
+              title: "Concluir atendimento",
+              message: `Confirma que não há mais pendências na solicitação ${s?.protocolo || ""} de ${s?.colaborador || "colaborador"}? Ela sai de "Em análise" e fica pronta para ser arquivada.`,
+              confirmLabel: "Concluir",
+              icon: ICONS.checkCircle,
+            });
+            if (!ok) return;
+          }
+          b.disabled = true;
+          try {
+            await rhAlterarStatusSolicitacao(b.dataset.status, b.dataset.statusOrigem, novo);
+            await refrescarSolicitacoes();
+            showToast(novo === "RESOLVIDA" ? "Atendimento concluído. Já pode ser arquivado." : s && ["RESOLVIDA", "RECUSADA"].includes(s.status) ? "Conversa reaberta em análise." : "Conversa movida para Em análise.", "success");
+            render();
+          } catch (err) {
+            showToast(rhMensagemErroSupabase(err), "error");
             b.disabled = false;
           }
         })
@@ -258,7 +324,9 @@
             <p style="margin:0.3rem 0 0;font-size:0.83rem;color:var(--text-muted)">${esc(s.descricao)}</p>
           `;
           document.getElementById("responder-texto").value = "";
-          document.getElementById("responder-resolver").checked = true;
+          const continuando = s.status === "EM_ANALISE";
+          document.getElementById("responder-titulo").textContent = continuando ? "Continuar atendimento" : "Responder solicitação";
+          document.querySelector(`[name="responder-destino"][value="${continuando ? "ANALISE" : "CONCLUIR"}"]`).checked = true;
           openModal("modal-responder");
         })
       );
@@ -297,7 +365,7 @@
         e.preventDefault();
         const s = cacheSolicitacoes.find((x) => x.id === respondendoId);
         const texto = document.getElementById("responder-texto").value.trim();
-        const resolvendo = document.getElementById("responder-resolver").checked;
+        const resolvendo = document.querySelector('[name="responder-destino"]:checked')?.value === "CONCLUIR";
         if (!s || !texto) {
           closeModal("modal-responder");
           return;
@@ -314,12 +382,12 @@
             await rhResponderSolicitacaoGeral(s.id, { texto, autor, novoStatus: s.status });
             await rhResolverAjustePonto(s.id, true, autor);
           } else {
-            const novoStatus = resolvendo ? "RESOLVIDA" : s.status === "PENDENTE" ? "EM_ANALISE" : s.status;
+            const novoStatus = resolvendo ? "RESOLVIDA" : "EM_ANALISE";
             await rhResponderSolicitacaoGeral(s.id, { texto, autor, novoStatus });
           }
           await refrescarSolicitacoes();
           closeModal("modal-responder");
-          showToast("Resposta enviada ao colaborador.", "success");
+          showToast(resolvendo ? "Resposta enviada e atendimento concluído." : "Resposta enviada — conversa segue em análise.", "success");
           render();
         } catch (err) {
           showToast(rhMensagemErroSupabase(err), "error");
