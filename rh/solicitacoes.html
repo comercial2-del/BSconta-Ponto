@@ -101,7 +101,7 @@
     /** Botões do card, conforme o momento da conversa:
      *  Pendente   -> Responder · Em análise · Arquivar · Excluir
      *  Em análise -> Continuar atendimento · Concluir · Arquivar · Excluir
-     *  Concluída/Recusada -> Reabrir em análise · Arquivar · Excluir
+     *  Concluída/Recusada -> Reabrir (volta para Pendentes) · Arquivar · Excluir
      *  Arquivada  -> Desarquivar · Excluir
      * Férias mantêm Aprovar/Recusar (fluxo real com débito de saldo). */
     function acoesHtml(s) {
@@ -124,7 +124,7 @@
           btns.push(`<button type="button" class="btn-primary auto" data-responder="${s.id}">${ICONS.messageSquare}<span>Continuar atendimento</span></button>`);
           btns.push(ghost("concluir", `data-status="${s.id}" data-status-origem="geral" data-status-novo="RESOLVIDA"`, ICONS.checkCircle, "Concluir"));
         } else {
-          btns.push(ghost("analise", `data-status="${s.id}" data-status-origem="geral" data-status-novo="EM_ANALISE"`, ICONS.edit, "Reabrir em análise"));
+          btns.push(ghost("", `data-status="${s.id}" data-status-origem="geral" data-status-novo="PENDENTE" title="Volta para a aba Pendentes"`, ICONS.refresh, "Reabrir"));
         }
       }
       btns.push(ghost("", `data-arquivar="${s.id}" data-arquivar-origem="${s.origem}" data-arquivar-acao="${s.arquivado ? "0" : "1"}"`, s.arquivado ? ICONS.refresh : ICONS.archive, s.arquivado ? "Desarquivar" : "Arquivar"));
@@ -283,7 +283,7 @@
           try {
             await rhAlterarStatusSolicitacao(b.dataset.status, b.dataset.statusOrigem, novo);
             await refrescarSolicitacoes();
-            showToast(novo === "RESOLVIDA" ? "Atendimento concluído. Já pode ser arquivado." : s && ["RESOLVIDA", "RECUSADA"].includes(s.status) ? "Conversa reaberta em análise." : "Conversa movida para Em análise.", "success");
+            showToast(novo === "RESOLVIDA" ? "Atendimento concluído. Já pode ser arquivado." : novo === "PENDENTE" ? "Conversa reaberta — está agora em Pendentes." : "Conversa movida para Em análise.", "success");
             render();
           } catch (err) {
             showToast(rhMensagemErroSupabase(err), "error");
