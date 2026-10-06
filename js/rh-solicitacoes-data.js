@@ -150,3 +150,19 @@ async function rhArquivarSolicitacao(id, origem, arquivar, porNome) {
   if (error) throw error;
   return true;
 }
+
+/** Altera só o status de uma solicitação (fluxo de acompanhamento do RH):
+ *   PENDENTE -> EM_ANALISE  ("Mover para em análise")
+ *   EM_ANALISE -> RESOLVIDA ("Concluir")
+ *   RESOLVIDA/RECUSADA -> EM_ANALISE ("Reabrir em análise")
+ * Usa os status que já existem no check constraint de rh.solicitacoes
+ * (PENDENTE, EM_ANALISE, RESOLVIDA, RECUSADA) — não precisa de migração.
+ * `origem` = "ferias" usa rh.ferias_solicitacoes (que também aceita
+ * EM_ANALISE desde a migração 22). Não grava nada em `respostas`, pra não
+ * aparecer como mensagem para o colaborador. */
+async function rhAlterarStatusSolicitacao(id, origem, novoStatus) {
+  const tabela = origem === "ferias" ? "ferias_solicitacoes" : "solicitacoes";
+  const { error } = await sb.from(tabela).update({ status: novoStatus }).eq("id", id);
+  if (error) throw error;
+  return true;
+}
