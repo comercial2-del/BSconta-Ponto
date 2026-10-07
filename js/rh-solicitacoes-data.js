@@ -121,10 +121,21 @@ async function rhCarregarSolicitacoesRH() {
 async function rhResponderSolicitacaoGeral(id, { texto, autor, novoStatus }) {
   const { data: atual, error: getErr } = await sb.from("solicitacoes").select("respostas").eq("id", id).single();
   if (getErr) throw getErr;
-  const respostas = [...(atual.respostas || []), { autor, texto, data: rhHojeIsoSolic() }];
+  const respostas = [...(atual.respostas || []), { autor, texto, data: rhHojeIsoSolic(), origem: "RH" }];
   const { error } = await sb.from("solicitacoes").update({ respostas, status: novoStatus }).eq("id", id);
   if (error) throw error;
   return true;
+}
+
+/** Colaborador responde na MESMA solicitação (continuação da conversa com o
+ * RH). Passa pela função security definer rh.colaborador_responder_solicitacao
+ * (migração 32), que só acrescenta a mensagem em `respostas` — o colaborador
+ * continua sem update direto na tabela e não muda o status. */
+async function rhColaboradorResponderSolicitacao(id, texto) {
+  if (!texto || !texto.trim()) throw new Error("Escreva sua resposta.");
+  const { data, error } = await sb.rpc("colaborador_responder_solicitacao", { p_solicitacao_id: id, p_texto: texto.trim() });
+  if (error) throw error;
+  return data;
 }
 
 /** Exclui definitivamente uma solicitação da fila (RH/RH_ADMIN). `origem`
