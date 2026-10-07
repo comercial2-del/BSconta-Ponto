@@ -55,7 +55,7 @@
   <script src="../js/rh-supabase-auth.js"></script>
   <script src="../js/rh-ponto-data.js"></script>
   <script src="../js/rh-ferias-data.js"></script>
-  <script src="../js/rh-solicitacoes-data.js"></script>
+  <script src="../js/rh-solicitacoes-data.js?v=20261007a"></script>
   <script src="../js/rh-historia-data.js"></script>
   <script>
 (async function () {
@@ -216,11 +216,12 @@
               </div>
             </div>
             <p style="margin:0.6rem 0 0;font-size:0.85rem;color:var(--text-muted)">${esc(s.descricao)}</p>
+            ${!s.arquivado && s.respostas.length && s.respostas[s.respostas.length - 1].origem === "COLABORADOR" && !["RESOLVIDA", "RECUSADA"].includes(s.status) ? `<div class="sol-flag"><span class="dot"></span>Nova resposta do colaborador — aguardando retorno do RH</div>` : ""}
             ${!s.arquivado && statusFiltro(s) === "EM_ANALISE" ? `<div class="sol-flag"><span class="dot"></span>Em acompanhamento — ainda há pendência neste atendimento</div>` : ""}
             ${
               s.respostas.length
                 ? `<div style="margin-top:0.6rem;padding-top:0.6rem;border-top:1px solid var(--surface-2)">
-                ${s.respostas.map((r) => `<p style="margin:0;font-size:0.8rem"><strong>${esc(r.autor)}</strong> — ${esc(r.texto)} <span style="color:var(--text-faint)">(${fmtDate(r.data)})</span></p>`).join("")}
+                ${s.respostas.map((r) => `<p style="margin:0 0 0.25rem;font-size:0.8rem;${r.origem === "COLABORADOR" ? "padding-left:0.5rem;border-left:3px solid var(--primary, #2563eb)" : ""}"><strong>${esc(r.autor)}</strong> — ${esc(r.texto)} <span style="color:var(--text-faint)">(${fmtDate(r.data)})</span></p>`).join("")}
               </div>`
                 : ""
             }
