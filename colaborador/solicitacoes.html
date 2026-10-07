@@ -53,7 +53,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../js/supabase-client.js"></script>
   <script src="../js/rh-supabase-auth.js"></script>
-  <script src="../js/rh-solicitacoes-data.js"></script>
+  <script src="../js/rh-solicitacoes-data.js?v=20261007a"></script>
   <script>
 (async function () {
     const session = await requireRoleReal("COLABORADOR");
@@ -120,11 +120,64 @@
             ${statusBadgeHtml(s.status, STATUS_LABELS)}
           </div>
           <div class="meta-row"><span>${ICONS.calendar}${fmtDate(s.data)}</span></div>
-          ${s.respostas.length ? s.respostas.map((r) => `<div style="margin-top:0.7rem;padding:0.6rem 0.75rem;background:var(--surface-2);border-radius:9px;font-size:0.83rem"><strong>${esc(r.autor)}</strong> · ${fmtDate(r.data)}<p style="margin:0.2rem 0 0;color:var(--text-soft)">${esc(r.texto)}</p></div>`).join("") : ""}
+          ${s.respostas.length ? s.respostas.map((r) => {
+            const minha = r.origem === "COLABORADOR";
+            return `<div style="margin-top:0.7rem;padding:0.6rem 0.75rem;background:var(--surface-2);border-radius:9px;font-size:0.83rem;${minha ? "margin-left:1.5rem;border-left:3px solid var(--primary, #2563eb)" : ""}"><strong>${minha ? "Você" : esc(r.autor)}</strong> · ${fmtDate(r.data)}<p style="margin:0.2rem 0 0;color:var(--text-soft);white-space:pre-wrap">${esc(r.texto)}</p></div>`;
+          }).join("") : ""}
+          ${s.status !== "RESOLVIDA" && s.status !== "RECUSADA" ? `
+          <div class="sol-reply" style="margin-top:0.7rem">
+            <button type="button" class="btn-ghost" data-abrir-resposta="${s.id}" style="font-size:0.82rem">${ICONS.messageSquare}<span>Responder</span></button>
+            <form data-form-resposta="${s.id}" hidden style="margin-top:0.5rem">
+              <textarea required maxlength="2000" placeholder="Escreva sua resposta para o RH..." style="width:100%;min-height:80px"></textarea>
+              <div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:0.4rem">
+                <button type="button" class="btn-ghost" data-cancelar-resposta="${s.id}">Cancelar</button>
+                <button type="submit" class="btn-primary auto">${ICONS.send}<span>Enviar resposta</span></button>
+              </div>
+            </form>
+          </div>` : ""}
         </div>`
             )
             .join("")
         : emptyStateHtml({ icon: ICONS.messageSquare, title: "Nenhuma solicitação por aqui", desc: "Quando precisar, abra uma nova solicitação para o RH." });
+      wireRespostas();
+    }
+
+    function wireRespostas() {
+      document.querySelectorAll("[data-abrir-resposta]").forEach((b) =>
+        b.addEventListener("click", () => {
+          const form = document.querySelector(`[data-form-resposta="${b.dataset.abrirResposta}"]`);
+          form.hidden = false;
+          b.hidden = true;
+          form.querySelector("textarea").focus();
+        })
+      );
+      document.querySelectorAll("[data-cancelar-resposta]").forEach((b) =>
+        b.addEventListener("click", () => {
+          const id = b.dataset.cancelarResposta;
+          const form = document.querySelector(`[data-form-resposta="${id}"]`);
+          form.reset();
+          form.hidden = true;
+          document.querySelector(`[data-abrir-resposta="${id}"]`).hidden = false;
+        })
+      );
+      document.querySelectorAll("[data-form-resposta]").forEach((form) =>
+        form.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const texto = form.querySelector("textarea").value.trim();
+          if (!texto) return;
+          const btn = form.querySelector('button[type="submit"]');
+          btn.disabled = true;
+          try {
+            await rhColaboradorResponderSolicitacao(form.dataset.formResposta, texto);
+            await refrescarLista();
+            renderList();
+            showToast("Resposta enviada ao RH.", "success");
+          } catch (err) {
+            showToast(rhMensagemErroSupabase(err), "error");
+            btn.disabled = false;
+          }
+        })
+      );
     }
 
     document.getElementById("form-nova").addEventListener("submit", async (e) => {
