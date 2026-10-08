@@ -81,6 +81,11 @@
 @media(max-width:900px){.history-filter-bar{align-items:stretch;flex-direction:column}.history-period-control{justify-content:flex-start}.history-week{grid-template-columns:repeat(4,1fr)}}
 @media(max-width:640px){.history-week{grid-template-columns:repeat(2,1fr)}.history-filter-bar{padding:.8rem}.history-body{padding:.8rem}.history-period-tabs{width:100%}.history-period-tabs button{flex:1}.history-period-control{width:100%}.history-stepper,.history-range{width:100%;justify-content:space-between}.history-period-label{flex:1}.history-range input[type=date]{width:auto;min-width:0;flex:1}.history-month-grid,.history-month-head{gap:.25rem}.history-month-cell{min-height:40px}}
 </style>
+<style id="colaborador-ponto-mes">
+.history-month-cards{row-gap:.55rem}
+.history-month-cards .history-month-blank{min-height:98px}
+@media(max-width:900px){.history-month-cards .history-month-blank{display:none}}
+</style>
 <style id="colaborador-ponto-v2">
 /* ===== Ponto / Jornada v2 — cores da logo BSconta+ ===== */
 .ponto-page-narrow.pj-wide{max-width:1180px!important}
@@ -1513,21 +1518,15 @@ html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px r
       const firstDow = (new Date(ano, mes, 1).getDay() + 6) % 7;
       const hoje = todayIso();
 
+      // Visão mensal com os mesmos cartões da visão semanal (status, horários
+      // e local de cada dia), organizados em grade de 7 colunas.
       let cells = "";
-      for (let i = 0; i < firstDow; i++) cells += `<div class="history-month-cell blank"></div>`;
+      for (let i = 0; i < firstDow; i++) cells += `<div class="history-month-blank"></div>`;
       for (let d = 1; d <= daysInMonth; d++) {
         const iso = `${ano}-${String(mes + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-        const rec = porData(iso);
-        const isToday = iso === hoje;
-        const isSelected = iso === diaSelecionado;
-        const tituloCell = rec?.pendenteAjuste ? "Ajuste pendente — aguardando aprovação do RH" : rec?.alteradoPeloRH ? "Alterado pelo RH — " + esc(rec.alteradoPeloRH.motivo) : "Selecionar dia";
-        const abonoCell = (!rec || rec.status === "falta" || rec.status === "futuro") && !rec?.pendenteAjuste ? abonoDoDia(iso) : null;
-        const classeCell = abonoCell ? `abonado${isToday ? " hoje" : ""}` : diaClasse(rec, isToday);
-        cells += `<div class="history-month-cell clickable ${classeCell}${isSelected ? " selected" : ""}" data-dia="${iso}" title="${abonoCell ? "Abonado — " + esc(RH_TIPOS_ABONO[abonoCell.tipo]?.label || "") : tituloCell}"><span>${d}</span>${rec && rec.status !== "futuro" ? '<span class="dot"></span>' : ""}</div>`;
+        cells += weekDayCardHtml(iso, { selected: iso === diaSelecionado && iso !== hoje });
       }
-      wrap.innerHTML = `
-        <div class="history-month-head"><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span><span>Dom</span></div>
-        <div class="history-month-grid">${cells}</div>`;
+      wrap.innerHTML = `<div class="history-week history-month-cards">${cells}</div>`;
       wrap.querySelectorAll("[data-dia]").forEach((cell) =>
         cell.addEventListener("click", () => {
           diaSelecionado = cell.dataset.dia;
