@@ -430,7 +430,7 @@
           const done = !!s.hora;
           const isCurrent = !done && !currentSet;
           if (isCurrent) currentSet = true;
-          const sub = s.hora || (s.prev ? `prev. ${s.prev}` : isCurrent ? "Aguardando" : "—");
+          const sub = s.hora || (s.prev ? `prev. ${String(s.prev).slice(0, 5)}` : isCurrent ? "Aguardando" : "—");
           return `
           <div class="dbx-st ${done ? "done" : isCurrent ? "now" : ""}">
             <div class="dbx-dot">${done ? ICONS.check : i + 1}</div>
