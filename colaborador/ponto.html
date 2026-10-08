@@ -81,6 +81,143 @@
 @media(max-width:900px){.history-filter-bar{align-items:stretch;flex-direction:column}.history-period-control{justify-content:flex-start}.history-week{grid-template-columns:repeat(4,1fr)}}
 @media(max-width:640px){.history-week{grid-template-columns:repeat(2,1fr)}.history-filter-bar{padding:.8rem}.history-body{padding:.8rem}.history-period-tabs{width:100%}.history-period-tabs button{flex:1}.history-period-control{width:100%}.history-stepper,.history-range{width:100%;justify-content:space-between}.history-period-label{flex:1}.history-range input[type=date]{width:auto;min-width:0;flex:1}.history-month-grid,.history-month-head{gap:.25rem}.history-month-cell{min-height:40px}}
 </style>
+<style id="colaborador-ponto-v2">
+/* ===== Ponto / Jornada v2 — cores da logo BSconta+ ===== */
+.ponto-page-narrow{max-width:1180px!important;--pj-navy:#163A8C;--pj-sky:#29A3E6;--pj-soft:#EAF4FD;--pj-sh:0 1px 2px rgba(15,23,42,.04),0 4px 16px -6px rgba(15,23,42,.08)}
+html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px rgba(0,0,0,.3)}
+.pj svg,.pj-tabs svg{width:18px;height:18px;flex-shrink:0}
+/* Abas */
+.pj-tabs-wrap{display:flex;margin-bottom:6px}
+.pj-tabs.tabs{display:inline-flex;gap:4px;padding:5px;border:1px solid var(--border)!important;background:var(--surface);border-radius:14px;box-shadow:var(--pj-sh);overflow-x:auto}
+.pj-tabs .tab-btn{border-radius:10px;padding:9px 16px;min-height:0;font-size:13px;font-weight:600;color:var(--text-faint);gap:2px}
+.pj-tabs .tab-btn::after{display:none!important}
+.pj-tabs .tab-btn:hover:not(.active){color:var(--text);background:var(--surface-2)}
+.pj-tabs .tab-btn.active,html[data-theme="dark"] .pj-tabs .tab-btn.active{background:linear-gradient(135deg,var(--pj-navy),var(--pj-sky));color:#fff;box-shadow:0 6px 14px -6px rgba(22,58,140,.7)}
+.pj{display:flex;flex-direction:column;gap:20px}
+/* Card principal */
+.pj-hero{position:relative;overflow:hidden;border-radius:22px;padding:30px 32px;display:grid;grid-template-columns:1fr auto;gap:36px;align-items:center;
+  background:radial-gradient(circle at 100% 0%,var(--pj-soft),transparent 42%),var(--surface);border:1px solid var(--border);box-shadow:var(--pj-sh)}
+.pj-hero:before{content:"";position:absolute;left:0;right:0;top:0;height:4px;background:linear-gradient(90deg,var(--pj-navy),var(--pj-sky),#6EE7B7)}
+.pj-hero:after{content:"";position:absolute;right:250px;top:28px;bottom:28px;width:1px;background:var(--border)}
+.pj-chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.pj-chip{display:inline-flex;gap:6px;align-items:center;padding:5px 11px;border-radius:99px;font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--surface-2);color:var(--text-soft)}
+.pj-chip svg{width:14px;height:14px}
+.pj-chip .geo-link{display:inline-flex;color:var(--pj-sky)}
+.pj-chip .live{display:none;width:7px;height:7px;border-radius:50%;background:currentColor}
+.pj-chip.tone-active{background:var(--emerald-50);color:var(--emerald-700);border-color:transparent}
+.pj-chip.tone-active .live{display:block;background:var(--emerald-500);animation:pj-pulse 1.8s infinite}
+.pj-chip.tone-pause{background:var(--amber-50);color:var(--amber-700);border-color:transparent}.pj-chip.tone-pause .live{display:block}
+.pj-chip.tone-done{background:var(--pj-soft);color:var(--pj-sky);border-color:transparent}
+.pj-chip.tone-wait,.pj-chip.tone-offline{background:var(--red-50);color:var(--red-700);border-color:transparent}.pj-chip.tone-wait .live,.pj-chip.tone-offline .live{display:block}
+.pj-chip.ho{background:var(--violet-50);color:var(--violet-600);border-color:transparent}
+.pj-chip.pres{background:var(--teal-50);color:var(--teal-700);border-color:transparent}
+@keyframes pj-pulse{0%{box-shadow:0 0 0 0 rgba(16,185,129,.6)}70%{box-shadow:0 0 0 7px rgba(16,185,129,0)}100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}}
+.pj-clock{display:flex;align-items:flex-end;gap:18px;margin:20px 0 6px}
+.pj-clock b{font-size:64px;font-weight:800;letter-spacing:-.045em;line-height:.9;font-variant-numeric:tabular-nums;color:var(--text)}
+.pj-clock b small{font-size:24px;font-weight:700;color:var(--pj-sky);letter-spacing:-.02em;margin-left:2px}
+.pj-clock>span{font-size:13.5px;color:var(--text-faint);padding-bottom:6px;line-height:1.45}
+.pj-clock>span strong{color:var(--text)}
+.pj-greet{font-size:14px;color:var(--text-soft);margin:0}
+.pj-cta-wrap{max-width:440px}
+.pj-hero .ponto-cta-btn{margin-top:22px;width:auto;display:inline-flex;padding:15px 24px;border-radius:16px;font-size:15px;
+  background:linear-gradient(135deg,var(--pj-navy),var(--pj-sky));box-shadow:0 14px 28px -14px rgba(22,58,140,.9)}
+.pj-hero .ponto-cta-btn svg{width:19px;height:19px}
+.pj-hero .ponto-cta-btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 18px 32px -14px rgba(22,58,140,1)}
+.pj-hero .ponto-cta-btn.pause-variant{background:linear-gradient(135deg,var(--pj-navy),var(--pj-sky));box-shadow:0 14px 28px -14px rgba(22,58,140,.9)}
+.pj-hero .ponto-cta-btn.done-variant{background:var(--surface-2);color:var(--text-faint);box-shadow:none;border:1px solid var(--border)}
+.pj-hero .ponto-cta-hint{text-align:left;margin-top:10px;font-size:12px}
+.pj-hero .offline-banner{margin-top:12px}
+.pj-ring{position:relative;width:200px;height:200px}
+.pj-ring svg{width:200px;height:200px;transform:rotate(-90deg)}
+.pj-ring circle{fill:none;stroke-width:14;stroke-linecap:round}
+.pj-ring .bg{stroke:var(--border)}
+.pj-ring .fg{stroke:url(#pj-rg);animation:pj-ring 1.4s ease-out forwards}
+@keyframes pj-ring{to{stroke-dashoffset:var(--off)}}
+.pj-ring-c{position:absolute;inset:0;display:grid;place-content:center;text-align:center}
+.pj-ring-c small{font-size:10.5px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.07em;font-weight:700}
+.pj-ring-c b{font-size:38px;font-weight:800;letter-spacing:-.03em;line-height:1.1;color:var(--text)}
+.pj-ring-c span{font-size:12px;color:var(--text-faint)}
+.pj-ring-c em{font-style:normal;color:var(--pj-sky);font-weight:700}
+/* Cards */
+.pj-card{background:var(--surface);border:1px solid var(--border);border-radius:18px;box-shadow:var(--pj-sh)}
+.pj-card-h{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:18px}
+.pj-card-h h3{font-size:15px;font-weight:700;display:flex;gap:10px;align-items:center;margin:0}
+.pj-ic{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;flex-shrink:0}
+.pj-ic.brand{background:var(--pj-soft);color:var(--pj-sky)}.pj-ic.green{background:var(--emerald-50);color:var(--emerald-600)}
+.pj-ic.red{background:var(--red-50);color:var(--red-600)}.pj-ic.amber{background:var(--amber-50);color:var(--amber-600)}.pj-ic.violet{background:var(--violet-50);color:var(--violet-600)}
+.pj-tag{font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px}
+.pj-tag.info{background:var(--pj-soft);color:var(--pj-sky)}.pj-tag.neg{background:var(--red-50);color:var(--red-700)}.pj-tag.ok{background:var(--emerald-50);color:var(--emerald-700)}
+.pj-timeline{padding:24px}
+.pj-steps{display:grid;grid-template-columns:repeat(4,1fr);position:relative;margin:4px 0 24px}
+.pj-steps:before,.pj-steps:after{content:"";position:absolute;top:23px;left:12.5%;height:4px;border-radius:4px}
+.pj-steps:before{right:12.5%;background:var(--border)}
+.pj-steps:after{width:var(--pj-prog,0%);background:linear-gradient(90deg,var(--emerald-500),var(--pj-sky));transition:width .6s}
+.pj-st{text-align:center;position:relative;z-index:1}
+.pj-dot{width:48px;height:48px;border-radius:50%;margin:0 auto 12px;display:grid;place-items:center;font-weight:700;background:var(--surface);border:2px solid var(--border);color:var(--text-faint)}
+.pj-dot svg{width:20px;height:20px}
+.pj-st.done .pj-dot{background:var(--emerald-500);border-color:var(--emerald-500);color:#fff;box-shadow:0 8px 18px -6px rgba(16,185,129,.6)}
+.pj-st.now .pj-dot{border-color:var(--pj-sky);color:var(--pj-sky);box-shadow:0 0 0 6px var(--pj-soft)}
+.pj-st b{display:block;font-size:13.5px}
+.pj-st .t{font-size:20px;font-weight:800;margin-top:4px;font-variant-numeric:tabular-nums}
+.pj-st .p{font-size:11.5px;color:var(--text-faint);margin-top:2px}
+.pj-st.now b,.pj-st.now .t{color:var(--pj-sky)}
+.pj-st.todo .t{color:var(--text-faint);font-weight:600;font-size:16px}
+.pj-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.pj-stat{background:var(--surface-2);border:1px solid var(--border);border-radius:14px;padding:14px 16px}
+.pj-stat span{font-size:11px;color:var(--text-faint);font-weight:700;text-transform:uppercase;letter-spacing:.05em;display:flex;gap:6px;align-items:center}
+.pj-stat span svg{width:14px;height:14px}
+.pj-stat b{display:block;font-size:22px;font-weight:800;margin-top:6px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.pj-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.pj-box{padding:22px;display:flex;flex-direction:column}
+.pj-bank-top{display:flex;align-items:center;gap:16px;margin-bottom:16px}
+.pj-bank-val{font-size:34px;font-weight:800;letter-spacing:-.03em;line-height:1}
+.pj .neg{color:var(--red-600)}.pj .pos{color:var(--emerald-600)}
+.pj-muted{color:var(--text-faint);font-size:12.5px}
+.pj-calc{border:1px solid var(--border);border-radius:14px;overflow:hidden}
+.pj-calc div{display:flex;justify-content:space-between;padding:10px 14px;font-size:13px;border-bottom:1px solid var(--border)}
+.pj-calc div:last-child{border:0;background:var(--surface-2);font-weight:700}
+.pj-calc b{font-variant-numeric:tabular-nums}
+.pj-note{font-size:11.5px;color:var(--text-faint);margin:10px 0 0;line-height:1.45}
+.pj-next{display:flex;flex-direction:column;gap:6px}
+.pj-nx{display:flex;gap:12px;align-items:center;padding:12px;border-radius:12px;border:1px solid transparent}
+.pj-nx.cur{background:var(--pj-soft);border-color:rgba(41,163,230,.35)}
+.pj-nx .pj-ic{width:34px;height:34px}
+.pj-nx .tx{flex:1}.pj-nx b{font-size:13.5px;display:block}.pj-nx small{color:var(--text-faint);font-size:12px}
+.pj-nx .hr{font-weight:800;font-variant-numeric:tabular-nums}
+.pj-done{display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;padding:16px 0;color:var(--text-faint);font-size:12.5px}
+.pj-done svg{width:34px;height:34px;color:var(--emerald-500);margin-bottom:4px}.pj-done b{color:var(--text);font-size:14px}
+.pj-last{margin:auto 0 0;padding-top:14px;font-size:12px;color:var(--text-faint);display:flex;align-items:center;gap:7px}
+.pj-last i{width:8px;height:8px;border-radius:50%;background:var(--emerald-500);box-shadow:0 0 0 3px var(--emerald-50)}
+.pj-last b{color:var(--text)}
+.pj-text{color:var(--text-faint);font-size:13px;line-height:1.5;margin:0;flex:1}
+.pj-tips{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.pj-tips div{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:var(--text-soft)}
+.pj-tips svg{width:15px;height:15px;color:var(--emerald-500);margin-top:1px}
+.pj-btn{display:flex;justify-content:center;align-items:center;gap:8px;border:0;border-radius:12px;padding:12px;font-weight:700;font-size:13.5px;cursor:pointer;font-family:inherit;margin-top:16px;
+  background:linear-gradient(135deg,var(--pj-navy),var(--pj-sky));color:#fff;box-shadow:0 10px 20px -10px rgba(22,58,140,.8);transition:.18s}
+.pj-btn:hover{transform:translateY(-2px)}
+.pj-fade{opacity:0;transform:translateY(10px);animation:pj-in .5s ease-out forwards}
+@keyframes pj-in{to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.pj-fade,.pj-ring .fg{animation-duration:.01s}}
+/* Histórico — cores da marca */
+.history-period-tabs button.active{background:linear-gradient(135deg,var(--pj-navy),var(--pj-sky))!important;box-shadow:0 4px 10px -4px rgba(22,58,140,.6)!important}
+.history-day-card{border-radius:14px}
+.history-day-card.is-today,.history-day-card.is-selected{border-color:var(--pj-sky)!important;box-shadow:0 0 0 3px var(--pj-soft)!important}
+.history-day-card .hoje-chip{background:var(--pj-sky)}
+.history-month-cell.hoje{box-shadow:0 0 0 2px var(--pj-sky)}
+.history-month-cell.selected{border-color:var(--pj-sky)}
+@media (max-width:1100px){.pj-grid3{grid-template-columns:1fr 1fr}}
+@media (max-width:820px){
+  .pj-hero{grid-template-columns:1fr;padding:22px;text-align:center}.pj-hero:after{display:none}
+  .pj-chips{justify-content:center}.pj-clock{flex-direction:column;align-items:center;gap:6px}.pj-clock b{font-size:54px}
+  .pj-cta-wrap{max-width:none}.pj-hero .ponto-cta-btn{width:100%;justify-content:center}.pj-hero .ponto-cta-hint{text-align:center}
+  .pj-ring{margin:0 auto}
+  .pj-stats,.pj-grid3{grid-template-columns:1fr 1fr}
+  .pj-dot{width:40px;height:40px}.pj-steps:before,.pj-steps:after{top:19px}.pj-st .t{font-size:15px}.pj-st b{font-size:12px}
+  .pj-tabs.tabs{width:100%}.pj-tabs .tab-btn{flex:1;justify-content:center;padding:9px 8px}
+}
+@media (max-width:560px){.pj-grid3{grid-template-columns:1fr}}
+</style>
 
 </head>
 <body>
@@ -355,8 +492,8 @@
             </div>
           </div>
 
-          <div class="card card-p" style="padding:0.4rem">
-            <div class="tabs" style="border-bottom:none">
+          <div class="pj-tabs-wrap">
+            <div class="tabs pj-tabs">
               <button type="button" class="tab-btn ${abaAtiva === "hoje" ? "active" : ""}" data-aba="hoje">${ICONS.clock}<span style="margin-left:0.4rem">Hoje</span></button>
               <button type="button" class="tab-btn ${abaAtiva === "historico" ? "active" : ""}" data-aba="historico">${ICONS.calendar}<span style="margin-left:0.4rem">Histórico</span></button>
               <button type="button" class="tab-btn ${abaAtiva === "abonos" ? "active" : ""}" data-aba="abonos">${ICONS.clipboardCheck}<span style="margin-left:0.4rem">Abonos</span>${faltasParaJustificar().length ? `<span class="badge badge-red" style="margin-left:0.4rem">${faltasParaJustificar().length}</span>` : ""}</button>
@@ -638,127 +775,108 @@
           <p class="ponto-cta-hint${avisoIntervalo ? " is-error" : ""}" id="cta-hint">${esc(avisoIntervalo || [dicaIntervalo, "Clique no botão para registrar seu ponto no horário atual."].filter(Boolean).join(" "))}</p>`;
       }
 
+      // Resumo do dia para o card principal (anel + números).
+      const meta = Number(p.metaDiaria) || 0;
+      const pctHoje = meta && horasHoje != null ? Math.min(100, Math.max(0, (horasHoje / meta) * 100)) : 0;
+      const faltam = meta && horasHoje != null ? Math.max(0, meta - horasHoje) : null;
+      const toMin = (hhmm) => { if (!hhmm) return null; const [h, m] = String(hhmm).split(":").map(Number); return h * 60 + m; };
+      const fmtHHMM = (min) => `${String(Math.floor(min / 60) % 24).padStart(2, "0")}:${String(Math.round(min) % 60).padStart(2, "0")}`;
+      const intervaloMin = p.hoje.intervaloSaida && p.hoje.intervaloVolta
+        ? Math.max(0, toMin(p.hoje.intervaloVolta) - toMin(p.hoje.intervaloSaida))
+        : (Number(p.intervaloCadastradoMin) || 60);
+      const saidaEstimada = p.hoje.saida || (p.hoje.entrada && meta ? fmtHHMM(toMin(p.hoje.entrada) + meta * 60 + intervaloMin) : (session.horarioPrevisto?.saida ? String(session.horarioPrevisto.saida).slice(0, 5) : null));
+      const previstoPorPasso = {
+        entrada: session.horarioPrevisto?.entrada ? String(session.horarioPrevisto.entrada).slice(0, 5) : null,
+        intervaloSaida: previsto.saida,
+        intervaloVolta: previsto.volta,
+        saida: saidaEstimada,
+      };
+      const feitos = steps.filter((s) => s.hora).length;
+      const saldo = Number(p.saldoBancoHoras) || 0;
+      const RING_C = 2 * Math.PI * 85;
+      const diaSemanaCap = diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1);
+      const subtituloProximo = { entrada: "início da jornada", intervaloSaida: "pausa para o intervalo", intervaloVolta: "volta do intervalo", saida: "fim da jornada" };
+      const corPasso = { entrada: "brand", intervaloSaida: "brand", intervaloVolta: "amber", saida: "green" };
+
       document.getElementById("aba-conteudo").innerHTML = `
-        <div class="ponto-hoje-grid">
-          <div class="ponto-hoje-main">
-            <div class="card card-p ponto-greet-card">
-              <div class="ponto-greet-top">
-                <div class="ponto-greet-person">
-                  <span class="avatar avatar-md ${avatarColorClass(session.name)}">${session.photo ? `<img src="${session.photo}" alt="" />` : initials(session.name)}</span>
-                  <div>
-                    <h2>${esc(saudacaoPorHora())}, ${esc(primeiroNome)}!</h2>
-                    <p>Que seu dia seja produtivo!</p>
-                  </div>
-                </div>
-                <div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.4rem">
-                  <span class="jornada-status-badge tone-${status.tone}"><span class="dot"></span>${status.label}</span>
-                  ${p.hoje.local ? localBadgeHtml(p.hoje.local) + (p.hoje.geo ? geoLinkHtml(p.hoje.geo) : "") : ""}
-                </div>
+        <div class="pj">
+          <section class="pj-hero pj-fade">
+            <div class="pj-hero-main">
+              <div class="pj-chips">
+                <span class="pj-chip tone-${status.tone}"><i class="live"></i>${status.label}</span>
+                ${p.hoje.local ? `<span class="pj-chip ${p.hoje.local === "HOME_OFFICE" ? "ho" : "pres"}">${p.hoje.local === "HOME_OFFICE" ? ICONS.home : ICONS.building}${LOCAL_PONTO_LABELS[p.hoje.local]}</span>` : ""}
+                ${p.hoje.geo ? `<span class="pj-chip">${geoLinkHtml(p.hoje.geo)}Localização registrada</span>` : ""}
               </div>
-              <div class="ponto-clock-row">
-                <div class="ponto-clock-big" id="ponto-clock">${horaAgora()}</div>
-                <div class="ponto-clock-meta">
-                  <span class="ponto-clock-date">${ICONS.calendar}${dataFmt}</span>
-                  <span class="ponto-dow-chip">${diaSemana}</span>
-                </div>
+              <div class="pj-clock">
+                <b><span id="ponto-clock">${horaAgora()}</span><small id="ponto-clock-s">:${String(agora.getSeconds()).padStart(2, "0")}</small></b>
+                <span><strong>${esc(diaSemanaCap)}</strong><br>${esc(dataFmt)}</span>
               </div>
-              ${ctaHtml}
+              <p class="pj-greet">${esc(saudacaoPorHora())}, ${esc(primeiroNome)}! Que seu dia seja produtivo.</p>
+              <div class="pj-cta-wrap">${ctaHtml}</div>
             </div>
+            <div class="pj-ring">
+              <svg viewBox="0 0 200 200">
+                <defs><linearGradient id="pj-rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#163A8C"/><stop offset="1" stop-color="#29A3E6"/></linearGradient></defs>
+                <circle class="bg" cx="100" cy="100" r="85"/>
+                <circle class="fg" cx="100" cy="100" r="85" style="stroke-dasharray:${RING_C};stroke-dashoffset:${RING_C};--off:${RING_C * (1 - pctHoje / 100)}"/>
+              </svg>
+              <div class="pj-ring-c"><small>Trabalhadas hoje</small><b>${horasHoje == null ? "—" : fmtHoras(horasHoje).replace(/[hm]$/, "")}</b><span>${meta ? `de ${fmtHoras(meta)} · <em>${Math.round(pctHoje)}%</em>` : "hoje"}</span></div>
+            </div>
+          </section>
 
-            <div class="card card-p">
-              <h2>Registros de hoje</h2>
-              <div class="punch-track" id="punch-track" style="margin-top:0.8rem"></div>
-              <div class="ponto-summary-row">
-                <div class="ponto-summary-item">
-                  <span class="label">${ICONS.clock}Horas trabalhadas hoje</span>
-                  <strong>${horasHoje === null ? "—" : fmtHoras(horasHoje)}</strong>
-                </div>
-                <div class="ponto-summary-item">
-                  <span class="label">${ICONS.calendar}Jornada prevista</span>
-                  <strong>${fmtHoras(p.metaDiaria)}</strong>
-                </div>
+          <section class="pj-card pj-timeline pj-fade">
+            <div class="pj-card-h"><h3><span class="pj-ic brand">${ICONS.timeline}</span>Registros de hoje</h3><span class="pj-tag info">${feitos} de 4 registros</span></div>
+            <div class="pj-steps" id="punch-track" style="--pj-prog:${Math.min(feitos, 3) * 25}%"></div>
+            <div class="pj-stats">
+              <div class="pj-stat"><span>${ICONS.clock}Trabalhadas</span><b>${horasHoje == null ? "—" : fmtHoras(horasHoje)}</b></div>
+              <div class="pj-stat"><span>${ICONS.calendar}Jornada prevista</span><b>${meta ? fmtHoras(meta) : "—"}</b></div>
+              <div class="pj-stat"><span>${ICONS.hourglass}Faltam</span><b>${faltam == null ? "—" : faltam === 0 ? "Concluída" : fmtHoras(faltam)}</b></div>
+              <div class="pj-stat"><span>${ICONS.logout}${p.hoje.saida ? "Saída" : "Saída estimada"}</span><b>${saidaEstimada || "—"}</b></div>
+            </div>
+          </section>
+
+          <div class="pj-grid3">
+            <section class="pj-card pj-box pj-fade">
+              <div class="pj-card-h"><h3><span class="pj-ic ${saldo < 0 ? "red" : "green"}">${ICONS.hourglass}</span>Banco de horas</h3>${saldo < 0 ? '<span class="pj-tag neg">a compensar</span>' : saldo > 0 ? '<span class="pj-tag ok">saldo positivo</span>' : '<span class="pj-tag ok">em dia</span>'}</div>
+              <div class="pj-bank-top"><div class="pj-bank-val ${saldo < 0 ? "neg" : saldo > 0 ? "pos" : ""}">${fmtDuracao(saldo, { sinal: true })}</div><div class="pj-muted">saldo do mês<br>meta ${fmtHoras(p.metaDiaria)} por dia útil</div></div>
+              <div class="pj-calc">
+                <div><span>Horas acumuladas (extras)</span><b class="pos">${horasAcumuladas > 0 ? fmtDuracao(horasAcumuladas, { sinal: true }) : "—"}</b></div>
+                <div><span>Horas devendo (atrasos)</span><b class="neg">${horasDevendo > 0 ? fmtDuracao(-horasDevendo) : "—"}</b></div>
+                <div><span>Saldo final</span><b class="${saldo < 0 ? "neg" : saldo > 0 ? "pos" : ""}">${fmtDuracao(saldo, { sinal: true })}</b></div>
               </div>
-            </div>
-          </div>
+              <p class="pj-note">As horas acumuladas já são usadas para abater as horas devendo. O saldo final é o que vale.</p>
+            </section>
 
-          <aside class="ponto-hoje-side">
-            <div class="card card-p ponto-side-card">
-              <h2>${ICONS.clock}Último registro</h2>
-              ${
-                ultimoFeito
-                  ? `<div class="ponto-last-record">
-                      <div class="dot-line"><span class="dot"></span></div>
-                      <div>
-                        <p class="label">${ultimoFeito.label}</p>
-                        <p class="time">${ultimoFeito.hora} · ${dataFmt}</p>
-                      </div>
-                    </div>`
-                  : `<p class="empty">Nenhum registro ainda hoje.</p>`
-              }
-            </div>
-
-            <div class="card card-p ponto-side-card">
-              <h2>${ICONS.calendar}Próximos registros</h2>
+            <section class="pj-card pj-box pj-fade">
+              <div class="pj-card-h"><h3><span class="pj-ic violet">${ICONS.calendar}</span>Próximos registros</h3></div>
               ${
                 proximos.length
-                  ? `<ul class="ponto-next-list">
-                      ${proximos
-                        .map((s, i) => {
-                          const previstoHora = s.key === "intervaloSaida" ? previsto.saida : s.key === "intervaloVolta" ? previsto.volta : null;
-                          return `<li class="${i === 0 ? "is-next" : ""}">
-                            <span class="ico">${iconePasso(s.key)}</span>
-                            <div>
-                              <p class="label">${s.label}</p>
-                              <p class="time">${previstoHora ? previstoHora : "Ainda não registrado"}</p>
-                            </div>
-                          </li>`;
-                        })
-                        .join("")}
-                    </ul>`
-                  : `<p class="empty">Nenhum registro pendente — jornada concluída.</p>`
+                  ? `<div class="pj-next">${proximos.map((s, i) => `
+                      <div class="pj-nx ${i === 0 ? "cur" : ""}">
+                        <span class="pj-ic ${corPasso[s.key]}">${iconePasso(s.key)}</span>
+                        <div class="tx"><b>${s.label}</b><small>${i === 0 ? "próximo registro" : subtituloProximo[s.key]}</small></div>
+                        <span class="hr">${previstoPorPasso[s.key] || "—"}</span>
+                      </div>`).join("")}</div>`
+                  : `<div class="pj-done">${ICONS.checkCircle}<b>Jornada concluída</b><span>Nenhum registro pendente hoje.</span></div>`
               }
-            </div>
+              ${ultimoFeito ? `<p class="pj-last"><i></i>Último registro: <b>${ultimoFeito.label}</b> às ${ultimoFeito.hora}</p>` : ""}
+            </section>
 
-            <div class="ponto-tip-card">
-              <h3>Sua jornada</h3>
-              <p>Fique atento aos seus horários e registre seu ponto corretamente.</p>
-              <span class="tip-icon">${ICONS.clock}</span>
-            </div>
-
-            <div class="card card-p ponto-side-card ponto-bank-mini">
-              <div class="bank-hours-ring-wrap">${progressRingSvg({ size: 62, stroke: 7, pct: Math.min((p.saldoBancoHoras / 10) * 100, 100), colorVar: "--indigo-500" })}
-                <div class="bank-hours-center"><strong>${fmtDuracao(p.saldoBancoHoras, { sinal: true })}</strong><span>Banco</span></div>
+            <section class="pj-card pj-box pj-fade">
+              <div class="pj-card-h"><h3><span class="pj-ic amber">${ICONS.edit}</span>Ajustar ponto</h3></div>
+              <p class="pj-text">Esqueceu de bater ou registrou um horário errado? Solicite a correção ou o lançamento atrasado. O RH analisa e confirma.</p>
+              <div class="pj-tips">
+                <div>${ICONS.check}Bata o ponto sempre no horário certo</div>
+                <div>${ICONS.check}Permita a localização ao registrar a entrada</div>
               </div>
-              <div class="bank-meta">
-                <p class="label">Meta diária</p>
-                <p class="value">${fmtHoras(p.metaDiaria)} por dia útil</p>
-              </div>
-            </div>
-
-            <div class="card card-p ponto-side-card">
-              <h2>${ICONS.calendar}Detalhe do banco de horas</h2>
-              <div class="ponto-summary-row" style="margin-top:0.6rem">
-                <div class="ponto-summary-item">
-                  <span class="label">Horas devendo</span>
-                  <strong${horasDevendo > 0 ? ' style="color:var(--red-600)"' : ""}>${horasDevendo > 0 ? fmtDuracao(-horasDevendo) : "—"}</strong>
-                </div>
-                <div class="ponto-summary-item">
-                  <span class="label">Horas acumuladas</span>
-                  <strong${horasAcumuladas > 0 ? ' style="color:var(--emerald-600)"' : ""}>${horasAcumuladas > 0 ? fmtDuracao(horasAcumuladas, { sinal: true }) : "—"}</strong>
-                </div>
-              </div>
-            </div>
-
-            <div class="card card-p ponto-side-card">
-              <h2>${ICONS.edit}Ajustar ponto</h2>
-              <p class="empty" style="margin:0 0 0.85rem">Esqueceu de bater ou registrou um horário errado? Solicite a correção ou o lançamento atrasado — o RH analisa e confirma.</p>
-              <button type="button" class="btn-ghost" id="btn-ajustar-ponto" style="width:100%;justify-content:center">${ICONS.edit}<span>Solicitar ajuste de ponto</span></button>
-            </div>
-          </aside>
+              <button type="button" class="pj-btn" id="btn-ajustar-ponto">${ICONS.edit}<span>Solicitar ajuste de ponto</span></button>
+            </section>
+          </div>
         </div>
       `;
 
-      document.getElementById("punch-track").innerHTML = renderPunchTrack(steps);
+      document.getElementById("punch-track").innerHTML = renderPunchTrack(steps, previstoPorPasso);
+      document.querySelectorAll("#aba-conteudo .pj-fade").forEach((el, i) => { el.style.animationDelay = `${i * 0.05}s`; });
       iniciarRelogioAoVivo();
 
       document.getElementById("btn-ajustar-ponto")?.addEventListener("click", abrirModalAjustePonto);
@@ -1067,23 +1185,25 @@
         const el = document.getElementById("ponto-clock");
         if (!el) { clearInterval(_clockInterval); return; }
         el.textContent = horaAgora();
+        const sEl = document.getElementById("ponto-clock-s");
+        if (sEl) sEl.textContent = ":" + String(new Date().getSeconds()).padStart(2, "0");
       }, 1000);
     }
 
-    function renderPunchTrack(steps) {
+    function renderPunchTrack(steps, previstos = {}) {
       let currentSet = false;
       return steps
         .map((s, i) => {
           const done = !!s.hora;
           const isCurrent = !done && !currentSet;
           if (isCurrent) currentSet = true;
-          const nextDone = !!steps[i + 1]?.hora;
-          const lineClass = done ? (nextDone ? "is-done" : "is-half") : "";
+          const prev = previstos[s.key];
           return `
-          <div class="punch-step ${done ? "done" : isCurrent ? "current" : ""}">
-            <div class="punch-dot">${done ? ICONS.check : i + 1}<span class="punch-line ${lineClass}"></span></div>
-            <p class="punch-label">${s.label}</p>
-            <p class="punch-time">${s.hora || (isCurrent ? "Aguardando" : "—")}</p>
+          <div class="pj-st ${done ? "done" : isCurrent ? "now" : "todo"}">
+            <div class="pj-dot">${done ? ICONS.check : i + 1}</div>
+            <b>${s.label}</b>
+            <div class="t">${s.hora || (isCurrent ? "Aguardando" : "—")}</div>
+            ${prev && !(s.key === "saida" && done) ? `<div class="p">previsto ${prev}</div>` : ""}
           </div>`;
         })
         .join("");
