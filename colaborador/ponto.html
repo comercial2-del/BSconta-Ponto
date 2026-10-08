@@ -83,7 +83,8 @@
 </style>
 <style id="colaborador-ponto-v2">
 /* ===== Ponto / Jornada v2 — cores da logo BSconta+ ===== */
-.ponto-page-narrow{max-width:1180px!important;--pj-navy:#163A8C;--pj-sky:#29A3E6;--pj-soft:#EAF4FD;--pj-sh:0 1px 2px rgba(15,23,42,.04),0 4px 16px -6px rgba(15,23,42,.08)}
+.ponto-page-narrow.pj-wide{max-width:1180px!important}
+.ponto-page-narrow{--pj-navy:#163A8C;--pj-sky:#29A3E6;--pj-soft:#EAF4FD;--pj-sh:0 1px 2px rgba(15,23,42,.04),0 4px 16px -6px rgba(15,23,42,.08)}
 html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px rgba(0,0,0,.3)}
 .pj svg,.pj-tabs svg{width:18px;height:18px;flex-shrink:0}
 /* Abas */
@@ -199,13 +200,6 @@ html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px r
 .pj-fade{opacity:0;transform:translateY(10px);animation:pj-in .5s ease-out forwards}
 @keyframes pj-in{to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.pj-fade,.pj-ring .fg{animation-duration:.01s}}
-/* Histórico — cores da marca */
-.history-period-tabs button.active{background:linear-gradient(135deg,var(--pj-navy),var(--pj-sky))!important;box-shadow:0 4px 10px -4px rgba(22,58,140,.6)!important}
-.history-day-card{border-radius:14px}
-.history-day-card.is-today,.history-day-card.is-selected{border-color:var(--pj-sky)!important;box-shadow:0 0 0 3px var(--pj-soft)!important}
-.history-day-card .hoje-chip{background:var(--pj-sky)}
-.history-month-cell.hoje{box-shadow:0 0 0 2px var(--pj-sky)}
-.history-month-cell.selected{border-color:var(--pj-sky)}
 @media (max-width:1100px){.pj-grid3{grid-template-columns:1fr 1fr}}
 @media (max-width:820px){
   .pj-hero{grid-template-columns:1fr;padding:22px;text-align:center}.pj-hero:after{display:none}
@@ -484,7 +478,7 @@ html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px r
       const nextStep = steps.find((s) => !s.hora);
 
       document.getElementById("content").innerHTML = `
-        <div class="space-y ponto-page-narrow">
+        <div class="space-y ponto-page-narrow${abaAtiva === "hoje" ? " pj-wide" : ""}">
           <div class="row-between">
             <div>
               <h1 class="page-title">Ponto / Jornada</h1>
