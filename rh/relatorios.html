@@ -728,12 +728,14 @@
     // Folha de ponto (PDF individual + envio para cada colaborador assinar)
     // Usa a apuração única do banco (rh.banco_horas_extrato — script 33).
     // ------------------------------------------------------------------
-    // Padrão: do dia 1 do mês até ontem; no dia 1, o mês anterior inteiro.
+    // Padrão: o MÊS PASSADO inteiro (folha fechada). Atalho para o mês atual.
     const isoLocal = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     const ontemFolha = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d; })();
+    const periodoMesPassado = () => { const h = new Date(); return { inicio: isoLocal(new Date(h.getFullYear(), h.getMonth() - 1, 1)), fim: isoLocal(new Date(h.getFullYear(), h.getMonth(), 0)) }; };
+    const periodoMesAtual = () => { const h = new Date(); const ini = new Date(h.getFullYear(), h.getMonth(), 1); return { inicio: isoLocal(ini), fim: isoLocal(ontemFolha < ini ? ini : ontemFolha) }; };
     const filtroFolha = {
-      inicio: isoLocal(new Date(ontemFolha.getFullYear(), ontemFolha.getMonth(), 1)),
-      fim: isoLocal(ontemFolha),
+      inicio: periodoMesPassado().inicio,
+      fim: periodoMesPassado().fim,
       ids: null, // null = todos os ativos
       prazo: (() => { const d = new Date(); d.setDate(d.getDate() + 7); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })(),
     };
@@ -761,6 +763,10 @@
           <div class="field"><label>Data inicial</label><input type="date" id="fp-inicio" value="${filtroFolha.inicio}" /></div>
           <div class="field"><label>Data final</label><input type="date" id="fp-fim" value="${filtroFolha.fim}" /></div>
           <div class="field"><label>Prazo para assinatura</label><input type="date" id="fp-prazo" value="${filtroFolha.prazo}" /></div>
+          <div class="field" style="display:flex;gap:.4rem;align-items:flex-end;flex-wrap:wrap">
+            <button type="button" class="btn-ghost btn-sm" style="width:auto" data-fp-periodo="passado">Mês passado</button>
+            <button type="button" class="btn-ghost btn-sm" style="width:auto" data-fp-periodo="atual">Mês atual</button>
+          </div>
           <div class="field" style="grid-column:1/-1">
             <label style="display:flex;justify-content:space-between;align-items:center;gap:.5rem">Colaboradores <span><button type="button" class="btn-ghost btn-sm" style="width:auto" id="fp-todos">Marcar todos</button> <button type="button" class="btn-ghost btn-sm" style="width:auto" id="fp-nenhum">Desmarcar</button></span></label>
             <div class="folha-colabs">${lista.map((c) => `<label class="check-row"><input type="checkbox" data-fp-colab="${c.id}" ${sel.has(c.id) ? "checked" : ""} /> ${esc(c.nome)}</label>`).join("")}</div>
@@ -915,6 +921,11 @@
       document.getElementById("resultado-wrap").style.display = "";
       document.getElementById("resultado-conteudo").innerHTML = folhaBuilderHtml();
       document.getElementById("fp-gerar").addEventListener("click", gerarFolhas);
+      document.querySelectorAll("[data-fp-periodo]").forEach((b) => b.addEventListener("click", () => {
+        const p = b.dataset.fpPeriodo === "atual" ? periodoMesAtual() : periodoMesPassado();
+        document.getElementById("fp-inicio").value = p.inicio;
+        document.getElementById("fp-fim").value = p.fim;
+      }));
       document.getElementById("fp-todos").addEventListener("click", () => document.querySelectorAll("[data-fp-colab]").forEach((i) => { i.checked = true; }));
       document.getElementById("fp-nenhum").addEventListener("click", () => document.querySelectorAll("[data-fp-colab]").forEach((i) => { i.checked = false; }));
       document.getElementById("fp-pdf").addEventListener("click", async (e) => {
