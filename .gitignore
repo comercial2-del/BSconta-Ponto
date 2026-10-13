@@ -7,6 +7,8 @@
 # com dados fictícios.
 db/supabase/03_seed_colaboradores.sql
 db/supabase/18_dados_pessoais_planilha.sql
+# Importação da Folha de Ponto do sistema anterior (nomes e horários reais).
+db/supabase/34_importar_folha_ponto*.sql
 
 # Segredos, chaves e variáveis de ambiente locais.
 .env
