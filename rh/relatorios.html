@@ -69,7 +69,7 @@
 
   <script>window.BASE_PATH = "../";</script>
   <script src="../js/demo-data.js?v=20261013a"></script>
-  <script src="../js/ui.js?v=20261013b"></script>
+  <script src="../js/ui.js?v=20261013c"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../js/supabase-client.js"></script>
   <script src="../js/rh-supabase-auth.js"></script>
@@ -79,7 +79,7 @@
   <script src="../js/rh-documentos-data.js"></script>
   <script src="../js/rh-historia-data.js?v=20261013a"></script>
   <script src="../js/rh-ocorrencias-data.js?v=20261013a"></script>
-  <script src="../js/rh-pdf.js?v=20261013b"></script>
+  <script src="../js/rh-pdf.js?v=20261013c"></script>
   <script>
 (async function () {
     const session = await requireRoleReal("RH");
@@ -105,7 +105,7 @@
       { id: "ferias", nome: "Férias", desc: "Solicitações aprovadas, pendentes e recusadas.", icon: "palmTree", tone: "green" },
       { id: "solicitacoes", nome: "Solicitações", desc: "Volume, status e categorias das solicitações ao RH.", icon: "messageSquare", tone: "amber" },
       { id: "documentos", nome: "Documentos", desc: "Holerites e documentos enviados, pendentes e assinados.", icon: "fileText", tone: "violet" },
-      { id: "ponto", nome: "Jornada / Ponto", desc: "Situação de hoje, banco de horas e o dia a dia de cada colaborador no período.", icon: "clock", tone: "teal" },
+      { id: "ponto", nome: "Jornada / Ponto", desc: "Situação do ponto de hoje e banco de horas.", icon: "clock", tone: "teal" },
       { id: "faltas", nome: "Faltas e justificativas", desc: "Faltas justificadas e não justificadas, com o motivo de cada uma.", icon: "xCircle", tone: "red" },
       { id: "folha", nome: "Folha de ponto", desc: "Folha individual com batidas, abonos, saldo e banco de horas, em PDF com a logo. Baixe ou envie para cada colaborador assinar.", icon: "fileText", tone: "blue" },
       { id: "abonos", nome: "Abonos, atestados e férias", desc: "Ocorrências registradas pelo RH e o status de cada uma.", icon: "clipboardCheck", tone: "violet" },
@@ -367,7 +367,7 @@
           const negativo = base.pontoHoje.filter((r) => r.saldoBanco < 0).length;
           return {
             titulo: "Relatório de Jornada / Ponto",
-            meta: `Situação de hoje (${hoje}) e dia a dia de ${fmtDate(apuracaoPeriodo.ini || periodoInicioIso())} a ${fmtDate(apuracaoPeriodo.fim || periodoFimIso())} · Gerado por ${session.name}`,
+            meta: `Situação de hoje (${hoje}) — o período selecionado não se aplica a este relatório · Gerado por ${session.name}`,
             kpis: [
               { label: "Em dia hoje", value: emDia, tone: "green", icon: ICONS.checkCircle },
               { label: "Atrasos hoje", value: atrasos, tone: "amber", icon: ICONS.alertCircle },
@@ -375,16 +375,7 @@
               { label: "Banco de horas negativo", value: negativo, tone: "violet", icon: ICONS.clock },
             ],
             secoes: [
-              { titulo: "Detalhe por colaborador", tabela: { headers: ["Colaborador", "Status hoje", "Saldo do período", "Banco de horas"], rows: base.pontoHoje.map((r) => {
-                const l = apuracaoPeriodo.porId[r.id];
-                const sp = l ? l.reduce((s, d) => s + (d.contaNoBanco !== false && d.tipoDia !== "HOJE" && d.tipoDia !== "FUTURO" ? d.saldoMin : 0), 0) : null;
-                return [r.nome, ({ completo: "Em dia", atraso: "Atraso", falta: "Falta", afastado: "Afastado", sem_expediente: "Sem expediente" })[r.status] || r.status, sp == null ? "—" : fmtMinutos(sp, { sinal: true }), fmtDuracao(r.saldoBanco, { sinal: true })];
-              }) }, vazio: "Nenhum colaborador ativo cadastrado." },
-              ...(apuracaoPeriodo.erro ? [{ titulo: "Dia a dia", tabela: { headers: [], rows: [] }, vazio: apuracaoPeriodo.erro }] : base.pontoHoje.filter((r) => apuracaoPeriodo.porId[r.id]).map((r) => ({
-                titulo: `${r.nome} — dia a dia`,
-                tabela: tabelaDiaADia(apuracaoPeriodo.porId[r.id]),
-                vazio: "Sem dias no período.",
-              }))),
+              { titulo: "Detalhe por colaborador", tabela: { headers: ["Colaborador", "Status hoje", "Banco de horas"], rows: base.pontoHoje.map((r) => [r.nome, r.status, fmtDuracao(r.saldoBanco, { sinal: true })]) }, vazio: "Nenhum colaborador ativo cadastrado." },
             ],
           };
         },
@@ -446,6 +437,10 @@
           if (l.entrada) pares.push([l.entrada, l.intervaloSaida || (l.intervaloVolta ? "" : l.saida) || ""].join(" ").trim());
           if (l.intervaloVolta) pares.push([l.intervaloVolta, l.saida || ""].join(" ").trim());
           const conta = l.tipoDia !== "HOJE" && l.tipoDia !== "FUTURO";
+          // Fim de semana e feriado: não contam horas — a linha fica só com "-".
+          if (l.tipoDia === "FIM_DE_SEMANA" || l.tipoDia === "FERIADO") {
+            return [fmtDate(l.data).slice(0, 5), DOW[l.diaSemana] || "", "-", "-", "-", "-", "-", "-", l.tipoDia === "FERIADO" ? `Feriado: ${l.descricao || ""}` : "-"];
+          }
           return [
             fmtDate(l.data).slice(0, 5),
             DOW[l.diaSemana] || "",
@@ -459,27 +454,6 @@
           ];
         }),
       };
-    }
-
-    // Apuração dia a dia de todos os ativos no período selecionado (relatório
-    // Jornada / Ponto). Cache por período.
-    let apuracaoPeriodo = { chave: "", porId: {}, erro: "" };
-    async function carregarApuracaoPeriodo() {
-      const ini = periodoInicioIso();
-      const fim = periodoFimIso() > rhTodayIso() ? rhTodayIso() : periodoFimIso();
-      const chave = `${ini}|${fim}`;
-      if (apuracaoPeriodo.chave === chave) return apuracaoPeriodo;
-      const porId = {};
-      let erro = "";
-      try {
-        const ativos = base.colaboradores.filter((c) => c.status !== "INATIVO");
-        const res = await Promise.all(ativos.map((c) => rhCarregarApuracao(c.id, ini, fim).then((l) => [c.id, l])));
-        res.forEach(([id, l]) => { porId[id] = l; });
-      } catch (e) {
-        erro = /banco_horas_extrato|could not find the function|schema cache/i.test(String(e?.message || e)) ? "Dia a dia indisponível: rode o script 33 no Supabase." : rhMensagemErroSupabase(e);
-      }
-      apuracaoPeriodo = { chave, porId, erro, ini, fim };
-      return apuracaoPeriodo;
     }
 
     function relatorioParaTexto(rel) {
@@ -967,12 +941,6 @@
         selecionado = { id, nome, rel: gerarRelatorio(id) };
         mostrarBuilder();
         document.getElementById("resultado-wrap").scrollIntoView({ behavior: "smooth", block: "nearest" });
-        return;
-      }
-      if (id === "ponto" && apuracaoPeriodo.chave !== `${periodoInicioIso()}|${periodoFimIso() > rhTodayIso() ? rhTodayIso() : periodoFimIso()}`) {
-        document.getElementById("resultado-wrap").style.display = "";
-        document.getElementById("resultado-conteudo").innerHTML = `<div class="loading-wrap"><div class="spinner"></div></div><p class="hint" style="text-align:center">Montando o dia a dia de cada colaborador…</p>`;
-        carregarApuracaoPeriodo().then(() => mostrarResultado(id, nome));
         return;
       }
       selecionado = { id, nome, rel: gerarRelatorio(id) };
