@@ -4,10 +4,12 @@
  * =============================================================================
  * O cálculo é feito NO BANCO por rh.banco_horas_processar() (roda sozinho
  * todo dia às 00:20 pelo pg_cron, e as telas do RH chamam de novo ao abrir,
- * para refletir ajustes recentes). Regras:
- *   * Horas extras do dia = trabalhado além da jornada prevista.
- *   * Horas devidas do dia = atraso + intervalo acima do mínimo não
- *     compensado no mesmo dia.
+ * para refletir ajustes recentes), a partir da apuração única
+ * rh.ponto_apuracao() (script 33 — mesma regra da Folha de Ponto):
+ *   * Saldo do dia = trabalhadas + abono − previstas (feriado e fim de
+ *     semana: previstas 0; falta sem abono: −jornada; tolerância diária).
+ *   * Saldo positivo = horas extras do dia; negativo = horas devidas.
+ *   * Saldo inicial = rh.banco_horas_saldos_iniciais (saldo anterior).
  *   * Havendo horas extras acumuladas e horas devidas pendentes, o sistema
  *     abate automaticamente o menor dos dois (ex.: +5h e −2h → abate 2h →
  *     restam +3h) e registra a compensação.
@@ -94,6 +96,12 @@ async function rhListarMovimentosBancoHoras({ colaboradorId, inicio, fim } = {})
     extrasAposMin: r.extras_apos_min,
     devidasAposMin: r.devidas_apos_min,
     saldoAposMin: r.saldo_apos_min,
+    saldoDiaMin: r.saldo_dia_min != null ? r.saldo_dia_min : (r.extras_min || 0) - (r.devidas_min || 0),
+    tipoDia: r.tipo_dia || null,
+    descricao: r.descricao || null,
+    trabalhadasMin: r.trabalhadas_min,
+    previstasMin: r.previstas_min,
+    abonoMin: r.abono_min,
   }));
 }
 
@@ -151,11 +159,13 @@ function rhCompensacoesParaCsv(linhas) {
 /** CSV do extrato (histórico das movimentações). */
 function rhMovimentosParaCsv(linhas) {
   const h = (m) => (Number(m) / 60).toFixed(2).replace(".", ",");
-  const cab = ["Colaborador", "Data", "Tipo", "Horas extras geradas (h)", "Horas devidas (h)", "Atraso (h)", "Intervalo acima do mínimo (h)", "Compensado (h)", "Extras após (h)", "Devidas após (h)", "Saldo após (h)"];
+  const cab = ["Colaborador", "Data", "Tipo", "Situação do dia", "Trabalhadas (h)", "Previstas (h)", "Abono (h)", "Saldo do dia (h)", "Horas extras geradas (h)", "Horas devidas (h)", "Compensado (h)", "Extras após (h)", "Devidas após (h)", "Saldo após (h)"];
   const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
   const rows = linhas.map((m) => [
     m.colaboradorNome, fmtDate(m.data), m.tipo === "SALDO_INICIAL" ? "Saldo acumulado anterior" : "Dia",
-    h(m.extrasMin), h(m.devidasMin), h(m.atrasoMin), h(m.intervaloExcedenteMin), h(m.compensadoMin),
+    m.descricao || (typeof RH_TIPO_DIA_LABEL !== "undefined" ? RH_TIPO_DIA_LABEL[m.tipoDia] : m.tipoDia) || "",
+    m.trabalhadasMin != null ? h(m.trabalhadasMin) : "", m.previstasMin != null ? h(m.previstasMin) : "", m.abonoMin != null ? h(m.abonoMin) : "", h(m.saldoDiaMin),
+    h(m.extrasMin), h(m.devidasMin), h(m.compensadoMin),
     h(m.extrasAposMin), h(m.devidasAposMin), h(m.saldoAposMin),
   ]);
   return "﻿" + [cab, ...rows].map((r) => r.map(q).join(";")).join("\n");
@@ -171,4 +181,57 @@ function rhBaixarArquivo(nome, conteudo, tipo = "text/csv;charset=utf-8") {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+
+// ---------------------------------------------------------------------------
+// Saldo anterior (saldo inicial) e tolerância por colaborador — script 33
+// ---------------------------------------------------------------------------
+
+/** "+1:30", "-0:42", "2:05", "-12" (horas) → minutos. null se inválido. */
+function rhParseSaldoHHMM(txt) {
+  const s = String(txt || "").trim().replace(",", ":").replace(/h$/i, "");
+  if (!s) return 0;
+  const m = s.match(/^([+-]?)(\d{1,4})(?::(\d{1,2}))?$/);
+  if (!m) return null;
+  const min = Number(m[2]) * 60 + Number(m[3] || 0);
+  if (m[3] && Number(m[3]) > 59) return null;
+  return m[1] === "-" ? -min : min;
+}
+function rhFmtSaldoHHMM(min) {
+  const n = Number(min) || 0;
+  const a = Math.abs(n);
+  return `${n < 0 ? "-" : n > 0 ? "+" : ""}${Math.floor(a / 60)}:${String(a % 60).padStart(2, "0")}`;
+}
+
+/** Mapa colaboradorId → { minutos, dataReferencia, origem }. */
+async function rhListarSaldosIniciais() {
+  const { data, error } = await sb.from("banco_horas_saldos_iniciais").select("*");
+  if (error) throw error;
+  return Object.fromEntries((data || []).map((r) => [r.colaborador_id, { minutos: r.minutos, dataReferencia: r.data_referencia, origem: r.origem }]));
+}
+
+async function rhSalvarSaldoInicial({ colaboradorId, minutos, dataReferencia, autor }) {
+  const { error } = await sb.from("banco_horas_saldos_iniciais").upsert({
+    colaborador_id: colaboradorId,
+    minutos: Math.round(Number(minutos) || 0),
+    data_referencia: dataReferencia,
+    origem: "Informado pelo RH",
+    updated_by_nome: autor || null,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "colaborador_id" });
+  if (error) throw error;
+}
+
+async function rhSalvarToleranciaColaborador(colaboradorId, minutos) {
+  const v = minutos === "" || minutos == null ? null : Math.max(0, Math.min(120, Math.round(Number(minutos))));
+  const { error } = await sb.from("colaboradores").update({ tolerancia_diaria_min: v }).eq("id", colaboradorId);
+  if (error) throw error;
+}
+
+/** Tolerâncias por colaborador (null = padrão da empresa). */
+async function rhListarToleranciasColaboradores() {
+  const { data, error } = await sb.from("colaboradores").select("id, tolerancia_diaria_min");
+  if (error) throw error;
+  return Object.fromEntries((data || []).map((r) => [r.id, r.tolerancia_diaria_min]));
 }

@@ -41,7 +41,8 @@ const RH_TIPOS_ABONO = {
   FALTA_NAO_JUSTIFICADA: { label: "Falta não justificada", justificada: false },
   AUSENCIA_AUTORIZADA: { label: "Ausência autorizada", justificada: true },
   COMPROMISSO_EXTERNO: { label: "Compromisso externo autorizado", justificada: true },
-  FOLGA: { label: "Folga", justificada: true },
+  FOLGA: { label: "Folga / day off", justificada: true },
+  AFASTAMENTO: { label: "Afastamento (INSS / licença)", justificada: true },
   OUTRO: { label: "Outro", justificada: true },
 };
 
@@ -378,17 +379,39 @@ async function rhCarregarConfigPonto() {
   }
 }
 
-async function rhSalvarConfigPonto({ intervalo_minimo_min, almoco_inicio_minimo, controle_ponto_inicio, autor }) {
-  const { error } = await sb
-    .from("configuracoes_ponto")
-    .update({
-      intervalo_minimo_min: Number(intervalo_minimo_min),
-      almoco_inicio_minimo: almoco_inicio_minimo || null,
-      controle_ponto_inicio: controle_ponto_inicio || null,
-      updated_at: new Date().toISOString(),
-      updated_by_nome: autor || null,
-    })
-    .eq("id", 1);
+async function rhSalvarConfigPonto({ intervalo_minimo_min, almoco_inicio_minimo, controle_ponto_inicio, tolerancia_diaria_min, compensacao_inicio, autor }) {
+  const payload = {
+    intervalo_minimo_min: Number(intervalo_minimo_min),
+    almoco_inicio_minimo: almoco_inicio_minimo || null,
+    controle_ponto_inicio: controle_ponto_inicio || null,
+    updated_at: new Date().toISOString(),
+    updated_by_nome: autor || null,
+  };
+  // Campos do script 33 (banco de horas) — só enviados quando a tela os tem.
+  if (tolerancia_diaria_min !== undefined) payload.tolerancia_diaria_min = Math.max(0, Math.min(120, Number(tolerancia_diaria_min) || 0));
+  if (compensacao_inicio !== undefined && compensacao_inicio) payload.compensacao_inicio = compensacao_inicio;
+  const { error } = await sb.from("configuracoes_ponto").update(payload).eq("id", 1);
+  if (error) throw error;
+}
+
+// ---------------------------------------------------------------------------
+// Feriados (rh.feriados — script 33)
+// ---------------------------------------------------------------------------
+const RH_ABRANGENCIA_FERIADO = { NACIONAL: "Nacional", ESTADUAL: "Estadual", MUNICIPAL: "Municipal", EMPRESA: "Empresa (ponte/folga coletiva)" };
+
+async function rhListarFeriados({ ano } = {}) {
+  let q = sb.from("feriados").select("*").order("data");
+  if (ano) q = q.gte("data", `${ano}-01-01`).lte("data", `${ano}-12-31`);
+  const { data, error } = await q;
+  if (error) throw error;
+  return data || [];
+}
+async function rhSalvarFeriado({ data, nome, abrangencia, autor }) {
+  const { error } = await sb.from("feriados").upsert({ data, nome: String(nome || "").trim(), abrangencia: abrangencia || "NACIONAL", updated_by_nome: autor || null, updated_at: new Date().toISOString() }, { onConflict: "data" });
+  if (error) throw error;
+}
+async function rhExcluirFeriado(data) {
+  const { error } = await sb.from("feriados").delete().eq("data", data);
   if (error) throw error;
 }
 

@@ -320,13 +320,38 @@ async function rhCarregarPonto(colaboradorId) {
   if (!linhaHoje) historico.push({ ...hoje });
   historico.sort((a, b) => a.data.localeCompare(b.data));
 
-  // O saldo de banco de horas continua contando só os dias JÁ FECHADOS
-  // (exclui hoje explicitamente por data, não mais "por ausência da lista")
-  // — hoje ainda está em andamento, então atraso/hora-extra do dia não deve
-  // entrar no saldo acumulado até a jornada terminar.
-  const historicoFechado = historico.filter((r) => r.data !== hojeIso);
-  const horasDevendo = historicoFechado.reduce((acc, r) => acc + (Number(r.atrasoMin) || 0) / 60 + (Number(r.descontoAlmocoH) || 0), 0);
-  const horasAcumuladas = historicoFechado.reduce((acc, r) => acc + (Number(r.horasExtras) || 0), 0);
+  // Banco de horas: a regra é UMA só e roda no banco (rh.ponto_apuracao /
+  // rh.banco_horas_extrato / rh.banco_horas_resumo — script 33), a mesma da
+  // Folha de Ponto: saldo do dia = trabalhadas + abono − previstas, com
+  // feriados, faltas, tolerância e saldo inicial. Cada dia do histórico
+  // ganha o resultado da apuração (saldoMin, tipoDia, descricaoDia...).
+  // Se o script 33 ainda não rodou, cai no cálculo antigo (só extras/atrasos).
+  let apuracao = null;
+  let resumoBanco = null;
+  try {
+    const inicioHist = historico.length ? historico[0].data : hojeIso;
+    // Do primeiro registro (no máx. ~13 meses atrás; no mín. 120 dias) até +45 dias.
+    const limiteAntigo = rhPontoIsoMenosDias(hojeIso, 400);
+    const inicioApur = inicioHist < limiteAntigo ? limiteAntigo : (rhPontoIsoMenosDias(hojeIso, 120) < inicioHist ? rhPontoIsoMenosDias(hojeIso, 120) : inicioHist);
+    [apuracao, resumoBanco] = await Promise.all([
+      rhCarregarApuracao(colaboradorId, inicioApur, rhPontoIsoMaisDias(hojeIso, 45)),
+      rhResumoBancoColaborador(colaboradorId),
+    ]);
+  } catch (e) {
+    console.warn("Apuração do banco de horas indisponível (rode db/supabase/33_apuracao_ponto_feriados_banco_horas.sql):", e);
+  }
+
+  let saldoBancoHoras;
+  if (apuracao && resumoBanco) {
+    const porData = new Map(apuracao.map((a) => [a.data, a]));
+    historico.forEach((rec) => rhAplicarApuracao(rec, porData.get(rec.data)));
+    saldoBancoHoras = resumoBanco.saldoMin / 60;
+  } else {
+    const historicoFechado = historico.filter((r) => r.data !== hojeIso);
+    const horasDevendo = historicoFechado.reduce((acc, r) => acc + (Number(r.atrasoMin) || 0) / 60 + (Number(r.descontoAlmocoH) || 0), 0);
+    const horasAcumuladas = historicoFechado.reduce((acc, r) => acc + (Number(r.horasExtras) || 0), 0);
+    saldoBancoHoras = horasAcumuladas - horasDevendo;
+  }
 
   return {
     colaboradorId,
@@ -335,8 +360,133 @@ async function rhCarregarPonto(colaboradorId) {
     metaDiaria: config.metaDiariaHoras,
     diasTrabalho: config.diasTrabalho,
     intervaloCadastradoMin: config.intervaloCadastradoMin,
-    saldoBancoHoras: horasAcumuladas - horasDevendo,
+    saldoBancoHoras,
+    // Apuração dia a dia (inclui dias SEM registro: feriado, falta, abono,
+    // fim de semana) — mapa data → linha. null se o script 33 não rodou.
+    apuracao: apuracao ? Object.fromEntries(apuracao.map((a) => [a.data, a])) : null,
+    resumoBanco,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Apuração única (script 33)
+// ---------------------------------------------------------------------------
+function rhPontoIsoMaisDias(iso, n) {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + n));
+  return dt.toISOString().slice(0, 10);
+}
+function rhPontoIsoMenosDias(iso, n) { return rhPontoIsoMaisDias(iso, -n); }
+
+const RH_TIPO_DIA_LABEL = {
+  TRABALHO: "Dia de trabalho",
+  FIM_DE_SEMANA: "Fim de semana",
+  FERIADO: "Feriado",
+  FALTA: "Falta",
+  FALTA_JUSTIFICADA: "Falta justificada",
+  ABONO: "Abonado",
+  HOJE: "Hoje",
+  FUTURO: "Futuro",
+  FORA_CONTRATO: "Fora do contrato",
+};
+
+function rhMapApuracaoRow(r) {
+  return {
+    data: r.data,
+    diaSemana: r.dia_semana,
+    tipoDia: r.tipo_dia,
+    descricao: r.descricao || null,
+    entrada: rhHoraCurta(r.entrada),
+    intervaloSaida: rhHoraCurta(r.intervalo_saida),
+    intervaloVolta: rhHoraCurta(r.intervalo_volta),
+    saida: rhHoraCurta(r.saida),
+    trabalhadasMin: Number(r.trabalhadas_min) || 0,
+    previstasMin: Number(r.previstas_min) || 0,
+    abonoMin: Number(r.abono_min) || 0,
+    saldoBrutoMin: Number(r.saldo_bruto_min) || 0,
+    saldoMin: Number(r.saldo_min) || 0,
+    incompleto: !!r.incompleto,
+    alteradoRh: !!r.alterado_rh,
+    local: r.local || null,
+    abonoTipo: r.abono_tipo || null,
+    manuais: Array.isArray(r.marcacoes_manuais) ? r.marcacoes_manuais.map(rhHoraCurta) : [],
+    contaNoBanco: r.conta_no_banco !== false,
+    saldoAcumuladoMin: r.saldo_acumulado_min != null ? Number(r.saldo_acumulado_min) : null,
+  };
+}
+
+/** Apuração dia a dia com saldo acumulado (rh.banco_horas_extrato). O
+ * colaborador só consegue a própria; o RH, de qualquer um. */
+async function rhCarregarApuracao(colaboradorId, inicio, fim) {
+  const { data, error } = await sb.rpc("banco_horas_extrato", { p_colaborador: colaboradorId, p_inicio: inicio, p_fim: fim });
+  if (error) throw error;
+  return (data || []).map(rhMapApuracaoRow);
+}
+
+/** Resumo do banco de horas até ontem (rh.banco_horas_resumo). */
+async function rhResumoBancoColaborador(colaboradorId) {
+  const { data, error } = await sb.rpc("banco_horas_resumo", { p_colaborador: colaboradorId });
+  if (error) throw error;
+  const r = Array.isArray(data) ? data[0] : data;
+  if (!r) return null;
+  return {
+    inicioApuracao: r.inicio_apuracao,
+    saldoInicialMin: Number(r.saldo_inicial_min) || 0,
+    saldoInicialAte: r.saldo_inicial_ate,
+    creditosMin: Number(r.creditos_min) || 0,
+    debitosMin: Number(r.debitos_min) || 0,
+    saldoMin: Number(r.saldo_min) || 0,
+    ate: r.ate,
+  };
+}
+
+/** Copia o resultado da apuração para o registro do histórico. */
+function rhAplicarApuracao(rec, a) {
+  if (!rec || !a) return rec;
+  rec.tipoDia = a.tipoDia;
+  rec.descricaoDia = a.descricao;
+  rec.trabalhadasMin = a.trabalhadasMin;
+  rec.previstasMin = a.previstasMin;
+  rec.abonoMin = a.abonoMin;
+  rec.saldoMin = a.saldoMin;
+  rec.saldoBrutoMin = a.saldoBrutoMin;
+  rec.saldoAcumuladoMin = a.saldoAcumuladoMin;
+  rec.contaNoBanco = a.contaNoBanco;
+  return rec;
+}
+
+/** Feriados (rh.feriados) — mapa data → nome. Sem a tabela: {}. */
+async function rhCarregarFeriados(inicio, fim) {
+  try {
+    let q = sb.from("feriados").select("data, nome, abrangencia").order("data");
+    if (inicio) q = q.gte("data", inicio);
+    if (fim) q = q.lte("data", fim);
+    const { data, error } = await q;
+    if (error) throw error;
+    return Object.fromEntries((data || []).map((f) => [f.data, f.nome]));
+  } catch (e) {
+    return {};
+  }
+}
+
+/** Saldos do banco de horas de TODOS (RH) — mapa colaboradorId → minutos,
+ * vindo do extrato processado (rh.banco_horas_movimentos). */
+let rhUltimoProcessamentoBanco = 0;
+async function rhSaldosBancoHorasTodos({ processar = false } = {}) {
+  // Reprocessa o banco no máximo a cada 5 min por tela (o pg_cron também
+  // processa todo dia às 00:20 e cada ajuste aprovado reprocessa a pessoa).
+  if (processar && Date.now() - rhUltimoProcessamentoBanco > 5 * 60 * 1000) {
+    const { error: pErr } = await sb.rpc("banco_horas_processar");
+    if (pErr) throw pErr;
+    rhUltimoProcessamentoBanco = Date.now();
+  }
+  // Um registro por colaborador (RPC rh.banco_horas_saldos — evita o
+  // limite de 1000 linhas do Supabase ao ler o extrato inteiro).
+  const { data, error } = await sb.rpc("banco_horas_saldos");
+  if (error) throw error;
+  const mapa = {};
+  (data || []).forEach((r) => { mapa[r.colaborador_id] = Number(r.saldo_min) || 0; });
+  return mapa;
 }
 
 /** Grava o dia de HOJE do colaborador logado — único dia que a política de
@@ -485,6 +635,8 @@ async function rhResolverAjustePonto(solicitacaoId, aprovado, resolvidoPorNome) 
     };
     const { error: upsertErr } = await sb.from("ponto_registros").upsert(payload, { onConflict: "colaborador_id,data" });
     if (upsertErr) throw upsertErr;
+    // Banco de horas do colaborador já reflete o ajuste (script 33).
+    try { await sb.rpc("banco_horas_processar", { p_colaborador: solicitacao.colaborador_id }); } catch (e) { console.warn("banco_horas_processar:", e); }
   }
 
   const { error: updErr } = await sb

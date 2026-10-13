@@ -49,6 +49,10 @@ function assetPath(name) {
 // Se mudar algum valor aqui, mude lá também.
 const EMPRESA_INFO = {
   nome: "BSconta — Global Tower (Minas Shopping)",
+  // Dados do empregador na Folha de Ponto (PDF).
+  razaoSocial: "BSCONTABIL CONSULTORIA EMPRESARIAL LTDA",
+  cnpj: "42.604.712/0001-60",
+  enderecoFolha: "Rua Queluzita, 34, Fernão Dias, Belo Horizonte/MG",
   endereco: "R. Queluzita, 34 — Sala 1701-1712, Fernão Dias, Belo Horizonte/MG, 31910-252",
   lat: -19.8730016,
   lng: -43.9256631,

@@ -64,6 +64,12 @@ async function rhCarregarOcorrencias({ inicio, fim }) {
 
   let abonos = [];
   try { abonos = await rhListarAbonos({ inicio, fim }); } catch (e) { abonos = []; }
+  // Feriados (script 33): não são falta.
+  const feriadosSet = new Set();
+  try {
+    const { data: fer, error: ferErr } = await sb.from("feriados").select("data").gte("data", inicio).lte("data", fim);
+    if (!ferErr) (fer || []).forEach((f) => feriadosSet.add(f.data));
+  } catch (e) { /* tabela ainda não existe */ }
   const config = typeof rhCarregarConfigPonto === "function" ? await rhCarregarConfigPonto() : {};
   const controleInicio = config.controle_ponto_inicio || primeiroPontoRes.data?.[0]?.data || hoje;
 
@@ -86,12 +92,12 @@ async function rhCarregarOcorrencias({ inicio, fim }) {
     let guard = 0;
     while (d <= limite && guard++ < 800) {
       const reg = pontoIdx.get(`${c.id}|${d}`);
-      const diaUtil = rhEhDiaDeTrabalho(c.dias_trabalho, d);
+      const diaUtil = rhEhDiaDeTrabalho(c.dias_trabalho, d) && !feriadosSet.has(d);
       if (reg && reg.entrada) {
         if ((reg.atraso_min || 0) > (typeof RH_TOLERANCIA_ATRASO_MIN !== "undefined" ? RH_TOLERANCIA_ATRASO_MIN : 15)) {
           linhas.push({ ...base(c), data: d, dataFim: d, categoria: "ATRASO", situacao: "Atraso", justificacao: null, tipo: typeof fmtMinutos === "function" ? fmtMinutos(-reg.atraso_min) : `${reg.atraso_min} min`, motivo: reg.alterado_pelo_rh ? "Alterado pelo RH" : "", status: "REGISTRADO", dias: 1 });
         }
-      } else if (diaUtil || reg?.status === "falta") {
+      } else if (diaUtil || (reg?.status === "falta" && !feriadosSet.has(d))) {
         const emFerias = ferias.some((f) => f.colaborador_id === c.id && f.status === "APROVADA" && f.inicio <= d && f.fim >= d);
         if (!emFerias) {
           const abonosDia = abonos.filter((a) => a.colaborador_id === c.id && a.data_inicio <= d && a.data_fim >= d && a.status !== "ARQUIVADO" && a.status !== "RECUSADO");
