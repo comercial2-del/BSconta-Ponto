@@ -261,7 +261,10 @@ function rhPdfDesenharFolha(doc, folha, logo) {
   const corpo = linhas.map((a) => {
     const [, m, d] = a.data.split("-");
     let pontos;
-    if (a.tipoDia === "FERIADO" && !a.entrada) pontos = `FERIADO: ${a.descricao || ""}`;
+    // Fim de semana e feriado não contam horas: a linha fica só com "-".
+    const semHoras = a.tipoDia === "FIM_DE_SEMANA" || a.tipoDia === "FERIADO";
+    if (a.tipoDia === "FERIADO") pontos = `FERIADO: ${a.descricao || ""}`;
+    else if (a.tipoDia === "FIM_DE_SEMANA") pontos = "-";
     else if (a.tipoDia === "FORA_CONTRATO") pontos = "-";
     else {
       const pares = [];
@@ -279,14 +282,15 @@ function rhPdfDesenharFolha(doc, folha, logo) {
       `${d}/${m}`,
       RH_PDF_DIA_SEMANA[a.diaSemana] || "",
       pontos,
-      a.trabalhadasMin ? rhPdfHHMM(a.trabalhadasMin) : "",
+      semHoras ? "" : a.trabalhadasMin ? rhPdfHHMM(a.trabalhadasMin) : "",
       rhPdfHHMM(a.abonoMin, { vazioZero: true }),
       rhPdfHHMM(a.previstasMin, { vazioZero: true }),
-      a.tipoDia === "HOJE" || a.tipoDia === "FUTURO" ? "" : rhPdfHHMM(a.saldoMin, { vazioZero: true }),
+      semHoras || a.tipoDia === "HOJE" || a.tipoDia === "FUTURO" ? "" : rhPdfHHMM(a.saldoMin, { vazioZero: true }),
     ];
   });
   const tot = linhas.reduce((t, a) => {
-    t.trab += a.trabalhadasMin || 0; t.abono += a.abonoMin || 0; t.prev += a.previstasMin || 0;
+    if (a.tipoDia !== "FIM_DE_SEMANA" && a.tipoDia !== "FERIADO") t.trab += a.trabalhadasMin || 0;
+    t.abono += a.abonoMin || 0; t.prev += a.previstasMin || 0;
     if (a.tipoDia !== "HOJE" && a.tipoDia !== "FUTURO" && a.contaNoBanco !== false) t.saldo += a.saldoMin || 0;
     if (a.tipoDia === "FALTA") t.faltas += 1;
     return t;
