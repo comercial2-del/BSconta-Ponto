@@ -31,14 +31,15 @@
   </div>
 
   <script>window.BASE_PATH = "../";</script>
-  <script src="../js/demo-data.js?v=20260929c"></script>
-  <script src="../js/ui.js?v=20260929c"></script>
+  <script src="../js/demo-data.js?v=20261013a"></script>
+  <script src="../js/ui.js?v=20261013a"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../js/supabase-client.js?v=20260929c"></script>
   <script src="../js/rh-supabase-auth.js?v=20260929c"></script>
-  <script src="../js/rh-historia-data.js?v=20260929c"></script>
+  <script src="../js/rh-historia-data.js?v=20261013a"></script>
   <script src="../js/rh-historia-ui.js?v=20260929c"></script>
-  <script src="../js/rh-banco-horas-data.js?v=20260929c"></script>
+  <script src="../js/rh-ponto-data.js?v=20261013a"></script>
+  <script src="../js/rh-banco-horas-data.js?v=20261013a"></script>
   <script>
 (async function () {
     const session = await requireRoleReal("RH");
@@ -52,6 +53,8 @@
     let resumo = {};
     let compensacoes = [];
     let movimentos = [];
+    let saldosIniciais = {};
+    let tolerancias = {};
     let erro = "";
 
     const h = (min) => fmtMinutos(min);
@@ -59,6 +62,7 @@
 
     async function carregarResumo() {
       resumo = await rhResumoBancoHoras();
+      try { [saldosIniciais, tolerancias] = await Promise.all([rhListarSaldosIniciais(), rhListarToleranciasColaboradores()]); } catch (e) { saldosIniciais = {}; tolerancias = {}; }
     }
     async function carregarRelatorio() {
       [compensacoes, movimentos] = await Promise.all([
@@ -90,7 +94,7 @@
           ${erro ? `<div class="notice">${esc(erro)}</div>` : ""}
 
           <div class="card card-p">
-            <p class="bh-regra"><strong>Como funciona:</strong> horas trabalhadas além da jornada prevista viram <strong>horas extras</strong>; atraso e intervalo acima do mínimo (não compensado no dia) viram <strong>horas devidas</strong>. Sempre que houver horas extras acumuladas e horas devidas, o sistema abate automaticamente (ex.: +5h extras e 2h devidas → abate 2h → restam +3h) e registra a compensação. Processado todo dia às 00:20 e sempre que esta tela abre. Cada compensação aparece em <a href="comunicados.html#sistema">Comunicados → Comunicados do Sistema</a>.</p>
+            <p class="bh-regra"><strong>Como funciona (mesma regra da Folha de Ponto):</strong> saldo do dia = <strong>trabalhadas + abono − jornada prevista</strong>. Fim de semana e feriado têm jornada 0 (trabalho nesses dias vira crédito); falta sem abono desconta a jornada do dia; atestado, férias, afastamento e ausência autorizada aprovados abonam o dia. Diferença até a tolerância diária da pessoa não conta. O banco começa no <strong>saldo anterior</strong> de cada um. Saldo positivo vira <strong>horas extras</strong>, negativo vira <strong>horas devidas</strong>. Sempre que houver horas extras acumuladas e horas devidas, o sistema abate automaticamente (ex.: +5h extras e 2h devidas → abate 2h → restam +3h) e registra a compensação. Processado todo dia às 00:20 e sempre que esta tela abre. Cada compensação aparece em <a href="comunicados.html#sistema">Comunicados → Comunicados do Sistema</a>.</p>
           </div>
 
           <div id="kpi-grid"></div>
@@ -99,16 +103,19 @@
             <h2 style="margin-top:0">Situação atual por colaborador</h2>
             <div class="table-scroll">
               <table>
-                <thead><tr><th>Colaborador</th><th class="bh-num">Horas extras disponíveis</th><th class="bh-num">Horas devidas pendentes</th><th class="bh-num">Saldo</th><th>Atualizado até</th></tr></thead>
+                <thead><tr><th>Colaborador</th><th class="bh-num">Saldo anterior</th><th class="bh-num">Horas extras disponíveis</th><th class="bh-num">Horas devidas pendentes</th><th class="bh-num">Saldo</th><th class="bh-num">Tolerância</th><th>Atualizado até</th><th></th></tr></thead>
                 <tbody>
                   ${ativos.map((c) => {
                     const r = resumo[c.id];
                     return `<tr>
                       <td><div class="person-cell"><span class="avatar avatar-sm ${avatarColorClass(c.nome)}">${avatarInner(c.nome)}</span>${esc(c.nome)}</div></td>
+                      <td class="bh-num">${saldosIniciais[c.id] ? `${hSaldo(saldosIniciais[c.id].minutos)}<div class="hint">até ${fmtDate(saldosIniciais[c.id].dataReferencia)}</div>` : "—"}</td>
                       <td class="bh-num">${r ? h(r.extrasMin) : "—"}</td>
                       <td class="bh-num">${r ? (r.devidasMin > 0 ? `<span class="bh-neg">${h(r.devidasMin)}</span>` : h(0)) : "—"}</td>
                       <td class="bh-num">${r ? hSaldo(r.saldoMin) : "—"}</td>
+                      <td class="bh-num">${tolerancias[c.id] != null ? `${tolerancias[c.id]} min` : '<span class="hint">padrão</span>'}</td>
                       <td>${r ? fmtDate(r.ateData) : "Sem registros"}</td>
+                      <td><button type="button" class="btn-ghost btn-sm" style="width:auto" data-editar-bh="${c.id}">${ICONS.edit}<span>Ajustar</span></button></td>
                     </tr>`;
                   }).join("")}
                 </tbody>
@@ -154,16 +161,17 @@
               <h2 style="margin:0">Histórico das movimentações</h2>
               <button type="button" class="btn-ghost" style="width:auto" id="btn-csv-mov" ${movimentos.length ? "" : "disabled"}>${ICONS.download}<span>Exportar movimentações (.csv)</span></button>
             </div>
-            <p class="hint" style="margin:.4rem 0 1rem">Mesmo filtro de colaborador e período acima. Só aparecem os dias com horas extras ou horas devidas.</p>
+            <p class="hint" style="margin:.4rem 0 1rem">Mesmo filtro de colaborador e período acima. Só aparecem os dias com saldo diferente de zero (crédito ou débito).</p>
             <div class="table-scroll">
               ${movimentos.length ? `<table>
-                <thead><tr><th>Data</th><th>Colaborador</th><th class="bh-num">Horas extras geradas</th><th class="bh-num">Horas devidas</th><th class="bh-num">Compensado</th><th class="bh-num">Extras após</th><th class="bh-num">Devidas após</th><th class="bh-num">Saldo após</th></tr></thead>
+                <thead><tr><th>Data</th><th>Colaborador</th><th>Dia</th><th class="bh-num">Horas extras geradas</th><th class="bh-num">Horas devidas</th><th class="bh-num">Compensado</th><th class="bh-num">Extras após</th><th class="bh-num">Devidas após</th><th class="bh-num">Saldo após</th></tr></thead>
                 <tbody>
                   ${movimentos.slice().reverse().map((m) => `<tr>
                     <td>${m.tipo === "SALDO_INICIAL" ? `Até ${fmtDate(m.data)}<div class="hint">saldo acumulado anterior</div>` : fmtDate(m.data)}</td>
                     <td>${esc(m.colaboradorNome)}</td>
+                    <td>${m.tipo === "SALDO_INICIAL" ? "—" : esc(m.descricao || RH_TIPO_DIA_LABEL[m.tipoDia] || "")}${m.tipo === "DIA" && m.previstasMin != null ? `<div class="hint">trabalhou ${h(m.trabalhadasMin || 0)}${m.abonoMin ? ` + abono ${h(m.abonoMin)}` : ""} de ${h(m.previstasMin)}</div>` : ""}</td>
                     <td class="bh-num">${m.extrasMin ? `<span class="bh-pos">+${h(m.extrasMin)}</span>` : "—"}</td>
-                    <td class="bh-num">${m.devidasMin ? `<span class="bh-neg">-${h(m.devidasMin)}</span>${m.tipo === "DIA" ? `<div class="hint">${[m.atrasoMin ? `atraso ${h(m.atrasoMin)}` : "", m.intervaloExcedenteMin ? `intervalo ${h(m.intervaloExcedenteMin)}` : ""].filter(Boolean).join(" · ")}</div>` : ""}` : "—"}</td>
+                    <td class="bh-num">${m.devidasMin ? `<span class="bh-neg">-${h(m.devidasMin)}</span>` : "—"}</td>
                     <td class="bh-num">${m.compensadoMin ? `<strong>${h(m.compensadoMin)}</strong>` : "—"}</td>
                     <td class="bh-num">${h(m.extrasAposMin)}</td>
                     <td class="bh-num">${h(m.devidasAposMin)}</td>
@@ -192,6 +200,7 @@
       ["f-colaborador", "f-de", "f-ate"].forEach((id) => document.getElementById(id).addEventListener("change", aplicar));
       document.getElementById("btn-csv-comp").addEventListener("click", () => rhBaixarArquivo(`compensacoes-banco-horas-${hojeIso}.csv`, rhCompensacoesParaCsv(compensacoes)));
       document.getElementById("btn-csv-mov").addEventListener("click", () => rhBaixarArquivo(`movimentacoes-banco-horas-${hojeIso}.csv`, rhMovimentosParaCsv(movimentos)));
+      document.querySelectorAll("[data-editar-bh]").forEach((b) => b.addEventListener("click", () => abrirModalAjusteBanco(colaboradores.find((c) => c.id === b.dataset.editarBh))));
       document.getElementById("btn-recalcular").addEventListener("click", async (e) => {
         const b = e.currentTarget;
         b.disabled = true;
@@ -200,6 +209,60 @@
         showToast(n == null ? "Não foi possível recalcular agora." : n ? `${n} compensação(ões) nova(s) ou atualizada(s).` : "Banco de horas já estava em dia.", n == null ? "error" : "success");
         render();
       });
+    }
+
+    // RH ajusta o saldo anterior (saldo trazido de antes da apuração) e a
+    // tolerância diária de cada colaborador — script 33.
+    function abrirModalAjusteBanco(c) {
+      if (!c) return;
+      let overlay = document.getElementById("modal-ajuste-bh");
+      if (!overlay) {
+        overlay = document.createElement("div");
+        overlay.className = "modal-overlay";
+        overlay.id = "modal-ajuste-bh";
+        overlay.innerHTML = '<div class="modal" style="max-width:520px"></div>';
+        document.body.appendChild(overlay);
+        overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.classList.remove("open"); });
+      }
+      const si = saldosIniciais[c.id];
+      const tol = tolerancias[c.id];
+      overlay.querySelector(".modal").innerHTML = `
+        <div class="modal-header"><div><h3>Banco de horas — ${esc(c.nome)}</h3><p class="page-sub" style="margin:.2rem 0 0">Saldo anterior e tolerância diária.</p></div><button type="button" class="modal-close" data-fechar>${ICONS.x}</button></div>
+        <form id="form-ajuste-bh">
+          <div class="modal-body">
+            <div class="form-grid">
+              <div class="field"><label>Saldo anterior (±horas:min)</label><input type="text" id="bh-saldo" value="${si ? rhFmtSaldoHHMM(si.minutos) : "0:00"}" placeholder="-1:17" inputmode="text" /></div>
+              <div class="field"><label>Válido até</label><input type="date" id="bh-ate" value="${si?.dataReferencia || ""}" /></div>
+              <div class="field full"><label>Tolerância diária (min) — vazio = padrão da empresa</label><input type="number" min="0" max="120" id="bh-tol" value="${tol != null ? tol : ""}" /></div>
+            </div>
+            <p class="hint" style="margin-top:.6rem">O banco desta pessoa soma os dias a partir do dia seguinte ao “Válido até” (nunca antes do início geral da apuração em Configurações). O saldo anterior é o saldo do banco de horas antes disso (ex.: “Saldo Anterior de Banco de Horas” da folha do sistema antigo). Diferenças do dia até a tolerância não entram no banco.</p>
+          </div>
+          <div class="modal-footer"><button type="button" class="btn-ghost" data-fechar>Cancelar</button><button type="submit" class="btn-primary auto" id="bh-salvar">${ICONS.checkCircle}<span>Salvar e recalcular</span></button></div>
+        </form>`;
+      overlay.querySelectorAll("[data-fechar]").forEach((b) => b.addEventListener("click", () => overlay.classList.remove("open")));
+      overlay.querySelector("#form-ajuste-bh").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const min = rhParseSaldoHHMM(overlay.querySelector("#bh-saldo").value);
+        if (min == null) { showToast("Saldo inválido. Use o formato -1:17 ou +2:30.", "error"); return; }
+        const ate = overlay.querySelector("#bh-ate").value;
+        if (!ate) { showToast("Informe até quando vale o saldo anterior.", "error"); return; }
+        const btn = overlay.querySelector("#bh-salvar");
+        btn.disabled = true;
+        try {
+          await rhSalvarSaldoInicial({ colaboradorId: c.id, minutos: min, dataReferencia: ate, autor: session.name });
+          await rhSalvarToleranciaColaborador(c.id, overlay.querySelector("#bh-tol").value);
+          await rhProcessarBancoHoras();
+          await Promise.all([carregarResumo(), carregarRelatorio()]);
+          overlay.classList.remove("open");
+          showToast("Banco de horas atualizado.", "success");
+          render();
+        } catch (err) {
+          showToast(rhMensagemErroSupabase(err), "error");
+        } finally {
+          btn.disabled = false;
+        }
+      });
+      overlay.classList.add("open");
     }
 
     renderShell(session, withBadges(NAV_RH, await rhNavBadges()));

@@ -94,13 +94,13 @@
   </div>
 
   <script>window.BASE_PATH = "../";</script>
-  <script src="../js/demo-data.js?v=20260929c"></script>
-  <script src="../js/ui.js?v=20260929c"></script>
+  <script src="../js/demo-data.js?v=20261013a"></script>
+  <script src="../js/ui.js?v=20261013a"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../js/supabase-client.js?v=20260929c"></script>
   <script src="../js/rh-supabase-auth.js?v=20260929c"></script>
-  <script src="../js/rh-ponto-data.js?v=20260929c"></script>
-  <script src="../js/rh-historia-data.js?v=20260929c"></script>
+  <script src="../js/rh-ponto-data.js?v=20261013a"></script>
+  <script src="../js/rh-historia-data.js?v=20261013a"></script>
   <script>
 (async function () {
     const session = await requireRoleReal("RH");
@@ -158,8 +158,20 @@
       const saldos = {};
       const jornadaPorId = {};
       COLABORADORES_ATIVOS.forEach((emp) => { jornadaPorId[emp.id] = rhConfigJornada(emp); });
-      // Banco de horas: + horas extras − atraso − almoço acima do mínimo não compensado.
-      (linhasResto || []).forEach((r) => { saldos[r.colaborador_id] = (saldos[r.colaborador_id] || 0) + (Number(r.horas_extras) || 0) - (Number(r.atraso_min) || 0) / 60 - rhDescontoAlmocoHoras(r, jornadaPorId[r.colaborador_id], intervaloMinimoMin); });
+      // Banco de horas: saldo da apuração única (script 33 — mesma regra da
+      // Folha de Ponto, inclui saldo anterior, faltas e feriados). Sem o
+      // script 33, cai no cálculo antigo (extras − atraso − almoço excedente).
+      let saldosApuracao = null;
+      try {
+        saldosApuracao = await rhSaldosBancoHorasTodos({ processar: true });
+      } catch (eBanco) {
+        console.warn("Banco de horas (script 33) indisponível:", eBanco);
+      }
+      if (saldosApuracao) {
+        Object.entries(saldosApuracao).forEach(([id, min]) => { saldos[id] = min / 60; });
+      } else {
+        (linhasResto || []).forEach((r) => { saldos[r.colaborador_id] = (saldos[r.colaborador_id] || 0) + (Number(r.horas_extras) || 0) - (Number(r.atraso_min) || 0) / 60 - rhDescontoAlmocoHoras(r, jornadaPorId[r.colaborador_id], intervaloMinimoMin); });
+      }
       cacheHoje = COLABORADORES_ATIVOS.map((emp) => {
         const row = porId[emp.id];
         const hoje = row ? rhMapPontoRow(row) : { entrada: null, local: null };
@@ -199,7 +211,26 @@
       const jornada = emp ? rhConfigJornada(emp) : null;
       // descontoAlmocoH: intervalo acima do mínimo não compensado no dia
       // (horas negativas) — ver rhDescontoAlmocoHoras em js/rh-ponto-data.js.
-      cacheHistorico[nome] = (data || []).map((r) => ({ ...rhMapPontoRow(r), descontoAlmocoH: rhDescontoAlmocoHoras(r, jornada, intervaloMinimoMin) }));
+      const linhas = (data || []).map((r) => ({ ...rhMapPontoRow(r), descontoAlmocoH: rhDescontoAlmocoHoras(r, jornada, intervaloMinimoMin) }));
+      // Apuração única do banco (script 33): saldo do dia + dias sem registro
+      // que contam (falta, falta justificada, abono, feriado).
+      try {
+        const hojeIso = todayIso();
+        const minimo = rhPontoIsoMenosDias(hojeIso, 400);
+        const primeiro = linhas.length ? linhas[0].data : hojeIso;
+        const inicio = primeiro < minimo ? minimo : (primeiro < rhPontoIsoMenosDias(hojeIso, 120) ? primeiro : rhPontoIsoMenosDias(hojeIso, 120));
+        const apur = await rhCarregarApuracao(id, inicio, hojeIso);
+        const porData = new Map(apur.map((a) => [a.data, a]));
+        linhas.forEach((rec) => rhAplicarApuracao(rec, porData.get(rec.data)));
+        const datas = new Set(linhas.map((l) => l.data));
+        apur.filter((a) => !datas.has(a.data) && ["FALTA", "FALTA_JUSTIFICADA", "ABONO", "FERIADO"].includes(a.tipoDia))
+          .forEach((a) => linhas.push(rhAplicarApuracao({ data: a.data, status: a.tipoDia === "FERIADO" ? "feriado" : a.tipoDia === "ABONO" ? "abonado" : "falta", entrada: null, saida: null, local: null, sintetico: true }, a)));
+        linhas.sort((x, y) => x.data.localeCompare(y.data));
+        linhas.apuracao = true;
+      } catch (e) {
+        console.warn("Apuração (script 33) indisponível:", e);
+      }
+      cacheHistorico[nome] = linhas;
     }
     function historicoDoColaborador(nome) {
       return cacheHistorico[nome] || [];
@@ -716,7 +747,13 @@
       const hoje = todayIso();
       const statusInfo = (rec) => {
         if (!rec) return { cls: "", label: "Previsto", dot: "", hours: "" };
-        if (rec.status === "falta") return { cls: "status-falta", label: "Falta", dot: "absent", hours: "" };
+        if (rec.sintetico && rec.tipoDia === "FERIADO") return { cls: "", label: "Feriado", dot: "", hours: rec.descricaoDia || "" };
+        if (rec.sintetico && rec.tipoDia === "ABONO") return { cls: "cor-abonado", label: "Abonado", dot: "abonado", hours: rec.descricaoDia || "" };
+        if (rec.status === "falta") return { cls: "status-falta", label: rec.tipoDia === "FALTA_JUSTIFICADA" ? "Falta justificada" : "Falta", dot: "absent", hours: rec.saldoMin && rec.contaNoBanco ? fmtMinutos(rec.saldoMin, { sinal: true }) : "" };
+        if (rec.saldoMin !== undefined && rec.status !== "hoje") {
+          const s = rec.contaNoBanco ? rec.saldoMin : 0;
+          return { cls: s > 0 ? "status-extra" : s < 0 ? "status-atraso" : "status-completo", label: s > 0 ? "Crédito" : s < 0 ? "Débito" : "Trabalhado", dot: s > 0 ? "extra" : s < 0 ? "delay" : "complete", hours: s ? fmtMinutos(s, { sinal: true }) : (rec.horasTrabalhadas != null ? fmtHoras(rec.horasTrabalhadas) : "") };
+        }
         if (rec.status === "atraso") return { cls: "status-atraso", label: "Atraso", dot: "delay", hours: rec.atrasoMin ? fmtMinutos(-rec.atrasoMin) : "" };
         if (rec.horasExtras > 0) return { cls: "status-extra", label: "Hora extra", dot: "extra", hours: fmtDuracao(rec.horasExtras, { sinal: true }) };
         if (rec.status === "hoje") return { cls: "status-completo", label: "Em andamento", dot: "complete", hours: rec.entrada ? `${rec.entrada} • em andamento` : "" };
@@ -741,7 +778,8 @@
         // nenhum dos dois (falta, atraso sem local, etc.) cai no status.
         // Abono APROVADO cobrindo o dia (falta ou dia sem registro): o dia
         // aparece como "Abonado" em vez de falta.
-        const abono = (!rec || rec.status === "falta") ? rhAbonoDoDia(cacheAbonos, idPorNome(colaboradorSelecionado), iso) : null;
+        const abonoBruto = (!rec || !rec.entrada) ? rhAbonoDoDia(cacheAbonos, idPorNome(colaboradorSelecionado), iso) : null;
+        const abono = abonoBruto && !["FALTA_JUSTIFICADA", "FALTA_NAO_JUSTIFICADA"].includes(abonoBruto.tipo) ? abonoBruto : null;
         if (abono) { info.label = "Abonado"; info.hours = ""; }
         const corClasse = abono ? "cor-abonado" : rh ? "cor-rh" : home ? "cor-home" : presencial ? "cor-presencial" : info.cls;
         const dotClasse = abono ? "abonado" : rh ? "rh" : home ? "home" : presencial ? "presencial" : (info.dot || "");
@@ -851,10 +889,16 @@
 
     function renderTabelaHistorico() {
       const rows = registrosDoPeriodo().slice().reverse();
+      const comApuracao = rows.some((r) => r.saldoMin !== undefined);
+      const pillApuracao = (h) => {
+        const map = { FALTA: ["status-CANCELED", "Falta"], FALTA_JUSTIFICADA: ["status-CANCELED", "Falta justificada"], ABONO: ["status-EM_ANALISE", h.descricaoDia || "Abonado"], FERIADO: ["badge-neutral", h.descricaoDia ? `Feriado · ${h.descricaoDia}` : "Feriado"] };
+        const [cls, label] = map[h.tipoDia] || ["badge-neutral", h.tipoDia || "—"];
+        return `<span class="status-badge ${cls}">${esc(label)}</span>`;
+      };
       document.getElementById("tabela-historico").innerHTML = rows.length
         ? `
         <table>
-          <thead><tr><th>Data</th><th>Entrada</th><th>Saída</th><th>Intervalo</th><th class="cell-num">Horas</th><th class="cell-num">Extras</th><th class="cell-num">Atraso</th><th>Local</th><th>Status</th><th>RH</th></tr></thead>
+          <thead><tr><th>Data</th><th>Entrada</th><th>Saída</th><th>Intervalo</th><th class="cell-num">Horas</th>${comApuracao ? `<th class="cell-num">Previstas</th><th class="cell-num">Abono</th><th class="cell-num">Saldo</th>` : `<th class="cell-num">Extras</th><th class="cell-num">Atraso</th>`}<th>Local</th><th>Status</th><th>RH</th></tr></thead>
           <tbody>
             ${rows
               .map(
@@ -863,11 +907,15 @@
               <td>${h.entrada || "—"}</td>
               <td>${h.saida || (h.status === "hoje" ? "Em andamento" : "—")}</td>
               <td>${h.intervaloSaida && h.intervaloVolta ? `${h.intervaloSaida}–${h.intervaloVolta}` : "—"}${Number(h.descontoAlmocoH) > 0 ? `<small class="intervalo-excesso" title="Intervalo passou do mínimo (1h) e não foi compensado no dia — conta como horas negativas no banco de horas.">${fmtMinutos(-Math.round(Number(h.descontoAlmocoH) * 60))} intervalo</small>` : ""}</td>
-              <td class="cell-num">${h.horasTrabalhadas != null ? fmtHoras(h.horasTrabalhadas) : "—"}</td>
+              <td class="cell-num">${h.horasTrabalhadas != null ? fmtHoras(h.horasTrabalhadas) : h.trabalhadasMin ? fmtMinutos(h.trabalhadasMin) : "—"}</td>
+              ${comApuracao ? `
+              <td class="cell-num">${h.previstasMin ? fmtMinutos(h.previstasMin) : "—"}</td>
+              <td class="cell-num">${h.abonoMin ? fmtMinutos(h.abonoMin) : "—"}</td>
+              <td class="cell-num">${h.data === todayIso() ? '<span class="hint">entra amanhã</span>' : h.contaNoBanco === false ? '<span class="hint" title="Antes do início da apuração — já incluído no saldo anterior">—</span>' : h.saldoMin ? `<b style="color:${h.saldoMin < 0 ? "var(--red-600,#d92d20)" : "var(--emerald-600,#067647)"}">${fmtMinutos(h.saldoMin, { sinal: true })}</b>` : "0:00"}</td>` : `
               <td class="cell-num">${h.horasExtras ? fmtDuracao(h.horasExtras, { sinal: true }) : "—"}</td>
-              <td class="cell-num">${h.atrasoMin ? fmtMinutos(-h.atrasoMin) : "—"}</td>
+              <td class="cell-num">${h.atrasoMin ? fmtMinutos(-h.atrasoMin) : "—"}</td>`}
               <td>${localBadgeHtml(h.local)}${geoLinkForPonto(h.geo, h.data)}</td>
-              <td>${statusPillPonto(h.status)}</td>
+              <td>${h.sintetico ? pillApuracao(h) : statusPillPonto(h.status)}</td>
               <td>${h.alteradoPeloRH ? `<span class="badge-alterado" title="${esc(h.alteradoPeloRH.motivo)} — ${fmtDate(h.alteradoPeloRH.em.slice(0,10))}">${ICONS.edit}Alterado</span>` : "—"}</td>
             </tr>`
               )

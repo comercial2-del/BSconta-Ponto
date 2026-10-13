@@ -28,11 +28,20 @@
     .report-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.6rem}
     .report-list li{font-size:.87rem;line-height:1.55;padding:.7rem .9rem;border-radius:10px;background:var(--surface-2);border:1px solid var(--border)}
     .report-toggle-txt{margin-top:1.4rem;padding-top:1rem;border-top:1px dashed var(--border)}
+    .report-export-row{display:flex;align-items:flex-start;gap:1.2rem;flex-wrap:wrap;margin-top:1.4rem;padding-top:1rem;border-top:1px dashed var(--border)}
+    .report-export-row .report-toggle-txt{margin-top:0;padding-top:0;border-top:0;flex:1 1 auto;min-width:0}
+    .report-pdf-link{display:inline-flex;align-items:center;gap:.35rem;background:none;border:0;padding:0;cursor:pointer;font-size:.82rem;font-weight:700;color:var(--brand-600,#163A8C);font-family:inherit}
+    .report-pdf-link:hover{text-decoration:underline}
+    .report-pdf-link svg{width:15px;height:15px}
+    .report-pdf-link[disabled]{opacity:.55;cursor:wait}
+    .folha-colabs{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:.35rem .9rem;max-height:260px;overflow:auto;padding:.6rem .8rem;border:1px solid var(--border);border-radius:10px;background:var(--surface-2)}
+    .folha-status-ok{color:var(--emerald-700,#067647);font-weight:700}
+    .folha-status-err{color:var(--red-600,#d92d20);font-weight:700}
     .report-toggle-txt summary{cursor:pointer;font-size:.82rem;font-weight:700;color:var(--text-soft)}
     .report-toggle-txt summary:hover{color:var(--text)}
     .report-pre{margin-top:.8rem;font-size:.86rem;line-height:1.65;letter-spacing:.01em}
     @media print {
-      .top-header, #app-header, #cards-grid, .period-buttons, #btn-baixar { display: none !important; }
+      .top-header, #app-header, #cards-grid, .period-buttons, #btn-baixar, [data-rel-pdf], .report-export-row { display: none !important; }
       .report-pre { display: none !important; }
     }
   </style>
@@ -59,17 +68,18 @@
   </div>
 
   <script>window.BASE_PATH = "../";</script>
-  <script src="../js/demo-data.js"></script>
-  <script src="../js/ui.js"></script>
+  <script src="../js/demo-data.js?v=20261013a"></script>
+  <script src="../js/ui.js?v=20261013a"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../js/supabase-client.js"></script>
   <script src="../js/rh-supabase-auth.js"></script>
-  <script src="../js/rh-ponto-data.js"></script>
+  <script src="../js/rh-ponto-data.js?v=20261013a"></script>
   <script src="../js/rh-ferias-data.js"></script>
   <script src="../js/rh-solicitacoes-data.js"></script>
   <script src="../js/rh-documentos-data.js"></script>
-  <script src="../js/rh-historia-data.js"></script>
-  <script src="../js/rh-ocorrencias-data.js"></script>
+  <script src="../js/rh-historia-data.js?v=20261013a"></script>
+  <script src="../js/rh-ocorrencias-data.js?v=20261013a"></script>
+  <script src="../js/rh-pdf.js?v=20261013a"></script>
   <script>
 (async function () {
     const session = await requireRoleReal("RH");
@@ -97,6 +107,7 @@
       { id: "documentos", nome: "Documentos", desc: "Holerites e documentos enviados, pendentes e assinados.", icon: "fileText", tone: "violet" },
       { id: "ponto", nome: "Jornada / Ponto", desc: "Situação do ponto de hoje e banco de horas.", icon: "clock", tone: "teal" },
       { id: "faltas", nome: "Faltas e justificativas", desc: "Faltas justificadas e não justificadas, com o motivo de cada uma.", icon: "xCircle", tone: "red" },
+      { id: "folha", nome: "Folha de ponto", desc: "Folha individual com batidas, abonos, saldo e banco de horas, em PDF com a logo. Baixe ou envie para cada colaborador assinar.", icon: "fileText", tone: "blue" },
       { id: "abonos", nome: "Abonos, atestados e férias", desc: "Ocorrências registradas pelo RH e o status de cada uma.", icon: "clipboardCheck", tone: "violet" },
       { id: "personalizado", nome: "Pesquisa personalizada", desc: "Escolha os critérios (colaborador, departamento, tipo, período...) e gere só o que precisa.", icon: "filter", tone: "indigo" },
     ];
@@ -120,7 +131,7 @@
     async function carregarBase() {
       const hojeIso = rhTodayIso();
       const [{ data: colabRows, error: e1 }, ferias, solicitacoes, documentos, { data: pontoHojeRows, error: e2 }, { data: pontoRestoRows, error: e3 }, { data: pontoRegistrosRows, error: e4 }, intervaloMinimoMin] = await Promise.all([
-        sb.from("colaboradores").select(`id, nome, departamento, status, admissao, data_desligamento, ${RH_COLABORADOR_JORNADA_COLS}`).order("nome"),
+        sb.from("colaboradores").select(`id, nome, cargo, departamento, status, admissao, data_desligamento, ${RH_COLABORADOR_JORNADA_COLS}`).order("nome"),
         rhCarregarFeriasRH(),
         rhCarregarSolicitacoesRH(),
         rhListarDocumentosRH(),
@@ -143,8 +154,20 @@
       const saldoPorId = {};
       const jornadaPorId = {};
       colaboradores.forEach((c) => { jornadaPorId[c.id] = rhConfigJornada(c); });
-      // Banco de horas: + horas extras − atraso − almoço acima do mínimo não compensado.
-      (pontoRestoRows || []).forEach((r) => { saldoPorId[r.colaborador_id] = (saldoPorId[r.colaborador_id] || 0) + (Number(r.horas_extras) || 0) - (Number(r.atraso_min) || 0) / 60 - rhDescontoAlmocoHoras(r, jornadaPorId[r.colaborador_id], intervaloMinimoMin); });
+      // Banco de horas: saldo da apuração única (script 33 — mesma regra da
+      // Folha de Ponto, inclui saldo anterior, faltas e feriados). Sem o
+      // script 33, cai no cálculo antigo (extras − atraso − almoço excedente).
+      let saldosApuracao = null;
+      try {
+        saldosApuracao = await rhSaldosBancoHorasTodos({ processar: true });
+      } catch (eBanco) {
+        console.warn("Banco de horas (script 33) indisponível:", eBanco);
+      }
+      if (saldosApuracao) {
+        Object.entries(saldosApuracao).forEach(([id, min]) => { saldoPorId[id] = min / 60; });
+      } else {
+        (pontoRestoRows || []).forEach((r) => { saldoPorId[r.colaborador_id] = (saldoPorId[r.colaborador_id] || 0) + (Number(r.horas_extras) || 0) - (Number(r.atraso_min) || 0) / 60 - rhDescontoAlmocoHoras(r, jornadaPorId[r.colaborador_id], intervaloMinimoMin); });
+      }
       const pontoHoje = colaboradores
         .filter((c) => c.status !== "INATIVO")
         .map((c) => {
@@ -436,10 +459,13 @@
         </div>
         ${kpisHtml}
         ${secoesHtml}
-        <details class="report-toggle-txt">
-          <summary>Ver como texto simples</summary>
-          <pre class="report-pre">${esc(relatorioParaTexto(rel))}</pre>
-        </details>
+        <div class="report-export-row">
+          <details class="report-toggle-txt">
+            <summary>Ver como texto simples</summary>
+            <pre class="report-pre">${esc(relatorioParaTexto(rel))}</pre>
+          </details>
+          <button type="button" class="report-pdf-link" data-rel-pdf>${ICONS.download}<span>Baixar PDF</span></button>
+        </div>
       `;
     }
 
@@ -478,6 +504,7 @@
               <div></div>
               <div style="display:flex;gap:0.5rem">
                 <button type="button" class="btn-ghost" style="width:auto" id="btn-baixar">${ICONS.download}<span>Baixar (.txt)</span></button>
+                <button type="button" class="btn-ghost" style="width:auto" data-rel-pdf>${ICONS.fileText || ICONS.download}<span>Baixar PDF</span></button>
               </div>
             </div>
             <div id="resultado-conteudo"></div>
@@ -668,7 +695,212 @@
       });
     }
 
+    // ------------------------------------------------------------------
+    // Folha de ponto (PDF individual + envio para cada colaborador assinar)
+    // Usa a apuração única do banco (rh.banco_horas_extrato — script 33).
+    // ------------------------------------------------------------------
+    // Padrão: do dia 1 do mês até ontem; no dia 1, o mês anterior inteiro.
+    const isoLocal = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const ontemFolha = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d; })();
+    const filtroFolha = {
+      inicio: isoLocal(new Date(ontemFolha.getFullYear(), ontemFolha.getMonth(), 1)),
+      fim: isoLocal(ontemFolha),
+      ids: null, // null = todos os ativos
+      prazo: (() => { const d = new Date(); d.setDate(d.getDate() + 7); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })(),
+    };
+    let folhasGeradas = []; // [{ colaborador, folha, envio: { ok, msg } }]
+    let relFolha = null;
+
+    function colaboradoresFolha() {
+      return base.colaboradores.filter((c) => c.status !== "INATIVO");
+    }
+    function competenciaFolha() {
+      const { inicio, fim } = filtroFolha;
+      const ultimoDiaMes = (iso) => { const [y, m] = iso.split("-").map(Number); return new Date(y, m, 0).getDate(); };
+      if (inicio.slice(0, 7) === fim.slice(0, 7) && inicio.endsWith("-01") && Number(fim.slice(8)) === ultimoDiaMes(fim)) return `${fim.slice(5, 7)}/${fim.slice(0, 4)}`;
+      return `${fmtDate(inicio)} a ${fmtDate(fim)}`;
+    }
+
+    function folhaBuilderHtml() {
+      const lista = colaboradoresFolha();
+      const sel = new Set(filtroFolha.ids || lista.map((c) => c.id));
+      return `
+        <div class="report-head" style="margin-bottom:1rem">
+          <div><h2>Folha de ponto</h2><p class="report-meta">Escolha o período e os colaboradores. A folha segue a mesma regra do banco de horas (trabalhadas + abono − previstas, feriados, faltas e saldo anterior).</p></div>
+        </div>
+        <div class="report-builder">
+          <div class="field"><label>Data inicial</label><input type="date" id="fp-inicio" value="${filtroFolha.inicio}" /></div>
+          <div class="field"><label>Data final</label><input type="date" id="fp-fim" value="${filtroFolha.fim}" /></div>
+          <div class="field"><label>Prazo para assinatura</label><input type="date" id="fp-prazo" value="${filtroFolha.prazo}" /></div>
+          <div class="field" style="grid-column:1/-1">
+            <label style="display:flex;justify-content:space-between;align-items:center;gap:.5rem">Colaboradores <span><button type="button" class="btn-ghost btn-sm" style="width:auto" id="fp-todos">Marcar todos</button> <button type="button" class="btn-ghost btn-sm" style="width:auto" id="fp-nenhum">Desmarcar</button></span></label>
+            <div class="folha-colabs">${lista.map((c) => `<label class="check-row"><input type="checkbox" data-fp-colab="${c.id}" ${sel.has(c.id) ? "checked" : ""} /> ${esc(c.nome)}</label>`).join("")}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-top:1rem">
+          <button type="button" class="btn-primary auto" id="fp-gerar">${ICONS.reports}<span>Gerar folhas</span></button>
+          <button type="button" class="btn-ghost" style="width:auto" id="fp-pdf" ${folhasGeradas.length ? "" : "disabled"}>${ICONS.download}<span>Baixar folhas (PDF)</span></button>
+          <button type="button" class="btn-primary auto" id="fp-enviar" ${folhasGeradas.length ? "" : "disabled"} style="background:var(--emerald-600,#079455)">${ICONS.send}<span>Enviar para cada colaborador</span></button>
+        </div>
+        <p class="hint" id="fp-progresso" style="margin-top:.6rem"></p>
+        <div id="fp-resultado" style="margin-top:1.2rem">${relFolha ? folhaResultadoHtml() : ""}</div>`;
+    }
+
+    function folhaResultadoHtml() {
+      const linhas = folhasGeradas.map(({ colaborador, folha, envio }) => {
+        const t = folha.linhas.reduce((a, l) => { a.trab += l.trabalhadasMin; a.abono += l.abonoMin; a.prev += l.previstasMin; if (l.tipoDia === "FALTA") a.faltas++; return a; }, { trab: 0, abono: 0, prev: 0, faltas: 0 });
+        return { colaborador, folha, envio, t };
+      });
+      const cel = (min, sinal) => fmtMinutos(min, { sinal });
+      return `
+        ${relatorioParaHtml(relFolha)}
+        <div class="table-scroll report-table-wrap" style="margin-top:1rem"><table class="table-cards">
+          <thead><tr><th>Colaborador</th><th>Saldo anterior</th><th>Saldo do período</th><th>Saldo acumulado</th><th>Faltas</th><th>Envio</th><th></th></tr></thead>
+          <tbody>${linhas.map(({ colaborador, folha, envio, t }) => `<tr>
+            <td data-label="Colaborador">${esc(colaborador.nome)}</td>
+            <td data-label="Saldo anterior">${cel(folha.saldoAnteriorMin, true)}</td>
+            <td data-label="Saldo do período">${cel(folha.saldoPeriodoMin, true)}</td>
+            <td data-label="Saldo acumulado"><strong>${cel(folha.saldoFinalMin, true)}</strong></td>
+            <td data-label="Faltas">${t.faltas}</td>
+            <td data-label="Envio">${envio ? `<span class="${envio.ok ? "folha-status-ok" : "folha-status-err"}">${esc(envio.msg)}</span>` : "—"}</td>
+            <td><button type="button" class="btn-ghost btn-sm" style="width:auto" data-fp-um="${colaborador.id}">${ICONS.download}<span>PDF</span></button></td>
+          </tr>`).join("")}</tbody></table></div>`;
+    }
+
+    function lerFiltroFolha() {
+      filtroFolha.inicio = document.getElementById("fp-inicio").value;
+      filtroFolha.fim = document.getElementById("fp-fim").value;
+      filtroFolha.prazo = document.getElementById("fp-prazo").value;
+      filtroFolha.ids = [...document.querySelectorAll("[data-fp-colab]:checked")].map((i) => i.dataset.fpColab);
+    }
+
+    async function gerarFolhas() {
+      lerFiltroFolha();
+      const { inicio, fim, ids } = filtroFolha;
+      if (!inicio || !fim || fim < inicio) { showToast("Confira as datas do período.", "error"); return; }
+      if (!ids.length) { showToast("Selecione pelo menos um colaborador.", "error"); return; }
+      const btn = document.getElementById("fp-gerar");
+      btn.disabled = true;
+      const prog = document.getElementById("fp-progresso");
+      folhasGeradas = [];
+      try {
+        try { await sb.rpc("banco_horas_processar"); } catch (e) { /* segue com o que houver */ }
+        const lista = colaboradoresFolha().filter((c) => ids.includes(c.id));
+        for (let i = 0; i < lista.length; i++) {
+          prog.textContent = `Montando folha ${i + 1} de ${lista.length}: ${lista[i].nome}…`;
+          folhasGeradas.push({ colaborador: lista[i], folha: await rhMontarFolhaPonto(lista[i], inicio, fim), envio: null });
+        }
+        const somaPeriodo = folhasGeradas.reduce((s, f) => s + f.folha.saldoPeriodoMin, 0);
+        relFolha = {
+          titulo: `Folha de ponto — ${competenciaFolha()}`,
+          meta: `Período: ${fmtDate(inicio)} a ${fmtDate(fim)} · ${folhasGeradas.length} colaborador(es) · Gerado em ${new Date().toLocaleDateString("pt-BR")} por ${session.name}`,
+          kpis: [
+            { label: "Colaboradores", value: folhasGeradas.length, tone: "indigo", icon: ICONS.users },
+            { label: "Saldo do período (equipe)", value: fmtMinutos(somaPeriodo, { sinal: true }), format: "text", tone: somaPeriodo < 0 ? "red" : "green", icon: ICONS.clock },
+            { label: "Com saldo negativo", value: folhasGeradas.filter((f) => f.folha.saldoFinalMin < 0).length, tone: "red", icon: ICONS.alertCircle },
+            { label: "Faltas no período", value: folhasGeradas.reduce((s, f) => s + f.folha.linhas.filter((l) => l.tipoDia === "FALTA").length, 0), tone: "amber", icon: ICONS.xCircle },
+          ],
+          secoes: [{
+            titulo: "Resumo por colaborador",
+            tabela: {
+              headers: ["Colaborador", "Trabalhadas", "Abono", "Previstas", "Saldo anterior", "Saldo do período", "Saldo acumulado"],
+              rows: folhasGeradas.map(({ colaborador, folha }) => {
+                const t = folha.linhas.reduce((a, l) => { a.trab += l.trabalhadasMin; a.abono += l.abonoMin; a.prev += l.previstasMin; return a; }, { trab: 0, abono: 0, prev: 0 });
+                return [colaborador.nome, fmtMinutos(t.trab), fmtMinutos(t.abono), fmtMinutos(t.prev), fmtMinutos(folha.saldoAnteriorMin, { sinal: true }), fmtMinutos(folha.saldoPeriodoMin, { sinal: true }), fmtMinutos(folha.saldoFinalMin, { sinal: true })];
+              }),
+            },
+            vazio: "Nenhum colaborador selecionado.",
+          }],
+        };
+        selecionado = { id: "folha", nome: "Folha de ponto", rel: relFolha };
+        prog.textContent = "";
+        mostrarFolha();
+      } catch (err) {
+        prog.textContent = "";
+        showToast(/banco_horas_extrato|could not find the function|schema cache/i.test(String(err?.message || err)) ? "Rode o script db/supabase/33_apuracao_ponto_feriados_banco_horas.sql no Supabase para gerar a folha." : rhMensagemErroSupabase(err), "error");
+      } finally {
+        const b = document.getElementById("fp-gerar");
+        if (b) b.disabled = false;
+      }
+    }
+
+    async function baixarFolhas(lista) {
+      const doc = await rhPdfFolhaPonto(lista.map((f) => f.folha));
+      const nome = lista.length === 1 ? `folha-de-ponto-${lista[0].colaborador.nome}-${filtroFolha.inicio}-a-${filtroFolha.fim}` : `folhas-de-ponto-${filtroFolha.inicio}-a-${filtroFolha.fim}`;
+      doc.save(rhPdfNomeArquivo(nome));
+    }
+
+    async function enviarFolhas() {
+      if (!folhasGeradas.length) return;
+      const competencia = competenciaFolha();
+      // Não manda a mesma folha duas vezes para a mesma pessoa.
+      let jaEnviados = new Set();
+      try {
+        const { data } = await sb.from("documentos").select("colaborador_id").eq("tipo", "Folha de ponto").eq("competencia", competencia).is("arquivado_rh_em", null);
+        jaEnviados = new Set((data || []).map((d) => d.colaborador_id));
+      } catch (e) { /* coluna de arquivamento ausente: considera nenhum */ }
+      const pendentes = folhasGeradas.filter((f) => !jaEnviados.has(f.colaborador.id));
+      const repetidos = folhasGeradas.length - pendentes.length;
+      if (!pendentes.length) { showToast(`Todos os selecionados já receberam a folha de ${competencia}.`, "info"); return; }
+      const ok = await confirmDialog({
+        title: "Enviar folhas de ponto",
+        message: `Enviar a folha de ponto de ${competencia} para ${pendentes.length} colaborador(es)? Cada um recebe a PRÓPRIA folha em Documentos, para assinar até ${fmtDate(filtroFolha.prazo)}.${repetidos ? ` ${repetidos} já recebeu(ram) esta folha e será(ão) ignorado(s).` : ""}`,
+        confirmLabel: "Enviar",
+      });
+      if (!ok) return;
+      const btn = document.getElementById("fp-enviar");
+      btn.disabled = true;
+      const prog = document.getElementById("fp-progresso");
+      let enviados = 0, falhas = 0;
+      for (let i = 0; i < folhasGeradas.length; i++) {
+        const item = folhasGeradas[i];
+        if (jaEnviados.has(item.colaborador.id)) { item.envio = { ok: true, msg: "Já enviada antes" }; continue; }
+        prog.textContent = `Enviando ${enviados + falhas + 1} de ${pendentes.length}: ${item.colaborador.nome}…`;
+        try {
+          const doc = await rhPdfFolhaPonto([item.folha]);
+          const nomeArq = rhPdfNomeArquivo(`folha-de-ponto-${item.colaborador.nome}-${filtroFolha.inicio}-a-${filtroFolha.fim}`);
+          const file = new File([doc.output("blob")], nomeArq, { type: "application/pdf" });
+          const enviado = await rhEnviarDocumentoRH({ colaboradorId: item.colaborador.id, titulo: `Folha de ponto — ${competencia}`, tipo: "Folha de ponto", competencia, prazo: filtroFolha.prazo || null, modo: "ASSINATURA", file });
+          await rhNotificarSilencioso({ colaboradorId: item.colaborador.id, tipo: "GERAL", titulo: "Folha de ponto para assinar", mensagem: `Sua folha de ponto de ${competencia} está em Documentos. Confira e assine até ${fmtDate(filtroFolha.prazo)}.`, referenciaTabela: "documentos", referenciaId: enviado.id, autor: session.name });
+          try { await rhLembrarColaboradorDocumento(enviado); } catch (e) { /* push é opcional */ }
+          item.envio = { ok: true, msg: "Enviada ✓" };
+          enviados++;
+        } catch (err) {
+          item.envio = { ok: false, msg: rhMensagemErroSupabase(err) };
+          falhas++;
+        }
+      }
+      prog.textContent = "";
+      showToast(falhas ? `${enviados} folha(s) enviada(s), ${falhas} com erro.` : `${enviados} folha(s) enviada(s) — cada colaborador recebeu a sua em Documentos.`, falhas ? "error" : "success");
+      mostrarFolha();
+    }
+
+    function mostrarFolha() {
+      document.getElementById("resultado-wrap").style.display = "";
+      document.getElementById("resultado-conteudo").innerHTML = folhaBuilderHtml();
+      document.getElementById("fp-gerar").addEventListener("click", gerarFolhas);
+      document.getElementById("fp-todos").addEventListener("click", () => document.querySelectorAll("[data-fp-colab]").forEach((i) => { i.checked = true; }));
+      document.getElementById("fp-nenhum").addEventListener("click", () => document.querySelectorAll("[data-fp-colab]").forEach((i) => { i.checked = false; }));
+      document.getElementById("fp-pdf").addEventListener("click", async (e) => {
+        const b = e.currentTarget; b.disabled = true;
+        try { await baixarFolhas(folhasGeradas); } catch (err) { showToast(err.message || String(err), "error"); } finally { b.disabled = false; }
+      });
+      document.getElementById("fp-enviar").addEventListener("click", enviarFolhas);
+      document.querySelectorAll("[data-fp-um]").forEach((b) => b.addEventListener("click", async () => {
+        const item = folhasGeradas.find((f) => f.colaborador.id === b.dataset.fpUm);
+        if (!item) return;
+        b.disabled = true;
+        try { await baixarFolhas([item]); } catch (err) { showToast(err.message || String(err), "error"); } finally { b.disabled = false; }
+      }));
+    }
+
     function mostrarResultado(id, nome) {
+      if (id === "folha") {
+        selecionado = relFolha ? { id, nome, rel: relFolha } : { id, nome, rel: { titulo: "Folha de ponto", meta: "Escolha o período e clique em Gerar folhas.", kpis: [], secoes: [] } };
+        mostrarFolha();
+        document.getElementById("resultado-wrap").scrollIntoView({ behavior: "smooth", block: "nearest" });
+        return;
+      }
       if (id === "personalizado") {
         selecionado = { id, nome, rel: gerarRelatorio(id) };
         mostrarBuilder();
@@ -691,6 +923,14 @@
         return;
       }
       render();
+      document.addEventListener("click", async (e) => {
+        const btnPdf = e.target.closest("[data-rel-pdf]");
+        if (!btnPdf || !selecionado?.rel) return;
+        btnPdf.disabled = true;
+        try { await rhBaixarRelatorioPdf(selecionado.rel); }
+        catch (err) { showToast(err.message || String(err), "error"); }
+        finally { btnPdf.disabled = false; }
+      });
       document.addEventListener("click", (e) => {
         if (!e.target.closest("#btn-baixar") || !selecionado) return;
         const conteudo = relatorioParaTexto(selecionado.rel);

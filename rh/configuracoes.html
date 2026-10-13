@@ -109,15 +109,15 @@
   </div>
 
   <script>window.BASE_PATH = "../";</script>
-  <script src="../js/demo-data.js"></script>
-  <script src="../js/ui.js"></script>
+  <script src="../js/demo-data.js?v=20261013a"></script>
+  <script src="../js/ui.js?v=20261013a"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../js/supabase-client.js"></script>
   <script src="../js/rh-supabase-auth.js"></script>
   <script src="../js/rh-perfil-data.js"></script>
   <script src="../js/rh-usuarios-data.js"></script>
   <script src="../js/rh-push-data.js"></script>
-  <script src="../js/rh-historia-data.js"></script>
+  <script src="../js/rh-historia-data.js?v=20261013a"></script>
   <script>
 (async function () {
     const session = await requireRoleReal("RH");
@@ -131,6 +131,8 @@
     let cacheUsuarios = [];
     let meuPerfilCompleto = null;
     let configPonto = { ...RH_CONFIG_PONTO_PADRAO, _padrao: true };
+    let feriados = null; // null = tabela rh.feriados ainda não existe (script 33)
+    let anoFeriados = new Date().getFullYear();
     const NOTIF_PREFS = [
       { key: "solicitacoes", label: "Novas solicitações e atualizações de status", padrao: true },
       { key: "ferias", label: "Aprovação/recusa de pedidos de férias", padrao: true },
@@ -171,7 +173,7 @@
             <div id="tab-conta" class="tab-panel active">${contaHtml()}</div>
             <div id="tab-usuarios" class="tab-panel">${usuariosHtml()}</div>
             <div id="tab-notif" class="tab-panel">${notifHtml()}</div>
-            <div id="tab-ponto" class="tab-panel">${regrasPontoHtml()}</div>
+            <div id="tab-ponto" class="tab-panel">${regrasPontoHtml()}<div id="feriados-wrap">${feriadosHtml()}</div></div>
           </div>
         </div>
       `;
@@ -181,6 +183,82 @@
       wireUsuariosEvents();
       wireNotifEvents();
       wireRegrasPonto();
+      wireFeriados();
+    }
+
+    // ------------------------------------------------------------------
+    // Feriados (rh.feriados — script 33). No feriado a jornada prevista é 0:
+    // não conta falta e quem trabalhar ganha crédito no banco de horas.
+    // ------------------------------------------------------------------
+    function feriadosHtml() {
+      if (feriados === null) return `<div class="notice" style="margin-top:1.5rem">Feriados: rode o script db/supabase/33_apuracao_ponto_feriados_banco_horas.sql no Supabase para ativar.</div>`;
+      const lista = feriados.filter((f) => f.data.startsWith(String(anoFeriados)));
+      return `
+        <div style="margin-top:2rem;max-width:760px">
+          <div class="row-between" style="align-items:center;gap:.8rem;flex-wrap:wrap">
+            <h2 style="margin:0">Feriados</h2>
+            <div style="display:flex;gap:.4rem;align-items:center">
+              <button type="button" class="btn-ghost btn-sm" style="width:auto" data-ano-fer="-1">${ICONS.chevronLeft || "‹"}</button>
+              <strong>${anoFeriados}</strong>
+              <button type="button" class="btn-ghost btn-sm" style="width:auto" data-ano-fer="1">${ICONS.chevronRight || "›"}</button>
+            </div>
+          </div>
+          <p class="page-sub" style="margin:.4rem 0 1rem">No feriado a jornada prevista é zero: ninguém leva falta e quem trabalhar ganha crédito no banco de horas. Inclua também pontes e folgas coletivas da empresa.</p>
+          <form id="form-feriado" class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));align-items:end">
+            <div class="field"><label>Data</label><input type="date" id="fer-data" required /></div>
+            <div class="field"><label>Nome</label><input type="text" id="fer-nome" required placeholder="Ex.: Ponte de Natal" /></div>
+            <div class="field"><label>Abrangência</label><select id="fer-abr">${Object.entries(RH_ABRANGENCIA_FERIADO).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("")}</select></div>
+            <button type="submit" class="btn-primary auto" id="fer-add">${ICONS.plus}<span>Adicionar</span></button>
+          </form>
+          <div class="table-scroll" style="margin-top:1rem">
+            ${lista.length ? `<table><thead><tr><th>Data</th><th>Dia</th><th>Feriado</th><th>Abrangência</th><th></th></tr></thead><tbody>
+              ${lista.map((f) => `<tr><td>${fmtDate(f.data)}</td><td style="text-transform:capitalize">${new Date(f.data + "T00:00:00").toLocaleDateString("pt-BR", { weekday: "long" })}</td><td>${esc(f.nome)}</td><td>${esc(RH_ABRANGENCIA_FERIADO[f.abrangencia] || f.abrangencia)}</td>
+                <td><button type="button" class="btn-ghost btn-sm" style="width:auto" data-del-fer="${f.data}" title="Remover">${ICONS.trash || ICONS.x}</button></td></tr>`).join("")}
+            </tbody></table>` : emptyStateHtml({ icon: ICONS.calendar, title: `Nenhum feriado cadastrado em ${anoFeriados}`, desc: "Adicione os feriados do ano acima." })}
+          </div>
+        </div>`;
+    }
+
+    function redesenharFeriados() {
+      const w = document.getElementById("feriados-wrap");
+      if (!w) return;
+      w.innerHTML = feriadosHtml();
+      wireFeriados();
+    }
+
+    function wireFeriados() {
+      document.querySelectorAll("[data-ano-fer]").forEach((b) => b.addEventListener("click", () => { anoFeriados += Number(b.dataset.anoFer); redesenharFeriados(); }));
+      document.getElementById("form-feriado")?.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById("fer-add");
+        btn.disabled = true;
+        try {
+          const data = document.getElementById("fer-data").value;
+          await rhSalvarFeriado({ data, nome: document.getElementById("fer-nome").value, abrangencia: document.getElementById("fer-abr").value, autor: session.name });
+          try { await sb.rpc("banco_horas_processar"); } catch (eB) { console.warn(eB); }
+          feriados = await rhListarFeriados();
+          anoFeriados = Number(data.slice(0, 4)) || anoFeriados;
+          showToast("Feriado salvo. Banco de horas recalculado.", "success");
+          redesenharFeriados();
+        } catch (err) {
+          showToast(rhMensagemErroSupabase(err), "error");
+          btn.disabled = false;
+        }
+      });
+      document.querySelectorAll("[data-del-fer]").forEach((b) => b.addEventListener("click", async () => {
+        const f = feriados.find((x) => x.data === b.dataset.delFer);
+        const ok = await confirmDialog({ title: "Remover feriado", message: `Remover “${f?.nome}” (${fmtDate(b.dataset.delFer)})? O dia volta a ser dia de trabalho e o banco de horas é recalculado.`, confirmLabel: "Remover", danger: true });
+        if (!ok) return;
+        try {
+          await rhExcluirFeriado(b.dataset.delFer);
+          try { await sb.rpc("banco_horas_processar"); } catch (eB) { console.warn(eB); }
+          feriados = await rhListarFeriados();
+          showToast("Feriado removido.", "success");
+          redesenharFeriados();
+        } catch (err) {
+          showToast(rhMensagemErroSupabase(err), "error");
+        }
+      }));
     }
 
     // ------------------------------------------------------------------
@@ -200,6 +278,10 @@
               <p class="field-hint">Deixe em branco para não restringir. Ex.: 12:00 bloqueia a saída para o intervalo às 11:59.</p></div>
             <div class="field"><label>Início do controle de ponto</label><input type="date" id="rp-controle" value="${configPonto.controle_ponto_inicio || ""}" />
               <p class="field-hint">Nos relatórios, dias úteis sem registro só contam como falta a partir desta data (em branco = primeiro ponto registrado no sistema).</p></div>
+            <div class="field"><label>Tolerância diária do banco de horas (min)</label><input type="number" id="rp-tolerancia" min="0" max="120" step="1" value="${configPonto.tolerancia_diaria_min ?? 0}" />
+              <p class="field-hint">Diferença do dia (para mais ou para menos) até este valor não entra no banco. Padrão 0. Cada colaborador pode ter a sua em Banco de Horas → Ajustar.</p></div>
+            <div class="field"><label>Início da apuração do banco de horas</label><input type="date" id="rp-apuracao" value="${configPonto.compensacao_inicio || ""}" />
+              <p class="field-hint">O banco soma os dias a partir desta data. O que vem antes entra pelo “saldo anterior” de cada colaborador.</p></div>
           </div>
           ${configPonto.updated_by_nome ? `<p class="hint">Última alteração por ${esc(configPonto.updated_by_nome)} em ${new Date(configPonto.updated_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}.</p>` : ""}
           <button type="submit" class="btn-primary auto" id="btn-salvar-regras" style="margin-top:1rem" ${configPonto._padrao ? "disabled" : ""}>${ICONS.check}<span>Salvar regras</span></button>
@@ -220,7 +302,15 @@
         if (!ok) return;
         btn.disabled = true;
         try {
-          await rhSalvarConfigPonto({ intervalo_minimo_min: intervalo, almoco_inicio_minimo: inicio, controle_ponto_inicio: document.getElementById("rp-controle").value, autor: session.name });
+          const tolEl = document.getElementById("rp-tolerancia");
+          const apEl = document.getElementById("rp-apuracao");
+          await rhSalvarConfigPonto({
+            intervalo_minimo_min: intervalo, almoco_inicio_minimo: inicio, controle_ponto_inicio: document.getElementById("rp-controle").value,
+            tolerancia_diaria_min: "tolerancia_diaria_min" in configPonto ? tolEl.value : undefined,
+            compensacao_inicio: "compensacao_inicio" in configPonto ? apEl.value : undefined,
+            autor: session.name,
+          });
+          try { await sb.rpc("banco_horas_processar"); } catch (eB) { console.warn(eB); }
           configPonto = await rhCarregarConfigPonto();
           showToast("Regras de ponto salvas.", "success");
         } catch (err) {
@@ -502,6 +592,7 @@
         if (souAdmin) await refrescarUsuarios();
         if (session.employeeId) meuPerfilCompleto = await rhCarregarPerfilColaborador(session.employeeId);
         configPonto = await rhCarregarConfigPonto();
+        try { feriados = await rhListarFeriados(); } catch (eF) { feriados = null; }
       } catch (err) {
         rhShowFatalError(rhMensagemErroSupabase(err));
         return;
