@@ -69,17 +69,17 @@
 
   <script>window.BASE_PATH = "../";</script>
   <script src="../js/demo-data.js?v=20261013a"></script>
-  <script src="../js/ui.js?v=20261013a"></script>
+  <script src="../js/ui.js?v=20261013b"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../js/supabase-client.js"></script>
   <script src="../js/rh-supabase-auth.js"></script>
-  <script src="../js/rh-ponto-data.js?v=20261013a"></script>
+  <script src="../js/rh-ponto-data.js?v=20261013b"></script>
   <script src="../js/rh-ferias-data.js"></script>
   <script src="../js/rh-solicitacoes-data.js"></script>
   <script src="../js/rh-documentos-data.js"></script>
   <script src="../js/rh-historia-data.js?v=20261013a"></script>
   <script src="../js/rh-ocorrencias-data.js?v=20261013a"></script>
-  <script src="../js/rh-pdf.js?v=20261013a"></script>
+  <script src="../js/rh-pdf.js?v=20261013b"></script>
   <script>
 (async function () {
     const session = await requireRoleReal("RH");
@@ -105,7 +105,7 @@
       { id: "ferias", nome: "Férias", desc: "Solicitações aprovadas, pendentes e recusadas.", icon: "palmTree", tone: "green" },
       { id: "solicitacoes", nome: "Solicitações", desc: "Volume, status e categorias das solicitações ao RH.", icon: "messageSquare", tone: "amber" },
       { id: "documentos", nome: "Documentos", desc: "Holerites e documentos enviados, pendentes e assinados.", icon: "fileText", tone: "violet" },
-      { id: "ponto", nome: "Jornada / Ponto", desc: "Situação do ponto de hoje e banco de horas.", icon: "clock", tone: "teal" },
+      { id: "ponto", nome: "Jornada / Ponto", desc: "Situação de hoje, banco de horas e o dia a dia de cada colaborador no período.", icon: "clock", tone: "teal" },
       { id: "faltas", nome: "Faltas e justificativas", desc: "Faltas justificadas e não justificadas, com o motivo de cada uma.", icon: "xCircle", tone: "red" },
       { id: "folha", nome: "Folha de ponto", desc: "Folha individual com batidas, abonos, saldo e banco de horas, em PDF com a logo. Baixe ou envie para cada colaborador assinar.", icon: "fileText", tone: "blue" },
       { id: "abonos", nome: "Abonos, atestados e férias", desc: "Ocorrências registradas pelo RH e o status de cada uma.", icon: "clipboardCheck", tone: "violet" },
@@ -175,7 +175,7 @@
           const entrada = row ? rhHoraCurta(row.entrada) : null;
           const config = rhConfigJornada(c);
           const status = c.status === "AFASTADO" ? "afastado" : rhClassificarStatusHoje({ entradaReal: entrada, config, dataIso: hojeIso });
-          return { nome: c.nome, status, saldoBanco: saldoPorId[c.id] || 0 };
+          return { id: c.id, nome: c.nome, status, saldoBanco: saldoPorId[c.id] || 0 };
         });
 
       base = { colaboradores, ferias, solicitacoes, documentos, pontoHoje, pontoRegistros: pontoRegistrosRows || [], ocorrencias: [], ocorrenciasInicio: null, ocorrenciasErro: "" };
@@ -367,7 +367,7 @@
           const negativo = base.pontoHoje.filter((r) => r.saldoBanco < 0).length;
           return {
             titulo: "Relatório de Jornada / Ponto",
-            meta: `Situação de hoje (${hoje}) — o período selecionado não se aplica a este relatório · Gerado por ${session.name}`,
+            meta: `Situação de hoje (${hoje}) e dia a dia de ${fmtDate(apuracaoPeriodo.ini || periodoInicioIso())} a ${fmtDate(apuracaoPeriodo.fim || periodoFimIso())} · Gerado por ${session.name}`,
             kpis: [
               { label: "Em dia hoje", value: emDia, tone: "green", icon: ICONS.checkCircle },
               { label: "Atrasos hoje", value: atrasos, tone: "amber", icon: ICONS.alertCircle },
@@ -375,7 +375,16 @@
               { label: "Banco de horas negativo", value: negativo, tone: "violet", icon: ICONS.clock },
             ],
             secoes: [
-              { titulo: "Detalhe por colaborador", tabela: { headers: ["Colaborador", "Status hoje", "Banco de horas"], rows: base.pontoHoje.map((r) => [r.nome, r.status, fmtDuracao(r.saldoBanco, { sinal: true })]) }, vazio: "Nenhum colaborador ativo cadastrado." },
+              { titulo: "Detalhe por colaborador", tabela: { headers: ["Colaborador", "Status hoje", "Saldo do período", "Banco de horas"], rows: base.pontoHoje.map((r) => {
+                const l = apuracaoPeriodo.porId[r.id];
+                const sp = l ? l.reduce((s, d) => s + (d.contaNoBanco !== false && d.tipoDia !== "HOJE" && d.tipoDia !== "FUTURO" ? d.saldoMin : 0), 0) : null;
+                return [r.nome, ({ completo: "Em dia", atraso: "Atraso", falta: "Falta", afastado: "Afastado", sem_expediente: "Sem expediente" })[r.status] || r.status, sp == null ? "—" : fmtMinutos(sp, { sinal: true }), fmtDuracao(r.saldoBanco, { sinal: true })];
+              }) }, vazio: "Nenhum colaborador ativo cadastrado." },
+              ...(apuracaoPeriodo.erro ? [{ titulo: "Dia a dia", tabela: { headers: [], rows: [] }, vazio: apuracaoPeriodo.erro }] : base.pontoHoje.filter((r) => apuracaoPeriodo.porId[r.id]).map((r) => ({
+                titulo: `${r.nome} — dia a dia`,
+                tabela: tabelaDiaADia(apuracaoPeriodo.porId[r.id]),
+                vazio: "Sem dias no período.",
+              }))),
             ],
           };
         },
@@ -425,6 +434,52 @@
       };
       geradores.personalizado = () => relPersonalizado || { titulo: "Pesquisa personalizada", meta: "Defina os critérios acima e clique em Gerar relatório.", kpis: [], secoes: [] };
       return (geradores[id] || (() => ({ titulo: "Relatório indisponível", meta: "", kpis: [], secoes: [] })))();
+    }
+
+    // Tabela "dia a dia" de um colaborador (apuração única do banco — script 33).
+    function tabelaDiaADia(linhas) {
+      const DOW = { DOM: "Dom", SEG: "Seg", TER: "Ter", QUA: "Qua", QUI: "Qui", SEX: "Sex", SAB: "Sáb" };
+      return {
+        headers: ["Data", "Dia", "Pontos", "Trabalhadas", "Abono", "Previstas", "Saldo", "Acumulado", "Situação"],
+        rows: (linhas || []).map((l) => {
+          const pares = [];
+          if (l.entrada) pares.push([l.entrada, l.intervaloSaida || (l.intervaloVolta ? "" : l.saida) || ""].join(" ").trim());
+          if (l.intervaloVolta) pares.push([l.intervaloVolta, l.saida || ""].join(" ").trim());
+          const conta = l.tipoDia !== "HOJE" && l.tipoDia !== "FUTURO";
+          return [
+            fmtDate(l.data).slice(0, 5),
+            DOW[l.diaSemana] || "",
+            pares.join(" | ") || "—",
+            l.trabalhadasMin ? fmtMinutos(l.trabalhadasMin) : "—",
+            l.abonoMin ? fmtMinutos(l.abonoMin) : "—",
+            l.previstasMin ? fmtMinutos(l.previstasMin) : "—",
+            conta && l.saldoMin ? fmtMinutos(l.saldoMin, { sinal: true }) : "—",
+            conta && l.saldoAcumuladoMin != null ? fmtMinutos(l.saldoAcumuladoMin, { sinal: true }) : "—",
+            l.tipoDia === "HOJE" ? "Hoje (entra amanhã)" : (l.descricao || RH_TIPO_DIA_LABEL[l.tipoDia] || ""),
+          ];
+        }),
+      };
+    }
+
+    // Apuração dia a dia de todos os ativos no período selecionado (relatório
+    // Jornada / Ponto). Cache por período.
+    let apuracaoPeriodo = { chave: "", porId: {}, erro: "" };
+    async function carregarApuracaoPeriodo() {
+      const ini = periodoInicioIso();
+      const fim = periodoFimIso() > rhTodayIso() ? rhTodayIso() : periodoFimIso();
+      const chave = `${ini}|${fim}`;
+      if (apuracaoPeriodo.chave === chave) return apuracaoPeriodo;
+      const porId = {};
+      let erro = "";
+      try {
+        const ativos = base.colaboradores.filter((c) => c.status !== "INATIVO");
+        const res = await Promise.all(ativos.map((c) => rhCarregarApuracao(c.id, ini, fim).then((l) => [c.id, l])));
+        res.forEach(([id, l]) => { porId[id] = l; });
+      } catch (e) {
+        erro = /banco_horas_extrato|could not find the function|schema cache/i.test(String(e?.message || e)) ? "Dia a dia indisponível: rode o script 33 no Supabase." : rhMensagemErroSupabase(e);
+      }
+      apuracaoPeriodo = { chave, porId, erro, ini, fim };
+      return apuracaoPeriodo;
     }
 
     function relatorioParaTexto(rel) {
@@ -753,8 +808,7 @@
       });
       const cel = (min, sinal) => fmtMinutos(min, { sinal });
       return `
-        ${relatorioParaHtml(relFolha)}
-        <div class="table-scroll report-table-wrap" style="margin-top:1rem"><table class="table-cards">
+        <div class="table-scroll report-table-wrap" style="margin-bottom:1.4rem"><table class="table-cards">
           <thead><tr><th>Colaborador</th><th>Saldo anterior</th><th>Saldo do período</th><th>Saldo acumulado</th><th>Faltas</th><th>Envio</th><th></th></tr></thead>
           <tbody>${linhas.map(({ colaborador, folha, envio, t }) => `<tr>
             <td data-label="Colaborador">${esc(colaborador.nome)}</td>
@@ -764,7 +818,8 @@
             <td data-label="Faltas">${t.faltas}</td>
             <td data-label="Envio">${envio ? `<span class="${envio.ok ? "folha-status-ok" : "folha-status-err"}">${esc(envio.msg)}</span>` : "—"}</td>
             <td><button type="button" class="btn-ghost btn-sm" style="width:auto" data-fp-um="${colaborador.id}">${ICONS.download}<span>PDF</span></button></td>
-          </tr>`).join("")}</tbody></table></div>`;
+          </tr>`).join("")}</tbody></table></div>
+        ${relatorioParaHtml(relFolha)}`;
     }
 
     function lerFiltroFolha() {
@@ -810,7 +865,14 @@
               }),
             },
             vazio: "Nenhum colaborador selecionado.",
-          }],
+          },
+          // Dia a dia de cada colaborador (mesma apuração da folha em PDF).
+          ...folhasGeradas.map(({ colaborador, folha }) => ({
+            titulo: `${colaborador.nome} — dia a dia (saldo anterior ${fmtMinutos(folha.saldoAnteriorMin, { sinal: true })} · acumulado ${fmtMinutos(folha.saldoFinalMin, { sinal: true })})`,
+            tabela: tabelaDiaADia(folha.linhas),
+            vazio: "Sem dias no período.",
+          })),
+          ],
         };
         selecionado = { id: "folha", nome: "Folha de ponto", rel: relFolha };
         prog.textContent = "";
@@ -905,6 +967,12 @@
         selecionado = { id, nome, rel: gerarRelatorio(id) };
         mostrarBuilder();
         document.getElementById("resultado-wrap").scrollIntoView({ behavior: "smooth", block: "nearest" });
+        return;
+      }
+      if (id === "ponto" && apuracaoPeriodo.chave !== `${periodoInicioIso()}|${periodoFimIso() > rhTodayIso() ? rhTodayIso() : periodoFimIso()}`) {
+        document.getElementById("resultado-wrap").style.display = "";
+        document.getElementById("resultado-conteudo").innerHTML = `<div class="loading-wrap"><div class="spinner"></div></div><p class="hint" style="text-align:center">Montando o dia a dia de cada colaborador…</p>`;
+        carregarApuracaoPeriodo().then(() => mostrarResultado(id, nome));
         return;
       }
       selecionado = { id, nome, rel: gerarRelatorio(id) };
