@@ -50,6 +50,9 @@
 .history-day-card.falta{background:#fff1f1;border-color:#ffd9d9}.history-day-card.falta .status-label{color:#d92d20}
 .history-day-card.previsto{background:#fff;border-style:dashed}.history-day-card.previsto .status-label{color:#98a2b3}
 .history-day-card.fimdesemana{background:#f8fafc;border-color:#eef2f6}.history-day-card.fimdesemana .status-label{color:#98a2b3;font-weight:700}
+.history-day-card.feriado{background:#eef6ff;border-color:#d4e6fb}.history-day-card.feriado .status-label{color:#1d6fd6;font-weight:700}
+html[data-theme="dark"] .history-day-card.feriado{background:rgba(41,163,230,.10);border-color:rgba(41,163,230,.28)}
+.saldo-pos{color:#067647;font-weight:700}.saldo-neg{color:#d92d20;font-weight:700}html[data-theme="dark"] .saldo-pos{color:#4ade80}html[data-theme="dark"] .saldo-neg{color:#f87171}
 .history-day-card.semregistro{background:#fff;border-style:dashed}.history-day-card.semregistro .status-label{color:#98a2b3}
 .history-day-card.pendente{background:#f8f5ff;border-color:#ded2fb;border-style:dashed}.history-day-card.pendente .status-label{color:#7c3aed}.history-day-card.pendente .status-meta{color:#7c3aed;border-top-color:rgba(124,58,237,.14)}
 .history-day-card.is-today,.history-day-card.is-selected{border-color:#2f5bea;box-shadow:0 0 0 2px rgba(47,91,234,.12)}
@@ -264,13 +267,13 @@ html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px r
   </div>
 
   <script>window.BASE_PATH = "../";</script>
-  <script src="../js/demo-data.js?v=20260929c"></script>
-  <script src="../js/ui.js?v=20260929c"></script>
+  <script src="../js/demo-data.js?v=20261013a"></script>
+  <script src="../js/ui.js?v=20261013a"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../js/supabase-client.js?v=20260929c"></script>
   <script src="../js/rh-supabase-auth.js?v=20260929c"></script>
-  <script src="../js/rh-ponto-data.js?v=20260929c"></script>
-  <script src="../js/rh-historia-data.js?v=20260929c"></script>
+  <script src="../js/rh-ponto-data.js?v=20261013a"></script>
+  <script src="../js/rh-historia-data.js?v=20261013a"></script>
   <script src="../js/rh-historia-ui.js?v=20260929c"></script>
   <script>
 (async function () {
@@ -528,7 +531,10 @@ html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px r
 
     function faltasParaJustificar() {
       if (!DEMO.ponto) return [];
-      return rhFaltasSemJustificativa({ historico: DEMO.ponto.historico, diasTrabalho: DEMO.ponto.diasTrabalho, admissao: session.admissao, abonos: meusAbonosTodos });
+      const ap = DEMO.ponto.apuracao;
+      return rhFaltasSemJustificativa({ historico: DEMO.ponto.historico, diasTrabalho: DEMO.ponto.diasTrabalho, admissao: session.admissao, abonos: meusAbonosTodos })
+        // feriados / fora do contrato não são falta (apuração do banco — script 33)
+        .filter((iso) => !ap || !ap[iso] || ["FALTA", "FALTA_JUSTIFICADA", "TRABALHO"].includes(ap[iso].tipoDia));
     }
 
     function renderAbonos() {
@@ -749,8 +755,11 @@ html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px r
       // horas" continuar contando só os dias já fechados, igual ao cálculo
       // de p.saldoBancoHoras feito na camada de dados.
       const historicoFechado = p.historico.filter((r) => r.data !== todayIso());
-      const horasDevendo = historicoFechado.reduce((acc, r) => acc + (Number(r.atrasoMin) || 0) / 60 + (Number(r.descontoAlmocoH) || 0), 0);
-      const horasAcumuladas = historicoFechado.reduce((acc, r) => acc + (Number(r.horasExtras) || 0), 0);
+      // Banco de horas: vem pronto da apuração do banco (mesma regra da Folha
+      // de Ponto — ver rhCarregarPonto). Sem o script 33, usa o cálculo antigo.
+      const rb = p.resumoBanco;
+      const horasDevendo = rb ? rb.debitosMin / 60 : historicoFechado.reduce((acc, r) => acc + (Number(r.atrasoMin) || 0) / 60 + (Number(r.descontoAlmocoH) || 0), 0);
+      const horasAcumuladas = rb ? rb.creditosMin / 60 : historicoFechado.reduce((acc, r) => acc + (Number(r.horasExtras) || 0), 0);
 
       let ctaHtml;
       if (offline) {
@@ -837,13 +846,14 @@ html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px r
           <div class="pj-grid3">
             <section class="pj-card pj-box pj-fade">
               <div class="pj-card-h"><h3><span class="pj-ic ${saldo < 0 ? "red" : "green"}">${ICONS.hourglass}</span>Banco de horas</h3>${saldo < 0 ? '<span class="pj-tag neg">a compensar</span>' : saldo > 0 ? '<span class="pj-tag ok">saldo positivo</span>' : '<span class="pj-tag ok">em dia</span>'}</div>
-              <div class="pj-bank-top"><div class="pj-bank-val ${saldo < 0 ? "neg" : saldo > 0 ? "pos" : ""}">${fmtDuracao(saldo, { sinal: true })}</div><div class="pj-muted">saldo do mês<br>meta ${fmtHoras(p.metaDiaria)} por dia útil</div></div>
+              <div class="pj-bank-top"><div class="pj-bank-val ${saldo < 0 ? "neg" : saldo > 0 ? "pos" : ""}">${fmtDuracao(saldo, { sinal: true })}</div><div class="pj-muted">${rb ? `saldo até ${fmtDate(rb.ate)}` : "saldo acumulado"}<br>jornada de ${fmtHoras(p.metaDiaria)} por dia útil</div></div>
               <div class="pj-calc">
-                <div><span>Horas acumuladas (extras)</span><b class="pos">${horasAcumuladas > 0 ? fmtDuracao(horasAcumuladas, { sinal: true }) : "—"}</b></div>
-                <div><span>Horas devendo (atrasos)</span><b class="neg">${horasDevendo > 0 ? fmtDuracao(-horasDevendo) : "—"}</b></div>
+                ${rb ? `<div><span>Saldo anterior (até ${fmtDate(rb.saldoInicialAte)})</span><b class="${rb.saldoInicialMin < 0 ? "neg" : rb.saldoInicialMin > 0 ? "pos" : ""}">${rb.saldoInicialMin ? fmtDuracao(rb.saldoInicialMin / 60, { sinal: true }) : "—"}</b></div>` : ""}
+                <div><span>${rb ? "Créditos (horas a mais)" : "Horas acumuladas (extras)"}</span><b class="pos">${horasAcumuladas > 0 ? fmtDuracao(horasAcumuladas, { sinal: true }) : "—"}</b></div>
+                <div><span>${rb ? "Débitos (horas a menos e faltas)" : "Horas devendo (atrasos)"}</span><b class="neg">${horasDevendo > 0 ? fmtDuracao(-horasDevendo) : "—"}</b></div>
                 <div><span>Saldo final</span><b class="${saldo < 0 ? "neg" : saldo > 0 ? "pos" : ""}">${fmtDuracao(saldo, { sinal: true })}</b></div>
               </div>
-              <p class="pj-note">As horas acumuladas já são usadas para abater as horas devendo. O saldo final é o que vale.</p>
+              <p class="pj-note">${rb ? "Cada dia: trabalhadas + abonos − jornada prevista. Feriados e fins de semana não contam; falta sem abono desconta a jornada do dia. O dia de hoje entra amanhã." : "As horas acumuladas já são usadas para abater as horas devendo. O saldo final é o que vale."}</p>
             </section>
 
             <section class="pj-card pj-box pj-fade">
@@ -1391,12 +1401,14 @@ html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px r
       const rows = registrosDoPeriodo().slice().sort((a,b) => a.data.localeCompare(b.data));
       const totalHoras = rows.reduce((acc, r) => acc + (Number(r.horasTrabalhadas) || 0), 0);
       const atrasos = rows.reduce((acc, r) => acc + (Number(r.atrasoMin) || 0), 0);
+      const apPeriodo = DEMO.ponto.apuracao ? Object.values(DEMO.ponto.apuracao).filter((a) => a.data >= rangeInicio && a.data <= rangeFim && a.contaNoBanco) : null;
+      const saldoPeriodo = apPeriodo ? apPeriodo.reduce((s, a) => s + a.saldoMin, 0) : null;
       wrap.innerHTML = `
         <div class="history-custom-summary">
           <span class="history-summary-chip">Período <strong>${fmtDateBR(rangeInicio)}–${fmtDateBR(rangeFim)}</strong></span>
           <span class="history-summary-chip">Registros <strong>${rows.length}</strong></span>
           <span class="history-summary-chip">Horas <strong>${fmtHoras(totalHoras)}</strong></span>
-          <span class="history-summary-chip">Atrasos <strong>${atrasos ? fmtMinutos(-atrasos) : "0:00m"}</strong></span>
+          ${saldoPeriodo != null ? `<span class="history-summary-chip">Saldo do período <strong class="${saldoPeriodo < 0 ? "saldo-neg" : saldoPeriodo > 0 ? "saldo-pos" : ""}">${fmtMinutos(saldoPeriodo, { sinal: true })}</strong></span>` : `<span class="history-summary-chip">Atrasos <strong>${atrasos ? fmtMinutos(-atrasos) : "0:00m"}</strong></span>`}
         </div>
         ${rows.length ? `<div class="history-week">${rows.map((r) => weekDayCardHtml(r.data, {selected:false})).join("")}</div>` : `<div class="history-empty-range">Nenhum registro encontrado no período selecionado.</div>`}`;
       wrap.querySelectorAll("[data-dia]").forEach((cell) =>
@@ -1443,7 +1455,7 @@ html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px r
           bucket = isHome ? "homeoffice" : "trabalhado";
           statusLabel = emAndamento ? "Em andamento" : "Trabalhado";
           timeLabel = rec.entrada ? (rec.saida ? `${rec.entrada} – ${rec.saida}` : `${rec.entrada} – em andamento`) : "";
-          if (rec.horasExtras) timeLabel += ` · ${fmtDuracao(rec.horasExtras, { sinal: true })} extra`;
+          if (rec.horasExtras && !DEMO.ponto.apuracao) timeLabel += ` · ${fmtDuracao(rec.horasExtras, { sinal: true })} extra`;
           // Rodapé: total de horas (quando já apurado) + local do registro —
           // mesma informação que a visão mensal já mostra na tabela detalhada.
           metaLabel = [rec.horasTrabalhadas != null ? fmtHoras(rec.horasTrabalhadas) : "", isHome ? "Home office" : "Presencial"].filter(Boolean).join(" · ");
@@ -1455,10 +1467,24 @@ html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px r
         bucket = "fimdesemana"; statusLabel = "Fim de semana";
       }
       // Abono aprovado pelo RH: o dia aparece como "Abonado", não como falta.
-      const abono = (!rec || rec.status === "falta" || rec.status === "futuro") && !rec?.pendenteAjuste ? abonoDoDia(iso) : null;
-      if (abono) {
+      const abono = (!rec || !rec.entrada || rec.status === "futuro") && !rec?.pendenteAjuste ? abonoDoDia(iso) : null;
+      if (abono && RH_TIPOS_ABONO[abono.tipo] && !["FALTA_JUSTIFICADA", "FALTA_NAO_JUSTIFICADA"].includes(abono.tipo)) {
         bucket = "abonado"; statusLabel = "Abonado";
         metaLabel = RH_TIPOS_ABONO[abono.tipo]?.label || "Abono";
+      }
+      // Apuração do banco (feriado, falta, saldo do dia) — mesma regra da Folha de Ponto.
+      const ap = DEMO.ponto.apuracao?.[iso];
+      if (ap && !rec?.pendenteAjuste && !(rec && rec.entrada)) {
+        if (ap.tipoDia === "FERIADO") { bucket = "feriado"; statusLabel = "Feriado"; metaLabel = ap.descricao || ""; }
+        else if (ap.tipoDia === "FALTA" || ap.tipoDia === "FALTA_JUSTIFICADA") {
+          bucket = "falta"; statusLabel = ap.tipoDia === "FALTA" ? "Falta" : "Falta justificada";
+          metaLabel = ap.contaNoBanco ? `${fmtMinutos(ap.saldoMin, { sinal: true })} no banco` : "";
+        }
+      } else if (ap && rec?.entrada && ap.tipoDia === "FERIADO") {
+        metaLabel = [metaLabel, `Feriado: ${ap.descricao}`].filter(Boolean).join(" · ");
+      }
+      if (ap && rec?.entrada && ap.saldoMin && ap.contaNoBanco && iso !== todayIso()) {
+        metaLabel = [metaLabel, `saldo ${fmtMinutos(ap.saldoMin, { sinal: true })}`].filter(Boolean).join(" · ");
       }
 
       const classes = ["history-day-card", bucket];
@@ -1552,14 +1578,38 @@ html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px r
     }
     function isoOf(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
 
+    // Tabela: registros do período + dias SEM registro que contam no banco
+    // (falta, falta justificada, abono, feriado) vindos da apuração.
+    function linhasTabelaPeriodo() {
+      const base = registrosDoPeriodo();
+      const ap = DEMO.ponto.apuracao;
+      if (!ap) return base;
+      const datas = new Set(base.map((h) => h.data));
+      const noPeriodo = (iso) => {
+        if (periodoTipo === "dia") return iso === diaSelecionado;
+        if (periodoTipo === "semana") {
+          const d = new Date(diaSelecionado + "T00:00:00"); const dow = (d.getDay() + 6) % 7;
+          const ini = new Date(d); ini.setDate(d.getDate() - dow); const fim = new Date(ini); fim.setDate(ini.getDate() + 6);
+          return iso >= isoOf(ini) && iso <= isoOf(fim);
+        }
+        if (periodoTipo === "personalizado") return intervaloValido() && iso >= rangeInicio && iso <= rangeFim;
+        return iso.startsWith(`${mesRef.ano}-${String(mesRef.mes + 1).padStart(2, "0")}`);
+      };
+      const extras = Object.values(ap)
+        .filter((a) => !datas.has(a.data) && noPeriodo(a.data) && ["FALTA", "FALTA_JUSTIFICADA", "ABONO", "FERIADO"].includes(a.tipoDia))
+        .map((a) => rhAplicarApuracao({ data: a.data, status: a.tipoDia === "FERIADO" ? "feriado" : a.tipoDia === "ABONO" ? "abonado" : "falta", entrada: null, saida: null, local: null, sintetico: true }, a));
+      return base.concat(extras).sort((x, y) => x.data.localeCompare(y.data));
+    }
+
     function renderTabelaHistorico() {
-      const rows = registrosDoPeriodo().slice().reverse();
+      const rows = linhasTabelaPeriodo().slice().reverse();
+      const comApuracao = !!DEMO.ponto.apuracao;
       const countEl = document.getElementById("history-count");
       if (countEl) countEl.textContent = `${rows.length} ${rows.length === 1 ? "registro" : "registros"}`;
       document.getElementById("tabela-historico").innerHTML = rows.length
         ? `
         <table>
-          <thead><tr><th>Data</th><th>Entrada</th><th>Saída</th><th>Intervalo</th><th class="cell-num">Horas</th><th class="cell-num">Extras</th><th class="cell-num">Atraso</th><th>Local</th><th>Status</th><th>RH</th></tr></thead>
+          <thead><tr><th>Data</th><th>Entrada</th><th>Saída</th><th>Intervalo</th><th class="cell-num">Horas</th>${comApuracao ? `<th class="cell-num">Previstas</th><th class="cell-num">Abono</th><th class="cell-num">Saldo</th>` : `<th class="cell-num">Extras</th><th class="cell-num">Atraso</th>`}<th>Local</th><th>Status</th><th>RH</th></tr></thead>
           <tbody>
             ${rows
               .map(
@@ -1568,11 +1618,15 @@ html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px r
               <td>${h.entrada || "—"}</td>
               <td>${h.saida || (h.batidasFaltando?.length ? "Não registrada" : h.data === todayIso() && h.entrada ? "Em andamento" : "—")}</td>
               <td>${h.intervaloSaida && h.intervaloVolta ? `${h.intervaloSaida}–${h.intervaloVolta}` : "—"}${Number(h.descontoAlmocoH) > 0 ? `<small class="intervalo-excesso" title="Intervalo passou do mínimo (1h) e não foi compensado no dia — conta como horas negativas no banco de horas.">${fmtMinutos(-Math.round(Number(h.descontoAlmocoH) * 60))} intervalo</small>` : ""}</td>
-              <td class="cell-num">${h.horasTrabalhadas != null ? fmtHoras(h.horasTrabalhadas) : "—"}</td>
+              <td class="cell-num">${h.horasTrabalhadas != null ? fmtHoras(h.horasTrabalhadas) : h.trabalhadasMin ? fmtMinutos(h.trabalhadasMin) : "—"}</td>
+              ${comApuracao ? `
+              <td class="cell-num">${h.previstasMin ? fmtMinutos(h.previstasMin) : "—"}</td>
+              <td class="cell-num">${h.abonoMin ? fmtMinutos(h.abonoMin) : "—"}</td>
+              <td class="cell-num">${h.data === todayIso() ? '<span class="hint">entra amanhã</span>' : h.contaNoBanco === false ? '<span class="hint" title="Antes do início da apuração — já incluído no saldo anterior">—</span>' : h.saldoMin ? `<span class="${h.saldoMin < 0 ? "saldo-neg" : "saldo-pos"}">${fmtMinutos(h.saldoMin, { sinal: true })}</span>` : "0:00"}</td>` : `
               <td class="cell-num">${h.horasExtras ? fmtDuracao(h.horasExtras, { sinal: true }) : "—"}</td>
-              <td class="cell-num">${h.atrasoMin ? fmtMinutos(-h.atrasoMin) : "—"}</td>
+              <td class="cell-num">${h.atrasoMin ? fmtMinutos(-h.atrasoMin) : "—"}</td>`}
               <td>${localBadgeHtml(h.local)}${geoLinkForPonto(h.geo, h.data)}</td>
-              <td>${h.batidasFaltando?.length ? `<span class="status-badge status-ATRASO" title="Não registrado: ${esc(h.batidasFaltando.join(", "))}">Incompleto</span>` : statusPillPonto(h.status)}</td>
+              <td>${h.batidasFaltando?.length ? `<span class="status-badge status-ATRASO" title="Não registrado: ${esc(h.batidasFaltando.join(", "))}">Incompleto</span>` : h.sintetico ? statusPillApuracao(h) : statusPillPonto(h.status)}</td>
               <td>${h.alteradoPeloRH ? `<span class="badge-alterado" title="${esc(h.alteradoPeloRH.motivo)} — ${fmtDate(h.alteradoPeloRH.em.slice(0,10))}">${ICONS.edit}Alterado</span>` : "—"}</td>
             </tr>`
               )
@@ -1580,6 +1634,12 @@ html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px r
           </tbody>
         </table>`
         : emptyStateHtml({ icon: ICONS.calendar, title: "Nenhum registro neste período", desc: "Selecione um dia no calendário para ver os detalhes da sua jornada." });
+    }
+
+    function statusPillApuracao(h) {
+      const map = { FALTA: ["status-CANCELED", "Falta"], FALTA_JUSTIFICADA: ["status-CANCELED", "Falta justificada"], ABONO: ["status-EM_ANALISE", h.descricaoDia || "Abonado"], FERIADO: ["badge-neutral", h.descricaoDia ? `Feriado · ${h.descricaoDia}` : "Feriado"] };
+      const [cls, label] = map[h.tipoDia] || ["badge-neutral", h.tipoDia || "—"];
+      return `<span class="status-badge ${cls}">${esc(label)}</span>`;
     }
 
     function statusPillPonto(status) {
