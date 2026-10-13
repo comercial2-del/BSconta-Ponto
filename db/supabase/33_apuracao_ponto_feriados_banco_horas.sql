@@ -30,7 +30,7 @@
 --     rh.colaboradores.tolerancia_diaria_min; vazio → padrão da empresa em
 --     rh.configuracoes_ponto.tolerancia_diaria_min, padrão 0). Só em dia
 --     trabalhado, nunca em falta.
---   * Trabalho em fim de semana/feriado entra inteiro como crédito.
+--   * Fim de semana e feriado não contam horas (saldo 0, mesmo com batida).
 --   * HOJE não entra no saldo (jornada em andamento).
 --
 -- Banco de horas = saldo inicial (rh.banco_horas_saldos_iniciais, ex.: saldo
@@ -290,10 +290,11 @@ begin
       if v_tem_fer then v_desc := v_fer.nome; elsif v_tem_ab then v_desc := c_labels->>v_ab.tipo; end if;
     else
       -- Jornada prevista do dia
+      -- Fim de semana e feriado NÃO contam horas (nem crédito, nem débito).
       if v_tem_fer then
-        v_prev := 0; v_tipo := 'FERIADO'; v_desc := v_fer.nome;
+        v_prev := 0; v_trab := 0; v_tipo := 'FERIADO'; v_desc := v_fer.nome;
       elsif not (v_cod = any(v_dias)) then
-        v_prev := 0; v_tipo := 'FIM_DE_SEMANA';
+        v_prev := 0; v_trab := 0; v_tipo := 'FIM_DE_SEMANA';
       else
         v_prev := round(coalesce(case when v_tem_r then r.meta_horas end, v_meta_atual, 8) * 60)::int;
         v_tipo := 'TRABALHO';
