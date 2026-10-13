@@ -18,3 +18,16 @@ nascimento, endereço): `03_seed_colaboradores.sql` e
 a migração. O repositório traz apenas as versões `.exemplo.sql`
 correspondentes, com dados fictícios, para quem for instalar o projeto do
 zero.
+
+## Banco de horas — script 33 (apuração única)
+
+`33_apuracao_ponto_feriados_banco_horas.sql` passa a calcular o banco de horas
+num lugar só (`rh.ponto_apuracao`), com a mesma regra da Folha de Ponto:
+saldo do dia = trabalhadas + abono − previstas, feriados (`rh.feriados`),
+faltas, tolerância diária e saldo anterior (`rh.banco_horas_saldos_iniciais`).
+Todas as telas (colaborador, RH, relatórios e o processamento do banco) leem
+desse cálculo.
+
+O script `34_importar_folha_ponto_*.sql` (importação da folha do sistema
+anterior) tem dados reais e **não é commitado** (ver `.gitignore`): roda só no
+SQL Editor do Supabase, depois do 33.
