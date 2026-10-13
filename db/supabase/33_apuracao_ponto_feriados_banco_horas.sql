@@ -31,6 +31,10 @@
 --     rh.configuracoes_ponto.tolerancia_diaria_min, padrão 0). Só em dia
 --     trabalhado, nunca em falta.
 --   * Fim de semana e feriado não contam horas (saldo 0, mesmo com batida).
+--   * A partir de configuracoes_ponto.regra_atraso_almoco_inicio: atraso até
+--     15 min tolerado; acima disso o atraso inteiro conta como hora devida;
+--     almoço acima do intervalo (mesmo 1 min) conta como hora devida; nenhum
+--     dos dois é compensado ficando mais tarde no mesmo dia.
 --   * HOJE não entra no saldo (jornada em andamento).
 --
 -- Banco de horas = saldo inicial (rh.banco_horas_saldos_iniciais, ex.: saldo
@@ -114,6 +118,14 @@ on conflict (data) do nothing;
 -- 2. Tolerância diária e saldo inicial
 -- -----------------------------------------------------------------------------
 alter table rh.configuracoes_ponto add column if not exists tolerancia_diaria_min integer not null default 0;
+-- Regra de atraso/almoço (a partir desta data): atraso até 15 min é tolerado;
+-- passou de 15 min, o atraso inteiro vira hora devida; almoço acima do
+-- intervalo (mesmo 1 min) vira hora devida. Nenhum dos dois é compensado
+-- ficando mais tarde no mesmo dia. Antes desta data vale a regra da Folha de
+-- Ponto importada (com a tolerância diária de cada um).
+alter table rh.configuracoes_ponto add column if not exists regra_atraso_almoco_inicio date;
+alter table rh.configuracoes_ponto add column if not exists tolerancia_atraso_min integer not null default 15;
+update rh.configuracoes_ponto set regra_atraso_almoco_inicio = coalesce(regra_atraso_almoco_inicio, '2026-10-10') where id = 1;
 alter table rh.colaboradores add column if not exists tolerancia_diaria_min integer;
 comment on column rh.configuracoes_ponto.tolerancia_diaria_min is 'Tolerância diária padrão (min): diferença do dia até este valor não entra no banco de horas. 0 = sem tolerância.';
 comment on column rh.colaboradores.tolerancia_diaria_min is 'Tolerância diária deste colaborador (min). Null = usa a da empresa (configuracoes_ponto.tolerancia_diaria_min).';
@@ -224,6 +236,12 @@ declare
   v_tipo text;
   v_desc text;
   v_incompleto boolean;
+  v_regra_ini date;
+  v_tol_atraso integer;
+  v_atraso integer;
+  v_excesso integer;
+  v_debito integer;
+  v_perdao integer;
   c_labels constant jsonb := '{"ATESTADO":"Atestado","FERIAS":"Férias","FALTA_JUSTIFICADA":"Falta justificada","FALTA_NAO_JUSTIFICADA":"Falta não justificada","AUSENCIA_AUTORIZADA":"Ausência autorizada","COMPROMISSO_EXTERNO":"Compromisso externo","FOLGA":"Folga / day off","AFASTAMENTO":"Afastamento","OUTRO":"Abono"}';
 begin
   if auth.uid() is not null and not rh.is_rh_staff() and p_colaborador is distinct from rh.colaborador_atual() then
@@ -238,6 +256,9 @@ begin
   select coalesce(c.tolerancia_diaria_min, cfg.tolerancia_diaria_min, 0) into v_tol
     from (select 1) x left join rh.configuracoes_ponto cfg on cfg.id = 1;
   v_tol := coalesce(v_tol, 0);
+  select cfg.regra_atraso_almoco_inicio, coalesce(cfg.tolerancia_atraso_min, 15) into v_regra_ini, v_tol_atraso
+    from rh.configuracoes_ponto cfg where cfg.id = 1;
+  v_tol_atraso := coalesce(v_tol_atraso, 15);
   v_meta_atual := rh.meta_diaria_colaborador(p_colaborador);
   v_dias := case when coalesce(array_length(c.dias_trabalho, 1), 0) > 0 then c.dias_trabalho else array['SEG','TER','QUA','QUI','SEX'] end;
 
@@ -319,7 +340,28 @@ begin
         end if;
         v_bruto := v_trab + v_abono - v_prev;
         v_saldo := v_bruto;
-        if v_tem_r and r.entrada is not null and v_prev > 0 and v_abono = 0 and abs(v_bruto) <= v_tol then
+        if v_regra_ini is not null and d >= v_regra_ini then
+          -- Regra de atraso/almoço (dia de trabalho com batida, sem abono).
+          if v_tem_r and r.entrada is not null and v_prev > 0 and v_abono = 0 then
+            v_atraso := case when c.horario_entrada is not null
+                             then greatest(0, (extract(epoch from (r.entrada - c.horario_entrada)) / 60)::int) else 0 end;
+            v_excesso := case when r.intervalo_saida is not null and r.intervalo_volta is not null
+                              then greatest(0, (extract(epoch from (r.intervalo_volta - r.intervalo_saida)) / 60)::int
+                                              - coalesce(r.intervalo_min, rh.intervalo_minimo_calculo(p_colaborador), 60))
+                              else 0 end;
+            v_perdao := case when v_atraso <= v_tol_atraso then v_atraso else 0 end;
+            v_debito := case when v_atraso > v_tol_atraso then v_atraso else 0 end + v_excesso;
+            -- atraso tolerado não gera hora devida (mas não vira crédito)
+            if v_saldo < 0 then v_saldo := v_saldo + least(v_perdao, -v_saldo); end if;
+            -- atraso acima da tolerância e almoço excedente sempre contam
+            if v_debito > 0 then v_saldo := least(v_saldo, -v_debito); end if;
+            if v_debito > 0 then
+              v_desc := concat_ws(' · ',
+                case when v_atraso > v_tol_atraso then 'Atraso ' || rh.banco_horas_fmt(v_atraso) end,
+                case when v_excesso > 0 then 'Almoço excedido ' || rh.banco_horas_fmt(v_excesso) end);
+            end if;
+          end if;
+        elsif v_tem_r and r.entrada is not null and v_prev > 0 and v_abono = 0 and abs(v_bruto) <= v_tol then
           v_saldo := 0;
         end if;
         if v_incompleto and v_desc is null then v_desc := 'Registro incompleto'; end if;
