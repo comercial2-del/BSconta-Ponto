@@ -457,6 +457,50 @@ async function rhResolverFerias(solicitacaoId, aprovado) {
   return true;
 }
 
+/** RH REABRE uma solicitação de férias já resolvida (APROVADA ou RECUSADA),
+ * para corrigir uma aprovação/recusa feita por engano. Volta para PENDENTE.
+ * Se estava APROVADA, devolve ao saldo os dias que foram debitados na
+ * aprovação (rh.ferias_saldos), desfazendo exatamente o que
+ * rhResolverFerias fez. */
+async function rhReabrirFerias(solicitacaoId) {
+  const { data: solicitacao, error: getErr } = await sb.from("ferias_solicitacoes").select("*").eq("id", solicitacaoId).single();
+  if (getErr) throw getErr;
+  if (!["APROVADA", "RECUSADA"].includes(solicitacao.status)) {
+    throw new Error("Esta solicitação não está aprovada nem recusada — atualize a tela.");
+  }
+
+  const { data: atualizada, error: updErr } = await sb
+    .from("ferias_solicitacoes")
+    .update({ status: "PENDENTE" })
+    .eq("id", solicitacaoId)
+    .eq("status", solicitacao.status)
+    .select()
+    .maybeSingle();
+  if (updErr) throw updErr;
+  if (!atualizada) throw new Error("Esta solicitação foi alterada por outra pessoa — atualize a tela.");
+
+  if (solicitacao.status === "APROVADA") {
+    const { data: saldoAtual, error: saldoErr } = await sb
+      .from("ferias_saldos")
+      .select("*")
+      .eq("colaborador_id", solicitacao.colaborador_id)
+      .maybeSingle();
+    if (saldoErr) throw saldoErr;
+    if (saldoAtual) {
+      const { error: saldoUpdErr } = await sb
+        .from("ferias_saldos")
+        .update({
+          saldo_dias: (saldoAtual.saldo_dias || 0) + solicitacao.dias,
+          dias_usados: Math.max(0, (saldoAtual.dias_usados || 0) - solicitacao.dias),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("colaborador_id", solicitacao.colaborador_id);
+      if (saldoUpdErr) throw saldoUpdErr;
+    }
+  }
+  return true;
+}
+
 /** RH PRÉ-APROVA uma solicitação de férias (novo status PRE_APROVADA —
  * migração 22). Não debita saldo: isso continua acontecendo só na
  * aprovação definitiva (rhResolverFerias), que aceita tanto PENDENTE quanto
