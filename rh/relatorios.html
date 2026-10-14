@@ -41,19 +41,22 @@
     .report-toggle-txt summary:hover{color:var(--text)}
     .report-pre{margin-top:.8rem;font-size:.86rem;line-height:1.65;letter-spacing:.01em}
     @media print {
-      .top-header, #app-header, #cards-grid, .period-buttons, #btn-baixar, [data-rel-pdf], .report-export-row { display: none !important; }
+      .top-header, #app-header, #cards-grid, .period-buttons, .rel-filtro, #btn-baixar, [data-rel-pdf], .report-export-row { display: none !important; }
       .report-pre { display: none !important; }
     }
   </style>
   <style>
-    .period-buttons button[data-p="custom"] { display: inline-flex; align-items: center; gap: .35rem; }
-    .period-buttons button[data-p="custom"] svg { width: 15px; height: 15px; }
-    .periodo-custom-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .75rem 1rem; }
-    .periodo-custom-bar[hidden] { display: none; }
-    .periodo-custom-bar .field { margin: 0; min-width: 160px; }
-    .periodo-atalhos { display: flex; gap: .4rem; flex-wrap: wrap; }
-    .periodo-atalhos .btn-ghost { width: auto; padding: .45rem .7rem; font-size: .8rem; }
-    .periodo-custom-resumo { flex-basis: 100%; margin: 0; font-size: .8rem; color: var(--text-faint); }
+    /* Filtro único da tela (vale para todos os relatórios). */
+    .rel-filtro { display: flex; flex-direction: column; gap: .9rem; }
+    .rel-filtro .period-buttons { align-self: flex-start; max-width: 100%; }
+    .rel-filtro-campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: .75rem 1rem; align-items: end; }
+    .rel-filtro-campos .field { margin: 0; min-width: 0; }
+    .rel-filtro-rodape { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; }
+    .rel-filtro-resumo { margin: 0; font-size: .82rem; color: var(--text-soft); }
+    .rel-filtro-resumo strong { color: var(--text); }
+    .rel-filtro-rodape .btn-ghost { width: auto; padding: .4rem .7rem; font-size: .8rem; }
+    .rel-card-aplica { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .55rem; }
+    .rel-card-aplica span { font-size: .7rem; font-weight: 700; padding: .12rem .45rem; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-faint); }
   </style>
 </head>
 <body>
@@ -84,13 +87,40 @@
 (async function () {
     const session = await requireRoleReal("RH");
     if (!session) return;
-    let periodo = "mes";
-    // Período personalizado (datas escolhidas pelo RH) — padrão: mês atual.
-    const periodoCustom = {
-      inicio: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`; })(),
-      fim: rhTodayIso(),
+    // ------------------------------------------------------------------
+    // FILTRO ÚNICO da tela — fica no topo e vale para TODOS os relatórios
+    // (período + departamento + colaborador). Cada relatório aplica o que
+    // faz sentido para ele (ver REPORTS_CARDS[].aplica).
+    // ------------------------------------------------------------------
+    const isoDia = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const PERIODOS = {
+      "mes-atual": { label: "Mês atual", calc: () => { const h = new Date(); return { inicio: isoDia(new Date(h.getFullYear(), h.getMonth(), 1)), fim: rhTodayIso() }; } },
+      "mes-anterior": { label: "Mês anterior", calc: () => { const h = new Date(); return { inicio: isoDia(new Date(h.getFullYear(), h.getMonth() - 1, 1)), fim: isoDia(new Date(h.getFullYear(), h.getMonth(), 0)) }; } },
+      "30d": { label: "Últimos 30 dias", calc: () => { const d = new Date(); d.setDate(d.getDate() - 29); return { inicio: isoDia(d), fim: rhTodayIso() }; } },
+      "90d": { label: "Últimos 90 dias", calc: () => { const d = new Date(); d.setDate(d.getDate() - 89); return { inicio: isoDia(d), fim: rhTodayIso() }; } },
+      "ano": { label: "Este ano", calc: () => ({ inicio: `${new Date().getFullYear()}-01-01`, fim: rhTodayIso() }) },
     };
+    const filtro = { preset: "mes-atual", ...PERIODOS["mes-atual"].calc(), departamento: "", colaboradorId: "" };
     let selecionado = null;
+
+    function periodoLabelAtual() {
+      const datas = `${fmtDate(filtro.inicio)} a ${fmtDate(filtro.fim)}`;
+      return PERIODOS[filtro.preset] ? `${PERIODOS[filtro.preset].label} (${datas})` : datas;
+    }
+    /** Colaborador entra no relatório? (departamento + colaborador do filtro). */
+    function colabNoFiltro(colabOuId) {
+      const c = typeof colabOuId === "string" ? base.colaboradores.find((x) => x.id === colabOuId) : colabOuId;
+      if (filtro.colaboradorId) return !!c && c.id === filtro.colaboradorId;
+      if (filtro.departamento) return !!c && (c.departamento || "") === filtro.departamento;
+      return true;
+    }
+    const porColab = (lista) => (filtro.colaboradorId || filtro.departamento ? lista.filter((x) => colabNoFiltro(x.colaboradorId)) : lista);
+    function filtroEquipeLabel() {
+      const c = filtro.colaboradorId && base.colaboradores.find((x) => x.id === filtro.colaboradorId);
+      if (c) return `Colaborador: ${c.nome}`;
+      if (filtro.departamento) return `Departamento: ${filtro.departamento}`;
+      return "Todos os colaboradores";
+    }
 
     // Cartões da tela (só rótulo/ícone — não é "dado" a ser relatado, é o
     // menu de relatórios disponíveis). O conteúdo de cada um vem de
@@ -100,33 +130,24 @@
     // rhFerias, rhFeriasProximas, rhSolicitacoesTodas, rhDocumentos,
     // rhPontoHoje), que eram listas fixas em memória.
     const REPORTS_CARDS = [
-      { id: "colaboradores", nome: "Colaboradores", desc: "Total, status e distribuição por departamento.", icon: "users", tone: "indigo" },
-      { id: "presenca", nome: "Presença e Home Office", desc: "Dias presenciais, em home office e com alteração do RH, por colaborador.", icon: "mapPin", tone: "blue" },
-      { id: "ferias", nome: "Férias", desc: "Solicitações aprovadas, pendentes e recusadas.", icon: "palmTree", tone: "green" },
-      { id: "solicitacoes", nome: "Solicitações", desc: "Volume, status e categorias das solicitações ao RH.", icon: "messageSquare", tone: "amber" },
-      { id: "documentos", nome: "Documentos", desc: "Holerites e documentos enviados, pendentes e assinados.", icon: "fileText", tone: "violet" },
-      { id: "ponto", nome: "Jornada / Ponto", desc: "Situação do ponto de hoje e banco de horas.", icon: "clock", tone: "teal" },
-      { id: "faltas", nome: "Faltas e justificativas", desc: "Faltas justificadas e não justificadas, com o motivo de cada uma.", icon: "xCircle", tone: "red" },
-      { id: "folha", nome: "Folha de ponto", desc: "Folha individual com batidas, abonos, saldo e banco de horas, em PDF com a logo. Baixe ou envie para cada colaborador assinar.", icon: "fileText", tone: "blue" },
-      { id: "abonos", nome: "Abonos, atestados e férias", desc: "Ocorrências registradas pelo RH e o status de cada uma.", icon: "clipboardCheck", tone: "violet" },
-      { id: "personalizado", nome: "Pesquisa personalizada", desc: "Escolha os critérios (colaborador, departamento, tipo, período...) e gere só o que precisa.", icon: "filter", tone: "indigo" },
+      { id: "colaboradores", nome: "Colaboradores", desc: "Total, status e distribuição por departamento.", icon: "users", tone: "indigo", aplica: ["Período", "Departamento", "Colaborador"] },
+      { id: "presenca", nome: "Presença e Home Office", desc: "Dias presenciais, em home office e com alteração do RH, por colaborador.", icon: "mapPin", tone: "blue", aplica: ["Período", "Departamento", "Colaborador"] },
+      { id: "ferias", nome: "Férias", desc: "Solicitações aprovadas, pendentes e recusadas.", icon: "palmTree", tone: "green", aplica: ["Período", "Departamento", "Colaborador"] },
+      { id: "solicitacoes", nome: "Solicitações", desc: "Volume, status e categorias das solicitações ao RH.", icon: "messageSquare", tone: "amber", aplica: ["Período", "Departamento", "Colaborador"] },
+      { id: "documentos", nome: "Documentos", desc: "Holerites e documentos enviados, pendentes e assinados.", icon: "fileText", tone: "violet", aplica: ["Período", "Departamento", "Colaborador"] },
+      { id: "ponto", nome: "Jornada / Ponto", desc: "Atrasos e faltas no período, situação de hoje e banco de horas.", icon: "clock", tone: "teal", aplica: ["Período", "Departamento", "Colaborador"] },
+      { id: "faltas", nome: "Faltas e justificativas", desc: "Faltas justificadas e não justificadas, com o motivo de cada uma.", icon: "xCircle", tone: "red", aplica: ["Período", "Departamento", "Colaborador"] },
+      { id: "folha", nome: "Folha de ponto", desc: "Folha individual com batidas, abonos, saldo e banco de horas, em PDF com a logo. Baixe ou envie para cada colaborador assinar.", icon: "fileText", tone: "blue", aplica: ["Período", "Departamento", "Colaborador"] },
+      { id: "abonos", nome: "Abonos, atestados e férias", desc: "Ocorrências registradas pelo RH e o status de cada uma.", icon: "clipboardCheck", tone: "violet", aplica: ["Período", "Departamento", "Colaborador"] },
+      { id: "personalizado", nome: "Pesquisa personalizada", desc: "Usa o filtro acima e permite escolher o tipo de ocorrência, a situação e as colunas.", icon: "filter", tone: "indigo", aplica: ["Período", "Departamento", "Colaborador"] },
     ];
 
     // Dados reais carregados uma vez ao abrir a tela (recarregados sempre
     // que a tela reabre — não há cache entre sessões).
     let base = { colaboradores: [], ferias: [], solicitacoes: [], documentos: [], pontoHoje: [], pontoRegistros: [] };
 
-    function periodoInicioIso() {
-      if (periodo === "custom") return periodoCustom.inicio;
-      const d = new Date();
-      if (periodo === "mes") d.setDate(d.getDate() - 30);
-      else if (periodo === "trimestre") d.setDate(d.getDate() - 90);
-      else d.setFullYear(d.getFullYear() - 1);
-      return d.toISOString().slice(0, 10);
-    }
-    function periodoFimIso() {
-      return periodo === "custom" ? periodoCustom.fim : rhTodayIso();
-    }
+    function periodoInicioIso() { return filtro.inicio; }
+    function periodoFimIso() { return filtro.fim; }
 
     async function carregarBase() {
       const hojeIso = rhTodayIso();
@@ -215,24 +236,31 @@
     // ------------------------------------------------------------------
     function gerarRelatorio(id) {
       const hoje = new Date().toLocaleDateString("pt-BR");
-      const periodoLabel = periodo === "custom"
-        ? `${fmtDate(periodoCustom.inicio)} a ${fmtDate(periodoCustom.fim)}`
-        : { mes: "últimos 30 dias", trimestre: "último trimestre", ano: "ano corrente" }[periodo];
+      const periodoLabel = periodoLabelAtual();
       const inicioPeriodo = periodoInicioIso();
       const fimPeriodo = periodoFimIso();
       // Data (YYYY-MM-DD ou timestamp) dentro do período escolhido.
       const noPeriodoData = (v) => { if (!v) return false; const d = String(v).slice(0, 10); return d >= inicioPeriodo && d <= fimPeriodo; };
-      const metaPadrao = `Período: ${periodoLabel} · Gerado em ${hoje} por ${session.name}`;
+      const metaPadrao = `Período: ${periodoLabel} · ${filtroEquipeLabel()} · Gerado em ${hoje} por ${session.name}`;
+      // Recortes já filtrados por departamento/colaborador.
+      const colabsF = base.colaboradores.filter((c) => colabNoFiltro(c));
+      const feriasF = porColab(base.ferias);
+      const solicitacoesF = porColab(base.solicitacoes);
+      const documentosF = porColab(base.documentos);
+      const ocorrenciasF = porColab(base.ocorrencias || []);
+      const pontoHojeF = base.pontoHoje.filter((r) => colabNoFiltro(r.id));
 
       const geradores = {
         colaboradores: () => {
-          const total = base.colaboradores.length;
-          const ativos = base.colaboradores.filter((c) => c.status === "ATIVO").length;
-          const afastados = base.colaboradores.filter((c) => c.status === "AFASTADO").length;
-          const admissoesPeriodo = base.colaboradores.filter((c) => noPeriodoData(c.admissao)).length;
-          const desligamentosPeriodo = base.colaboradores.filter((c) => noPeriodoData(c.data_desligamento)).length;
+          const total = colabsF.length;
+          const ativos = colabsF.filter((c) => c.status === "ATIVO").length;
+          const afastados = colabsF.filter((c) => c.status === "AFASTADO").length;
+          const admitidos = colabsF.filter((c) => noPeriodoData(c.admissao));
+          const desligados = colabsF.filter((c) => noPeriodoData(c.data_desligamento));
+          const admissoesPeriodo = admitidos.length;
+          const desligamentosPeriodo = desligados.length;
           const porDeptoMap = {};
-          base.colaboradores.forEach((c) => { const d = c.departamento || "Sem departamento"; porDeptoMap[d] = (porDeptoMap[d] || 0) + 1; });
+          colabsF.forEach((c) => { const d = c.departamento || "Sem departamento"; porDeptoMap[d] = (porDeptoMap[d] || 0) + 1; });
           const porDept = Object.entries(porDeptoMap).sort((a, b) => b[1] - a[1]);
           return {
             titulo: "Relatório de Colaboradores",
@@ -245,7 +273,8 @@
               { label: "Desligamentos no período", value: desligamentosPeriodo, tone: "red", icon: ICONS.xCircle },
             ],
             secoes: [
-              { titulo: "Distribuição por departamento", tabela: { headers: ["Departamento", "Colaboradores"], rows: porDept.length ? porDept.map(([nome, qtd]) => [nome, String(qtd)]) : [] }, vazio: "Nenhum colaborador cadastrado." },
+              { titulo: "Distribuição por departamento", tabela: { headers: ["Departamento", "Colaboradores"], rows: porDept.length ? porDept.map(([nome, qtd]) => [nome, String(qtd)]) : [] }, vazio: "Nenhum colaborador neste filtro." },
+              { titulo: "Admissões e desligamentos no período", tabela: { headers: ["Colaborador", "Departamento", "Movimento", "Data"], rows: [...admitidos.map((c) => [c.nome, c.departamento || "—", "Admissão", fmtDate(c.admissao)]), ...desligados.map((c) => [c.nome, c.departamento || "—", "Desligamento", fmtDate(c.data_desligamento)])] }, vazio: "Nenhuma admissão ou desligamento no período." },
             ],
           };
         },
@@ -253,7 +282,7 @@
           // Item 1 do pedido do RH: para cada colaborador, no período
           // selecionado — dias presenciais, dias em home office e dias com
           // alguma alteração feita pelo RH (rh.ponto_registros.alterado_pelo_rh).
-          const ativos = base.colaboradores.filter((c) => c.status !== "INATIVO");
+          const ativos = colabsF.filter((c) => c.status !== "INATIVO");
           const noPeriodo = base.pontoRegistros.filter((r) => noPeriodoData(r.data));
           const porColab = {};
           ativos.forEach((c) => { porColab[c.id] = { nome: c.nome, presencial: 0, homeOffice: 0, alteradoRH: 0 }; });
@@ -284,19 +313,23 @@
                   headers: ["Colaborador", "Dias presenciais", "Dias home office", "Dias alterados pelo RH"],
                   rows: linhas.map((l) => [l.nome, String(l.presencial), String(l.homeOffice), String(l.alteradoRH)]),
                 },
-                vazio: "Nenhum colaborador ativo cadastrado.",
+                vazio: "Nenhum colaborador ativo neste filtro.",
               },
             ],
           };
         },
         ferias: () => {
-          const noPeriodo = base.ferias.filter((f) => noPeriodoData(f.solicitadoEm));
+          // Entra no período: férias que acontecem no período (gozo) OU que
+          // foram solicitadas no período.
+          const noPeriodo = feriasF
+            .filter((f) => (f.inicio && f.fim && f.fim >= inicioPeriodo && f.inicio <= fimPeriodo) || noPeriodoData(f.solicitadoEm))
+            .sort((a, b) => (a.inicio < b.inicio ? -1 : 1));
           const aprov = noPeriodo.filter((f) => f.status === "APROVADA").length;
-          const pend = noPeriodo.filter((f) => f.status === "PENDENTE" || f.status === "EM_ANALISE").length;
+          const pend = noPeriodo.filter((f) => ["PENDENTE", "EM_ANALISE", "PRE_APROVADA"].includes(f.status)).length;
           const rec = noPeriodo.filter((f) => f.status === "RECUSADA").length;
           const diasTotal = noPeriodo.filter((f) => f.status === "APROVADA").reduce((a, f) => a + (f.dias || 0), 0);
           const hojeIso = rhTodayIso();
-          const proximas = base.ferias.filter((f) => f.status === "APROVADA" && f.fim >= hojeIso).sort((a, b) => (a.inicio < b.inicio ? -1 : 1)).slice(0, 10);
+          const proximas = feriasF.filter((f) => f.status === "APROVADA" && f.fim >= hojeIso).sort((a, b) => (a.inicio < b.inicio ? -1 : 1)).slice(0, 10);
           return {
             titulo: "Relatório de Férias",
             meta: metaPadrao,
@@ -308,6 +341,11 @@
             ],
             secoes: [
               {
+                titulo: "Férias do período (gozo ou solicitação no período)",
+                tabela: { headers: ["Colaborador", "Início", "Fim", "Dias", "Status", "Solicitado em"], rows: noPeriodo.map((v) => [v.colaborador, fmtDate(v.inicio), fmtDate(v.fim), String(v.dias), STATUS_LABELS[v.status] || v.status, fmtDate(v.solicitadoEm)]) },
+                vazio: "Nenhuma férias no período.",
+              },
+              {
                 titulo: "Próximas férias aprovadas (todas as futuras, não só do período)",
                 tabela: { headers: ["Colaborador", "Início", "Fim", "Dias"], rows: proximas.map((v) => [v.colaborador, fmtDate(v.inicio), fmtDate(v.fim), String(v.dias)]) },
                 vazio: "Nenhuma férias aprovada futura.",
@@ -316,7 +354,7 @@
           };
         },
         solicitacoes: () => {
-          const noPeriodo = base.solicitacoes.filter((s) => noPeriodoData(s.data));
+          const noPeriodo = solicitacoesF.filter((s) => noPeriodoData(s.data));
           const total = noPeriodo.length;
           const resolvidas = noPeriodo.filter((s) => (s.statusExibicao || s.status) === "RESOLVIDA" || s.status === "RECUSADA").length;
           const abertas = total - resolvidas;
@@ -342,46 +380,53 @@
           };
         },
         documentos: () => {
-          const noPeriodo = base.documentos.filter((d) => noPeriodoData(d.data));
+          const noPeriodo = documentosF.filter((d) => noPeriodoData(d.data));
           const publicadosOuAssinados = noPeriodo.filter((d) => d.status === "PUBLICADO" || d.status === "ASSINADO").length;
-          const pendentesRows = base.documentos.filter((d) => d.status === "PENDENTE" || d.status === "AGUARDANDO_IMPORTACAO");
-          const vencendo15 = base.documentos.filter((d) => d.prazo && d.status !== "ASSINADO" && d.status !== "PUBLICADO" && d.prazo >= rhTodayIso() && d.prazo <= new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10)).length;
+          const assinadosPeriodo = documentosF.filter((d) => d.status === "ASSINADO" && noPeriodoData(d.assinadoEm || d.data)).length;
+          const pendentesRows = noPeriodo.filter((d) => d.status === "PENDENTE" || d.status === "AGUARDANDO_IMPORTACAO");
+          const vencendo15 = documentosF.filter((d) => d.prazo && d.status !== "ASSINADO" && d.status !== "PUBLICADO" && d.prazo >= rhTodayIso() && d.prazo <= new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10)).length;
           const labelsStatus = { ...STATUS_LABELS, PENDENTE: "Pendente de assinatura", AGUARDANDO_IMPORTACAO: "Aguardando importação" };
           return {
             titulo: "Relatório de Documentos",
             meta: metaPadrao,
             kpis: [
-              { label: "Enviados no período", value: publicadosOuAssinados, tone: "green", icon: ICONS.fileText },
-              { label: "Pendentes (total)", value: pendentesRows.length, tone: "amber", icon: ICONS.alertCircle },
+              { label: "Enviados no período", value: noPeriodo.length, tone: "indigo", icon: ICONS.fileText },
+              { label: "Publicados/assinados", value: publicadosOuAssinados, tone: "green", icon: ICONS.checkCircle },
+              { label: "Assinados no período", value: assinadosPeriodo, tone: "teal", icon: ICONS.checkCircle },
+              { label: "Pendentes (enviados no período)", value: pendentesRows.length, tone: "amber", icon: ICONS.alertCircle },
               { label: "Vencendo em 15 dias", value: vencendo15, tone: "red", icon: ICONS.xCircle },
             ],
             secoes: [
-              { titulo: "Pendências", tabela: { headers: ["Colaborador", "Documento", "Status"], rows: pendentesRows.map((d) => [d.colaborador, d.titulo || d.tipo, labelsStatus[d.status] || d.status]) }, vazio: "Nenhuma pendência." },
+              { titulo: "Pendências", tabela: { headers: ["Colaborador", "Documento", "Enviado em", "Prazo", "Status"], rows: pendentesRows.map((d) => [d.colaborador, d.titulo || d.tipo, fmtDate(d.data), d.prazo ? fmtDate(d.prazo) : "—", labelsStatus[d.status] || d.status]) }, vazio: "Nenhuma pendência no período." },
+              { titulo: "Documentos do período", tabela: { headers: ["Colaborador", "Documento", "Competência", "Enviado em", "Status"], rows: noPeriodo.map((d) => [d.colaborador, d.titulo || d.tipo, d.competencia || "—", fmtDate(d.data), labelsStatus[d.status] || d.status]) }, vazio: "Nenhum documento enviado no período." },
             ],
           };
         },
         ponto: () => {
-          const emDia = base.pontoHoje.filter((r) => r.status === "completo").length;
-          const atrasos = base.pontoHoje.filter((r) => r.status === "atraso").length;
-          const faltas = base.pontoHoje.filter((r) => r.status === "falta").length;
-          const negativo = base.pontoHoje.filter((r) => r.saldoBanco < 0).length;
+          const ocPeriodo = ocorrenciasF.filter((l) => noPeriodoData(l.data));
+          const contar = (id, cat) => ocPeriodo.filter((l) => l.colaboradorId === id && l.categoria === cat).length;
+          const atrasosPeriodo = ocPeriodo.filter((l) => l.categoria === "ATRASO").length;
+          const faltasPeriodo = ocPeriodo.filter((l) => l.categoria === "FALTA").length;
+          const emDia = pontoHojeF.filter((r) => r.status === "completo").length;
+          const negativo = pontoHojeF.filter((r) => r.saldoBanco < 0).length;
+          const STATUS_HOJE = { completo: "Em dia", atraso: "Atraso", falta: "Sem entrada", afastado: "Afastado", sem_expediente: "Sem expediente", trabalhando: "Trabalhando", aguardando: "Aguardando" };
           return {
             titulo: "Relatório de Jornada / Ponto",
-            meta: `Situação de hoje (${hoje}) — o período selecionado não se aplica a este relatório · Gerado por ${session.name}`,
+            meta: `${metaPadrao} · "Status hoje" e banco de horas são de ${hoje}`,
             kpis: [
+              { label: "Atrasos no período", value: atrasosPeriodo, tone: "amber", icon: ICONS.alertCircle },
+              { label: "Faltas no período", value: faltasPeriodo, tone: "red", icon: ICONS.xCircle },
               { label: "Em dia hoje", value: emDia, tone: "green", icon: ICONS.checkCircle },
-              { label: "Atrasos hoje", value: atrasos, tone: "amber", icon: ICONS.alertCircle },
-              { label: "Faltas hoje", value: faltas, tone: "red", icon: ICONS.xCircle },
               { label: "Banco de horas negativo", value: negativo, tone: "violet", icon: ICONS.clock },
             ],
             secoes: [
-              { titulo: "Detalhe por colaborador", tabela: { headers: ["Colaborador", "Status hoje", "Banco de horas"], rows: base.pontoHoje.map((r) => [r.nome, r.status, fmtDuracao(r.saldoBanco, { sinal: true })]) }, vazio: "Nenhum colaborador ativo cadastrado." },
+              { titulo: "Detalhe por colaborador", tabela: { headers: ["Colaborador", "Atrasos no período", "Faltas no período", "Status hoje", "Banco de horas"], rows: pontoHojeF.map((r) => [r.nome, String(contar(r.id, "ATRASO")), String(contar(r.id, "FALTA")), STATUS_HOJE[r.status] || r.status, fmtDuracao(r.saldoBanco, { sinal: true })]) }, vazio: base.ocorrenciasErro || "Nenhum colaborador ativo neste filtro." },
             ],
           };
         },
       };
       geradores.faltas = () => {
-        const faltas = base.ocorrencias.filter((l) => l.categoria === "FALTA" && noPeriodoData(l.data));
+        const faltas = ocorrenciasF.filter((l) => l.categoria === "FALTA" && noPeriodoData(l.data));
         const just = faltas.filter((l) => l.justificacao === "JUSTIFICADA").length;
         const naoJust = faltas.filter((l) => l.justificacao === "NAO_JUSTIFICADA").length;
         const emAnalise = faltas.filter((l) => l.justificacao === "EM_ANALISE").length;
@@ -407,7 +452,7 @@
         };
       };
       geradores.abonos = () => {
-        const linhas = base.ocorrencias.filter((l) => ["ABONO", "ATESTADO", "FERIAS"].includes(l.categoria) && String(l.dataFim || l.data || "").slice(0, 10) >= inicioPeriodo && String(l.dataInicio || l.data || l.dataFim || "").slice(0, 10) <= fimPeriodo);
+        const linhas = ocorrenciasF.filter((l) => ["ABONO", "ATESTADO", "FERIAS"].includes(l.categoria) && String(l.dataFim || l.data || "").slice(0, 10) >= inicioPeriodo && String(l.dataInicio || l.data || l.dataFim || "").slice(0, 10) <= fimPeriodo);
         const atestados = linhas.filter((l) => l.categoria === "ATESTADO");
         return {
           titulo: "Relatório de Abonos, Atestados e Férias",
@@ -506,24 +551,23 @@
               <h1 class="page-title">Relatórios</h1>
               <p class="page-sub">Gere relatórios com os principais indicadores de RH.</p>
             </div>
-            <div class="period-buttons">
-              <button type="button" data-p="mes" class="active">30 dias</button>
-              <button type="button" data-p="trimestre">Trimestre</button>
-              <button type="button" data-p="ano">Ano</button>
-              <button type="button" data-p="custom">${ICONS.calendar || ""}<span>Personalizado</span></button>
-            </div>
           </div>
 
-          <div class="card card-p periodo-custom-bar" id="periodo-custom" hidden>
-            <div class="field"><label>Data inicial</label><input type="date" id="pc-inicio" value="${periodoCustom.inicio}" max="${rhTodayIso()}" /></div>
-            <div class="field"><label>Data final</label><input type="date" id="pc-fim" value="${periodoCustom.fim}" /></div>
-            <div class="periodo-atalhos">
-              <button type="button" class="btn-ghost" data-atalho="mes-atual">Mês atual</button>
-              <button type="button" class="btn-ghost" data-atalho="mes-anterior">Mês anterior</button>
-              <button type="button" class="btn-ghost" data-atalho="ano-atual">Este ano</button>
+          <div class="card card-p rel-filtro" id="rel-filtro">
+            <div class="period-buttons" role="group" aria-label="Período">
+              ${Object.entries(PERIODOS).map(([k, v]) => `<button type="button" data-p="${k}" class="${filtro.preset === k ? "active" : ""}">${v.label}</button>`).join("")}
+              <button type="button" data-p="custom" class="${filtro.preset === "custom" ? "active" : ""}">Personalizado</button>
             </div>
-            <button type="button" class="btn-primary auto" id="pc-aplicar">${ICONS.checkCircle}<span>Aplicar período</span></button>
-            <p class="periodo-custom-resumo" id="pc-resumo"></p>
+            <div class="rel-filtro-campos">
+              <div class="field"><label for="f-inicio">Data inicial</label><input type="date" id="f-inicio" value="${filtro.inicio}" /></div>
+              <div class="field"><label for="f-fim">Data final</label><input type="date" id="f-fim" value="${filtro.fim}" /></div>
+              <div class="field"><label for="f-depto">Departamento</label><select id="f-depto"></select></div>
+              <div class="field"><label for="f-colab">Colaborador</label><select id="f-colab"></select></div>
+            </div>
+            <div class="rel-filtro-rodape">
+              <p class="rel-filtro-resumo" id="f-resumo"></p>
+              <button type="button" class="btn-ghost" id="f-limpar">${ICONS.refresh}<span>Limpar filtros</span></button>
+            </div>
           </div>
 
           <div class="grid-3-even" id="cards-grid"></div>
@@ -550,57 +594,73 @@
           </div>
           <h3 style="margin:0.7rem 0 0.2rem">${esc(r.nome)}</h3>
           <p style="margin:0;font-size:0.83rem;color:var(--text-faint);min-height:2.4em">${esc(r.desc)}</p>
+          ${r.aplica ? `<div class="rel-card-aplica" title="Filtros do topo que valem para este relatório">${r.aplica.map((a) => `<span>${esc(a)}</span>`).join("")}</div>` : ""}
           <button type="button" class="btn-primary auto" style="margin-top:0.9rem" data-gerar="${r.id}" data-nome="${esc(r.nome)}">${ICONS.reports}<span>Gerar relatório</span></button>
         </div>`
         )
         .join("");
 
+      // ---------------- Filtro único ----------------
+      const fInicio = document.getElementById("f-inicio");
+      const fFim = document.getElementById("f-fim");
+      const fDepto = document.getElementById("f-depto");
+      const fColab = document.getElementById("f-colab");
+
+      function preencherSelects() {
+        const deptos = [...new Set(base.colaboradores.map((c) => c.departamento).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
+        fDepto.innerHTML = `<option value="">Todos os departamentos</option>${deptos.map((d) => `<option ${d === filtro.departamento ? "selected" : ""}>${esc(d)}</option>`).join("")}`;
+        const colabs = base.colaboradores.filter((c) => !filtro.departamento || (c.departamento || "") === filtro.departamento);
+        if (filtro.colaboradorId && !colabs.some((c) => c.id === filtro.colaboradorId)) filtro.colaboradorId = "";
+        fColab.innerHTML = `<option value="">Todos os colaboradores</option>${colabs.map((c) => `<option value="${c.id}" ${c.id === filtro.colaboradorId ? "selected" : ""}>${esc(c.nome)}${c.status === "INATIVO" ? " (inativo)" : ""}</option>`).join("")}`;
+      }
+      function atualizarResumo() {
+        const dias = Math.round((new Date(filtro.fim + "T00:00:00") - new Date(filtro.inicio + "T00:00:00")) / 86400000) + 1;
+        document.getElementById("f-resumo").innerHTML = `Mostrando <strong>${fmtDate(filtro.inicio)} a ${fmtDate(filtro.fim)}</strong> (${dias} dia${dias === 1 ? "" : "s"}) · <strong>${esc(filtroEquipeLabel())}</strong>`;
+        document.querySelectorAll("[data-p]").forEach((b) => b.classList.toggle("active", b.dataset.p === filtro.preset));
+        fInicio.value = filtro.inicio;
+        fFim.value = filtro.fim;
+      }
+      /** Sempre que o filtro muda: recarrega ocorrências antigas se preciso
+       * e refaz o relatório aberto na hora — não precisa clicar de novo. */
+      async function aplicarFiltro() {
+        atualizarResumo();
+        if (!base.ocorrenciasInicio || filtro.inicio < base.ocorrenciasInicio) {
+          document.getElementById("rel-filtro").style.opacity = ".6";
+          await carregarOcorrencias(filtro.inicio);
+          document.getElementById("rel-filtro").style.opacity = "";
+        }
+        if (!selecionado) return;
+        if (selecionado.id === "folha") { folhasGeradas = []; relFolha = null; mostrarFolha(); return; }
+        if (selecionado.id === "personalizado") { if (relPersonalizado) await gerarPersonalizado(); else mostrarBuilder(); return; }
+        mostrarResultado(selecionado.id, selecionado.nome, { rolar: false });
+      }
+
       document.querySelectorAll("[data-p]").forEach((btn) =>
         btn.addEventListener("click", () => {
-          document.querySelectorAll("[data-p]").forEach((b) => b.classList.remove("active"));
-          btn.classList.add("active");
-          periodo = btn.dataset.p;
-          document.getElementById("periodo-custom").hidden = periodo !== "custom";
-          atualizarResumoPeriodo();
-          if (selecionado) mostrarResultado(selecionado.id, selecionado.nome);
+          filtro.preset = btn.dataset.p;
+          if (PERIODOS[filtro.preset]) Object.assign(filtro, PERIODOS[filtro.preset].calc());
+          else { atualizarResumo(); fInicio.focus(); return; }
+          aplicarFiltro();
         })
       );
-
-      const pcInicio = document.getElementById("pc-inicio");
-      const pcFim = document.getElementById("pc-fim");
-      function atualizarResumoPeriodo() {
-        const el = document.getElementById("pc-resumo");
-        if (!el) return;
-        const dias = Math.round((new Date(periodoCustom.fim) - new Date(periodoCustom.inicio)) / 86400000) + 1;
-        el.textContent = `Relatórios de ${fmtDate(periodoCustom.inicio)} a ${fmtDate(periodoCustom.fim)} (${dias} dia${dias === 1 ? "" : "s"}).`;
+      function mudouData() {
+        const ini = fInicio.value, fim = fFim.value;
+        if (!ini || !fim) return;
+        if (ini > fim) { showToast("A data inicial não pode ser depois da data final.", "error"); fInicio.value = filtro.inicio; fFim.value = filtro.fim; return; }
+        Object.assign(filtro, { inicio: ini, fim, preset: "custom" });
+        aplicarFiltro();
       }
-      async function aplicarPeriodoCustom() {
-        const ini = pcInicio.value, fim = pcFim.value;
-        if (!ini || !fim) { showToast("Informe a data inicial e a data final.", "error"); return; }
-        if (ini > fim) { showToast("A data inicial não pode ser depois da data final.", "error"); return; }
-        periodoCustom.inicio = ini;
-        periodoCustom.fim = fim;
-        // Ocorrências vêm carregadas só do último ano — período mais antigo recarrega.
-        if (!base.ocorrenciasInicio || ini < base.ocorrenciasInicio) {
-          const btn = document.getElementById("pc-aplicar");
-          btn.disabled = true;
-          await carregarOcorrencias(ini);
-          btn.disabled = false;
-        }
-        atualizarResumoPeriodo();
-        if (selecionado) mostrarResultado(selecionado.id, selecionado.nome);
-        else showToast("Período aplicado. Agora clique em “Gerar relatório” no relatório desejado.", "success");
-      }
-      document.getElementById("pc-aplicar").addEventListener("click", aplicarPeriodoCustom);
-      document.querySelectorAll("[data-atalho]").forEach((b) => b.addEventListener("click", () => {
-        const hoje = new Date();
-        const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-        if (b.dataset.atalho === "mes-atual") { pcInicio.value = iso(new Date(hoje.getFullYear(), hoje.getMonth(), 1)); pcFim.value = rhTodayIso(); }
-        else if (b.dataset.atalho === "mes-anterior") { pcInicio.value = iso(new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1)); pcFim.value = iso(new Date(hoje.getFullYear(), hoje.getMonth(), 0)); }
-        else { pcInicio.value = `${hoje.getFullYear()}-01-01`; pcFim.value = rhTodayIso(); }
-        aplicarPeriodoCustom();
-      }));
-      atualizarResumoPeriodo();
+      fInicio.addEventListener("change", mudouData);
+      fFim.addEventListener("change", mudouData);
+      fDepto.addEventListener("change", () => { filtro.departamento = fDepto.value; preencherSelects(); atualizarResumo(); aplicarFiltro(); });
+      fColab.addEventListener("change", () => { filtro.colaboradorId = fColab.value; atualizarResumo(); aplicarFiltro(); });
+      document.getElementById("f-limpar").addEventListener("click", () => {
+        Object.assign(filtro, { preset: "mes-atual", ...PERIODOS["mes-atual"].calc(), departamento: "", colaboradorId: "" });
+        preencherSelects();
+        aplicarFiltro();
+      });
+      preencherSelects();
+      atualizarResumo();
 
       document.querySelectorAll("[data-gerar]").forEach((btn) =>
         btn.addEventListener("click", () => mostrarResultado(btn.dataset.gerar, btn.dataset.nome))
@@ -614,26 +674,18 @@
     // ------------------------------------------------------------------
     let relPersonalizado = null;
     let linhasPersonalizado = [];
+    // Período, departamento e colaborador vêm do FILTRO ÚNICO do topo.
     const filtroPers = {
-      inicio: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`; })(),
-      fim: rhTodayIso(), colaboradorId: "", codigo: "", departamento: "", cargo: "", categorias: ["FALTA"], justificacao: "", status: "", busca: "",
+      categorias: ["FALTA"], justificacao: "", status: "",
       colunas: RH_OCORRENCIA_COLUNAS.filter((c) => c.padrao).map((c) => c.id),
     };
 
     function builderHtml() {
-      const deptos = [...new Set(base.colaboradores.map((c) => c.departamento).filter(Boolean))].sort();
-      const cargos = [...new Set((base.ocorrencias || []).map((l) => l.cargo).filter(Boolean))].sort();
       return `
         <div class="report-head" style="margin-bottom:1rem">
-          <div><h2>Pesquisa personalizada</h2><p class="report-meta">Selecione os critérios desejados e gere o relatório somente com essas informações.</p></div>
+          <div><h2>Pesquisa personalizada</h2><p class="report-meta">Período, departamento e colaborador vêm do filtro no topo da página (${esc(periodoLabelAtual())} · ${esc(filtroEquipeLabel())}). Aqui você escolhe só o tipo de ocorrência e as colunas.</p></div>
         </div>
         <div class="report-builder">
-          <div class="field"><label>Data inicial</label><input type="date" id="rp-inicio" value="${filtroPers.inicio}" /></div>
-          <div class="field"><label>Data final</label><input type="date" id="rp-fim" value="${filtroPers.fim}" /></div>
-          <div class="field"><label>Colaborador</label><select id="rp-colab"><option value="">Todos</option>${base.colaboradores.map((c) => `<option value="${c.id}" ${c.id === filtroPers.colaboradorId ? "selected" : ""}>${esc(c.nome)}</option>`).join("")}</select></div>
-          <div class="field"><label>Código</label><input type="text" id="rp-codigo" value="${esc(filtroPers.codigo)}" placeholder="Ex.: 001" /></div>
-          <div class="field"><label>Departamento</label><select id="rp-depto"><option value="">Todos</option>${deptos.map((d) => `<option ${d === filtroPers.departamento ? "selected" : ""}>${esc(d)}</option>`).join("")}</select></div>
-          <div class="field"><label>Cargo</label><select id="rp-cargo"><option value="">Todos</option>${cargos.map((d) => `<option ${d === filtroPers.cargo ? "selected" : ""}>${esc(d)}</option>`).join("")}</select></div>
           <div class="field"><label>Justificação</label><select id="rp-just"><option value="">Todas</option>${Object.entries(RH_JUSTIFICACAO).map(([k, v]) => `<option value="${k}" ${k === filtroPers.justificacao ? "selected" : ""}>${v}</option>`).join("")}</select></div>
           <div class="field"><label>Status</label><select id="rp-status"><option value="">Todos</option>${Object.entries(RH_OCORRENCIA_STATUS).map(([k, v]) => `<option value="${k}" ${k === filtroPers.status ? "selected" : ""}>${v}</option>`).join("")}</select></div>
           <div class="field" style="grid-column:1/-1"><label>Tipo de ocorrência</label>
@@ -642,12 +694,11 @@
           <div class="field" style="grid-column:1/-1"><label>Colunas do relatório</label>
             <div class="report-cols">${RH_OCORRENCIA_COLUNAS.map((c) => `<label class="check-row"><input type="checkbox" data-rp-col="${c.id}" ${filtroPers.colunas.includes(c.id) ? "checked" : ""} /> ${c.label}</label>`).join("")}</div>
           </div>
-          <div class="field" style="grid-column:1/-1"><label>Busca livre (nome, motivo)</label><input type="text" id="rp-busca" value="${esc(filtroPers.busca)}" placeholder="Opcional" /></div>
         </div>
         <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-top:1rem">
           <button type="button" class="btn-primary auto" id="rp-gerar">${ICONS.reports}<span>Gerar relatório</span></button>
           <button type="button" class="btn-ghost" style="width:auto" id="rp-csv" ${linhasPersonalizado.length ? "" : "disabled"}>${ICONS.download}<span>Exportar planilha (.csv)</span></button>
-          <button type="button" class="btn-ghost" style="width:auto" id="rp-limpar">${ICONS.refresh}<span>Limpar filtros</span></button>
+          <button type="button" class="btn-ghost" style="width:auto" id="rp-limpar">${ICONS.refresh}<span>Limpar opções</span></button>
         </div>
         <div id="rp-resultado" style="margin-top:1.4rem">${relPersonalizado ? relatorioParaHtml(relPersonalizado) : ""}</div>`;
     }
@@ -655,8 +706,7 @@
     function lerFiltrosPers() {
       const v = (id) => document.getElementById(id).value;
       Object.assign(filtroPers, {
-        inicio: v("rp-inicio"), fim: v("rp-fim"), colaboradorId: v("rp-colab"), codigo: v("rp-codigo").trim(), departamento: v("rp-depto"),
-        cargo: v("rp-cargo"), justificacao: v("rp-just"), status: v("rp-status"), busca: v("rp-busca"),
+        justificacao: v("rp-just"), status: v("rp-status"),
         categorias: [...document.querySelectorAll("[data-rp-cat]:checked")].map((i) => i.dataset.rpCat),
         colunas: [...document.querySelectorAll("[data-rp-col]:checked")].map((i) => i.dataset.rpCol),
       });
@@ -665,24 +715,22 @@
     async function gerarPersonalizado() {
       lerFiltrosPers();
       if (!filtroPers.colunas.length) { showToast("Selecione pelo menos uma coluna.", "error"); return; }
-      if (filtroPers.inicio && filtroPers.fim && filtroPers.fim < filtroPers.inicio) { showToast("A data final não pode ser anterior à inicial.", "error"); return; }
       const btn = document.getElementById("rp-gerar");
       btn.disabled = true;
       try {
-        if (filtroPers.inicio && (!base.ocorrenciasInicio || filtroPers.inicio < base.ocorrenciasInicio)) await carregarOcorrencias(filtroPers.inicio);
-        linhasPersonalizado = rhFiltrarOcorrencias(base.ocorrencias, filtroPers);
-        const colab = base.colaboradores.find((c) => c.id === filtroPers.colaboradorId);
+        if (!base.ocorrenciasInicio || filtro.inicio < base.ocorrenciasInicio) await carregarOcorrencias(filtro.inicio);
+        const criteriosBusca = { ...filtroPers, inicio: filtro.inicio, fim: filtro.fim, colaboradorId: filtro.colaboradorId, departamento: filtro.colaboradorId ? "" : filtro.departamento };
+        linhasPersonalizado = rhFiltrarOcorrencias(base.ocorrencias, criteriosBusca);
         const criterios = [
-          `Período: ${fmtDate(filtroPers.inicio)} a ${fmtDate(filtroPers.fim)}`,
-          colab && `Colaborador: ${colab.nome}`, filtroPers.codigo && `Código: ${filtroPers.codigo}`,
-          filtroPers.departamento && `Departamento: ${filtroPers.departamento}`, filtroPers.cargo && `Cargo: ${filtroPers.cargo}`,
+          `Período: ${periodoLabelAtual()}`,
+          filtroEquipeLabel(),
           filtroPers.categorias.length && `Tipo: ${filtroPers.categorias.map((c) => RH_OCORRENCIA_CATEGORIAS[c]).join(", ")}`,
           filtroPers.justificacao && `Justificação: ${RH_JUSTIFICACAO[filtroPers.justificacao]}`,
           filtroPers.status && `Status: ${RH_OCORRENCIA_STATUS[filtroPers.status]}`,
         ].filter(Boolean);
         const TITULOS = { FALTA: "Relatório de faltas", ATRASO: "Relatório de atrasos", ATESTADO: "Relatório de atestados", ABONO: "Relatório de abonos", FERIAS: "Relatório de férias", AJUSTE: "Relatório de ajustes de ponto" };
-        const mesRef = filtroPers.inicio && filtroPers.fim && filtroPers.inicio.slice(0, 7) === filtroPers.fim.slice(0, 7)
-          ? ` — ${new Date(filtroPers.inicio + "T00:00:00").toLocaleDateString("pt-BR", { month: "long", year: "numeric" }).replace(/^./, (c) => c.toUpperCase()).replace(" de ", "/")}`
+        const mesRef = filtro.inicio.slice(0, 7) === filtro.fim.slice(0, 7)
+          ? ` — ${new Date(filtro.inicio + "T00:00:00").toLocaleDateString("pt-BR", { month: "long", year: "numeric" }).replace(/^./, (c) => c.toUpperCase()).replace(" de ", "/")}`
           : "";
         relPersonalizado = {
           titulo: (filtroPers.categorias.length === 1 ? TITULOS[filtroPers.categorias[0]] : "Relatório personalizado") + mesRef,
@@ -708,7 +756,7 @@
       document.getElementById("resultado-conteudo").innerHTML = builderHtml();
       document.getElementById("rp-gerar").addEventListener("click", gerarPersonalizado);
       document.getElementById("rp-limpar").addEventListener("click", () => {
-        Object.assign(filtroPers, { colaboradorId: "", codigo: "", departamento: "", cargo: "", categorias: [], justificacao: "", status: "", busca: "" });
+        Object.assign(filtroPers, { categorias: ["FALTA"], justificacao: "", status: "" });
         relPersonalizado = null; linhasPersonalizado = [];
         mostrarBuilder();
       });
@@ -729,13 +777,10 @@
     // Usa a apuração única do banco (rh.banco_horas_extrato — script 33).
     // ------------------------------------------------------------------
     // Padrão: o MÊS PASSADO inteiro (folha fechada). Atalho para o mês atual.
-    const isoLocal = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    const ontemFolha = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d; })();
-    const periodoMesPassado = () => { const h = new Date(); return { inicio: isoLocal(new Date(h.getFullYear(), h.getMonth() - 1, 1)), fim: isoLocal(new Date(h.getFullYear(), h.getMonth(), 0)) }; };
-    const periodoMesAtual = () => { const h = new Date(); const ini = new Date(h.getFullYear(), h.getMonth(), 1); return { inicio: isoLocal(ini), fim: isoLocal(ontemFolha < ini ? ini : ontemFolha) }; };
+    // Período, departamento e colaborador vêm do FILTRO ÚNICO do topo.
     const filtroFolha = {
-      inicio: periodoMesPassado().inicio,
-      fim: periodoMesPassado().fim,
+      get inicio() { return filtro.inicio; },
+      get fim() { return filtro.fim; },
       ids: null, // null = todos os ativos
       prazo: (() => { const d = new Date(); d.setDate(d.getDate() + 7); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })(),
     };
@@ -743,7 +788,7 @@
     let relFolha = null;
 
     function colaboradoresFolha() {
-      return base.colaboradores.filter((c) => c.status !== "INATIVO");
+      return base.colaboradores.filter((c) => c.status !== "INATIVO" && colabNoFiltro(c));
     }
     function competenciaFolha() {
       const { inicio, fim } = filtroFolha;
@@ -757,16 +802,10 @@
       const sel = new Set(filtroFolha.ids || lista.map((c) => c.id));
       return `
         <div class="report-head" style="margin-bottom:1rem">
-          <div><h2>Folha de ponto</h2><p class="report-meta">Escolha o período e os colaboradores. A folha segue a mesma regra do banco de horas (trabalhadas + abono − previstas, feriados, faltas e saldo anterior).</p></div>
+          <div><h2>Folha de ponto</h2><p class="report-meta">Período e colaboradores vêm do filtro no topo da página (${esc(periodoLabelAtual())} · ${esc(filtroEquipeLabel())}). A folha segue a mesma regra do banco de horas (trabalhadas + abono − previstas, feriados, faltas e saldo anterior).</p></div>
         </div>
         <div class="report-builder">
-          <div class="field"><label>Data inicial</label><input type="date" id="fp-inicio" value="${filtroFolha.inicio}" /></div>
-          <div class="field"><label>Data final</label><input type="date" id="fp-fim" value="${filtroFolha.fim}" /></div>
           <div class="field"><label>Prazo para assinatura</label><input type="date" id="fp-prazo" value="${filtroFolha.prazo}" /></div>
-          <div class="field" style="display:flex;gap:.4rem;align-items:flex-end;flex-wrap:wrap">
-            <button type="button" class="btn-ghost btn-sm" style="width:auto" data-fp-periodo="passado">Mês passado</button>
-            <button type="button" class="btn-ghost btn-sm" style="width:auto" data-fp-periodo="atual">Mês atual</button>
-          </div>
           <div class="field" style="grid-column:1/-1">
             <label style="display:flex;justify-content:space-between;align-items:center;gap:.5rem">Colaboradores <span><button type="button" class="btn-ghost btn-sm" style="width:auto" id="fp-todos">Marcar todos</button> <button type="button" class="btn-ghost btn-sm" style="width:auto" id="fp-nenhum">Desmarcar</button></span></label>
             <div class="folha-colabs">${lista.map((c) => `<label class="check-row"><input type="checkbox" data-fp-colab="${c.id}" ${sel.has(c.id) ? "checked" : ""} /> ${esc(c.nome)}</label>`).join("")}</div>
@@ -803,8 +842,6 @@
     }
 
     function lerFiltroFolha() {
-      filtroFolha.inicio = document.getElementById("fp-inicio").value;
-      filtroFolha.fim = document.getElementById("fp-fim").value;
       filtroFolha.prazo = document.getElementById("fp-prazo").value;
       filtroFolha.ids = [...document.querySelectorAll("[data-fp-colab]:checked")].map((i) => i.dataset.fpColab);
     }
@@ -921,11 +958,6 @@
       document.getElementById("resultado-wrap").style.display = "";
       document.getElementById("resultado-conteudo").innerHTML = folhaBuilderHtml();
       document.getElementById("fp-gerar").addEventListener("click", gerarFolhas);
-      document.querySelectorAll("[data-fp-periodo]").forEach((b) => b.addEventListener("click", () => {
-        const p = b.dataset.fpPeriodo === "atual" ? periodoMesAtual() : periodoMesPassado();
-        document.getElementById("fp-inicio").value = p.inicio;
-        document.getElementById("fp-fim").value = p.fim;
-      }));
       document.getElementById("fp-todos").addEventListener("click", () => document.querySelectorAll("[data-fp-colab]").forEach((i) => { i.checked = true; }));
       document.getElementById("fp-nenhum").addEventListener("click", () => document.querySelectorAll("[data-fp-colab]").forEach((i) => { i.checked = false; }));
       document.getElementById("fp-pdf").addEventListener("click", async (e) => {
@@ -941,9 +973,9 @@
       }));
     }
 
-    function mostrarResultado(id, nome) {
+    function mostrarResultado(id, nome, { rolar = true } = {}) {
       if (id === "folha") {
-        selecionado = relFolha ? { id, nome, rel: relFolha } : { id, nome, rel: { titulo: "Folha de ponto", meta: "Escolha o período e clique em Gerar folhas.", kpis: [], secoes: [] } };
+        selecionado = relFolha ? { id, nome, rel: relFolha } : { id, nome, rel: { titulo: "Folha de ponto", meta: "Ajuste o filtro no topo e clique em Gerar folhas.", kpis: [], secoes: [] } };
         mostrarFolha();
         document.getElementById("resultado-wrap").scrollIntoView({ behavior: "smooth", block: "nearest" });
         return;
@@ -957,7 +989,7 @@
       selecionado = { id, nome, rel: gerarRelatorio(id) };
       document.getElementById("resultado-wrap").style.display = "";
       document.getElementById("resultado-conteudo").innerHTML = relatorioParaHtml(selecionado.rel);
-      document.getElementById("resultado-wrap").scrollIntoView({ behavior: "smooth", block: "nearest" });
+      if (rolar) document.getElementById("resultado-wrap").scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
 
     if (session) {
