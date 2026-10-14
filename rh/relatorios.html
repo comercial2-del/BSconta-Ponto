@@ -55,8 +55,6 @@
     .rel-filtro-resumo { margin: 0; font-size: .82rem; color: var(--text-soft); }
     .rel-filtro-resumo strong { color: var(--text); }
     .rel-filtro-rodape .btn-ghost { width: auto; padding: .4rem .7rem; font-size: .8rem; }
-    .rel-card-aplica { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .55rem; }
-    .rel-card-aplica span { font-size: .7rem; font-weight: 700; padding: .12rem .45rem; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-faint); }
   </style>
 </head>
 <body>
@@ -90,7 +88,7 @@
     // ------------------------------------------------------------------
     // FILTRO ÚNICO da tela — fica no topo e vale para TODOS os relatórios
     // (período + departamento + colaborador). Cada relatório aplica o que
-    // faz sentido para ele (ver REPORTS_CARDS[].aplica).
+    // faz sentido para ele .
     // ------------------------------------------------------------------
     const isoDia = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     const PERIODOS = {
@@ -130,16 +128,16 @@
     // rhFerias, rhFeriasProximas, rhSolicitacoesTodas, rhDocumentos,
     // rhPontoHoje), que eram listas fixas em memória.
     const REPORTS_CARDS = [
-      { id: "colaboradores", nome: "Colaboradores", desc: "Total, status e distribuição por departamento.", icon: "users", tone: "indigo", aplica: ["Período", "Departamento", "Colaborador"] },
-      { id: "presenca", nome: "Presença e Home Office", desc: "Dias presenciais, em home office e com alteração do RH, por colaborador.", icon: "mapPin", tone: "blue", aplica: ["Período", "Departamento", "Colaborador"] },
-      { id: "ferias", nome: "Férias", desc: "Solicitações aprovadas, pendentes e recusadas.", icon: "palmTree", tone: "green", aplica: ["Período", "Departamento", "Colaborador"] },
-      { id: "solicitacoes", nome: "Solicitações", desc: "Volume, status e categorias das solicitações ao RH.", icon: "messageSquare", tone: "amber", aplica: ["Período", "Departamento", "Colaborador"] },
-      { id: "documentos", nome: "Documentos", desc: "Holerites e documentos enviados, pendentes e assinados.", icon: "fileText", tone: "violet", aplica: ["Período", "Departamento", "Colaborador"] },
-      { id: "ponto", nome: "Jornada / Ponto", desc: "Atrasos e faltas no período, situação de hoje e banco de horas.", icon: "clock", tone: "teal", aplica: ["Período", "Departamento", "Colaborador"] },
-      { id: "faltas", nome: "Faltas e justificativas", desc: "Faltas justificadas e não justificadas, com o motivo de cada uma.", icon: "xCircle", tone: "red", aplica: ["Período", "Departamento", "Colaborador"] },
-      { id: "folha", nome: "Folha de ponto", desc: "Folha individual com batidas, abonos, saldo e banco de horas, em PDF com a logo. Baixe ou envie para cada colaborador assinar.", icon: "fileText", tone: "blue", aplica: ["Período", "Departamento", "Colaborador"] },
-      { id: "abonos", nome: "Abonos, atestados e férias", desc: "Ocorrências registradas pelo RH e o status de cada uma.", icon: "clipboardCheck", tone: "violet", aplica: ["Período", "Departamento", "Colaborador"] },
-      { id: "personalizado", nome: "Pesquisa personalizada", desc: "Usa o filtro acima e permite escolher o tipo de ocorrência, a situação e as colunas.", icon: "filter", tone: "indigo", aplica: ["Período", "Departamento", "Colaborador"] },
+      { id: "colaboradores", nome: "Colaboradores", desc: "Total, status e distribuição por departamento.", icon: "users", tone: "indigo" },
+      { id: "presenca", nome: "Presença e Home Office", desc: "Dias presenciais, em home office e com alteração do RH, por colaborador.", icon: "mapPin", tone: "blue" },
+      { id: "ferias", nome: "Férias", desc: "Solicitações aprovadas, pendentes e recusadas.", icon: "palmTree", tone: "green" },
+      { id: "solicitacoes", nome: "Solicitações", desc: "Volume, status e categorias das solicitações ao RH.", icon: "messageSquare", tone: "amber" },
+      { id: "documentos", nome: "Documentos", desc: "Holerites e documentos enviados, pendentes e assinados.", icon: "fileText", tone: "violet" },
+      { id: "ponto", nome: "Jornada / Ponto", desc: "Atrasos e faltas no período, situação de hoje e banco de horas.", icon: "clock", tone: "teal" },
+      { id: "faltas", nome: "Faltas e justificativas", desc: "Faltas justificadas e não justificadas, com o motivo de cada uma.", icon: "xCircle", tone: "red" },
+      { id: "folha", nome: "Folha de ponto", desc: "Folha individual com batidas, abonos, saldo e banco de horas, em PDF com a logo. Baixe ou envie para cada colaborador assinar.", icon: "fileText", tone: "blue" },
+      { id: "abonos", nome: "Abonos, atestados e férias", desc: "Ocorrências registradas pelo RH e o status de cada uma.", icon: "clipboardCheck", tone: "violet" },
+      { id: "personalizado", nome: "Pesquisa personalizada", desc: "Usa o filtro acima e permite escolher o tipo de ocorrência, a situação e as colunas.", icon: "filter", tone: "indigo" },
     ];
 
     // Dados reais carregados uma vez ao abrir a tela (recarregados sempre
@@ -594,7 +592,6 @@
           </div>
           <h3 style="margin:0.7rem 0 0.2rem">${esc(r.nome)}</h3>
           <p style="margin:0;font-size:0.83rem;color:var(--text-faint);min-height:2.4em">${esc(r.desc)}</p>
-          ${r.aplica ? `<div class="rel-card-aplica" title="Filtros do topo que valem para este relatório">${r.aplica.map((a) => `<span>${esc(a)}</span>`).join("")}</div>` : ""}
           <button type="button" class="btn-primary auto" style="margin-top:0.9rem" data-gerar="${r.id}" data-nome="${esc(r.nome)}">${ICONS.reports}<span>Gerar relatório</span></button>
         </div>`
         )
