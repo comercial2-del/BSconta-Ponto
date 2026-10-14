@@ -54,7 +54,7 @@
   <script src="../js/supabase-client.js"></script>
   <script src="../js/rh-supabase-auth.js"></script>
   <script src="../js/rh-ponto-data.js?v=20261013a"></script>
-  <script src="../js/rh-ferias-data.js"></script>
+  <script src="../js/rh-ferias-data.js?v=20261014a"></script>
   <script src="../js/rh-solicitacoes-data.js?v=20261007a"></script>
   <script src="../js/rh-historia-data.js?v=20261013a"></script>
   <script>
@@ -104,6 +104,7 @@
      *  Pendente   -> Responder · Em análise · Arquivar · Excluir
      *  Em análise -> Continuar atendimento · Concluir · Arquivar · Excluir
      *  Concluída/Recusada -> Reabrir (volta para Pendentes) · Arquivar · Excluir
+ *  Férias Aprovada/Recusada -> Reabrir (desfaz e devolve saldo) · Arquivar · Excluir
      *  Arquivada  -> Desarquivar · Excluir
      * Férias mantêm Aprovar/Recusar (fluxo real com débito de saldo). */
     function acoesHtml(s) {
@@ -119,6 +120,7 @@
                   </div>`);
           }
           if (st === "PENDENTE") btns.push(ghost("analise", `data-status="${s.id}" data-status-origem="ferias" data-status-novo="EM_ANALISE"`, ICONS.edit, "Em análise"));
+          if (["APROVADA", "RECUSADA"].includes(st)) btns.push(ghost("", `data-reabrir-ferias="${s.id}" title="Desfaz a ${st === "APROVADA" ? "aprovação (devolve os dias ao saldo)" : "recusa"} e volta para Pendentes"`, ICONS.refresh, "Reabrir"));
         } else if (st === "PENDENTE") {
           btns.push(`<button type="button" class="btn-primary auto" data-responder="${s.id}">${ICONS.send}<span>Responder</span></button>`);
           btns.push(ghost("analise", `data-status="${s.id}" data-status-origem="geral" data-status-novo="EM_ANALISE"`, ICONS.edit, "Em análise"));
@@ -287,6 +289,30 @@
             await rhAlterarStatusSolicitacao(b.dataset.status, b.dataset.statusOrigem, novo);
             await refrescarSolicitacoes();
             showToast(novo === "RESOLVIDA" ? "Atendimento concluído. Já pode ser arquivado." : novo === "PENDENTE" ? "Conversa reaberta — está agora em Pendentes." : "Conversa movida para Em análise.", "success");
+            render();
+          } catch (err) {
+            showToast(rhMensagemErroSupabase(err), "error");
+            b.disabled = false;
+          }
+        })
+      );
+
+      document.querySelectorAll("[data-reabrir-ferias]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          const s = cacheSolicitacoes.find((x) => x.id === b.dataset.reabrirFerias);
+          const aprovada = s?.status === "APROVADA";
+          const ok = await confirmDialog({
+            title: "Reabrir solicitação de férias",
+            message: `Desfazer a ${aprovada ? "aprovação" : "recusa"} das férias de ${s?.colaborador || "colaborador"} (${s?.protocolo || ""})? Ela volta para Pendentes${aprovada ? " e os dias debitados voltam para o saldo" : ""}. Nada é excluído.`,
+            confirmLabel: "Reabrir",
+            icon: ICONS.refresh,
+          });
+          if (!ok) return;
+          b.disabled = true;
+          try {
+            await rhReabrirFerias(b.dataset.reabrirFerias);
+            await refrescarSolicitacoes();
+            showToast("Solicitação de férias reaberta — está agora em Pendentes.", "success");
             render();
           } catch (err) {
             showToast(rhMensagemErroSupabase(err), "error");

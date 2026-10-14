@@ -81,7 +81,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../js/supabase-client.js"></script>
   <script src="../js/rh-supabase-auth.js"></script>
-  <script src="../js/rh-ferias-data.js"></script>
+  <script src="../js/rh-ferias-data.js?v=20261014a"></script>
   <script src="../js/rh-historia-data.js?v=20261013a"></script>
   <script>
 (async function () {
@@ -248,6 +248,34 @@
       document.querySelectorAll("[data-preaprovar]").forEach((b) =>
         b.addEventListener("click", () => preAprovarFerias(b.dataset.preaprovar, b))
       );
+      document.querySelectorAll("[data-reabrir]").forEach((b) =>
+        b.addEventListener("click", () => reabrirFerias(b.dataset.reabrir, b))
+      );
+    }
+
+    /** Desfaz uma aprovação/recusa feita por engano: volta para Pendentes e,
+     * se estava aprovada, devolve os dias ao saldo. Nada é excluído. */
+    async function reabrirFerias(solicitacaoId, botao) {
+      const f = cacheFerias.find((x) => x.id === solicitacaoId);
+      const aprovada = f?.status === "APROVADA";
+      const ok = await confirmDialog({
+        title: "Reabrir solicitação de férias",
+        message: `Desfazer a ${aprovada ? "aprovação" : "recusa"} das férias de ${f?.colaborador || "colaborador"} (${fmtDate(f?.inicio)} a ${fmtDate(f?.fim)})? Ela volta para Pendentes${aprovada ? " e os dias debitados voltam para o saldo" : ""}. Nada é excluído.`,
+        confirmLabel: "Reabrir",
+        icon: ICONS.refresh,
+      });
+      if (!ok) return;
+      botao.disabled = true;
+      try {
+        await rhReabrirFerias(solicitacaoId);
+        await refrescarFerias();
+        recalcularAvisosFerias();
+        showToast(`Férias de ${f?.colaborador || "colaborador"} reabertas — estão agora em Pendentes.`, "success");
+        render();
+      } catch (err) {
+        showToast(rhMensagemErroSupabase(err), "error");
+        botao.disabled = false;
+      }
     }
 
     /** Pré-aprovação: a solicitação continua registrada e fica claramente
@@ -297,6 +325,8 @@
                         <button type="button" class="approve" data-approve="${f.id}" title="Aprovar" aria-label="Aprovar">${ICONS.check}</button>
                         <button type="button" class="reject" data-reject="${f.id}" aria-label="Recusar">${ICONS.x}</button>
                       </div>`
+                      : f.status === "APROVADA" || f.status === "RECUSADA"
+                      ? `<button type="button" class="btn-ghost" data-reabrir="${f.id}" title="Desfaz a ${f.status === "APROVADA" ? "aprovação (devolve os dias ao saldo)" : "recusa"} e volta para Pendentes">${ICONS.refresh}<span>Reabrir</span></button>`
                       : ""
                   }
                 </td>
