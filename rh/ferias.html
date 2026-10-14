@@ -315,7 +315,7 @@
                 <td class="cell-num">${f.saldoDiasDisponiveis ?? "—"}</td>
                 <td>${fmtDate(f.inicio)} a ${fmtDate(f.fim)}</td>
                 <td class="cell-num">${f.dias}</td>
-                <td>${statusBadgeHtml(f.status, STATUS_LABELS)}${f.status === "PRE_APROVADA" && f.preAprovadaPor ? `<br><span class="hint">por ${esc(f.preAprovadaPor)}</span>` : ""}</td>
+                <td>${statusBadgeHtml(f.status, STATUS_LABELS)}</td>
                 <td>${fmtDate(f.solicitadoEm)}</td>
                 <td style="text-align:right">
                   ${
