@@ -309,9 +309,9 @@ table.bf-tbl{width:100%;border-collapse:collapse;font-size:.83rem}
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../js/supabase-client.js"></script>
   <script src="../js/rh-supabase-auth.js"></script>
-  <script src="../js/rh-beneficios-data.js"></script>
-  <script src="../js/rh-vales-data.js?v=20261022b"></script>
-  <script src="../js/rh-vales-ui.js?v=20261022b"></script>
+  <script src="../js/rh-beneficios-data.js?v=20261022c"></script>
+  <script src="../js/rh-vales-data.js?v=20261022c"></script>
+  <script src="../js/rh-vales-ui.js?v=20261022c"></script>
   <script>
 /*
  * Benefícios (RH) — cadastro unificado.
@@ -401,6 +401,14 @@ const TONS = {
   green: { bg: "var(--green-50)", fg: "var(--green-700)", dot: "#10b981" },
 };
 const ICONE_ALIAS = { car: "bus", dollarSign: "dollar" };
+// Benefícios que puxam para as abas de vale (22/10/2026): o valor de cada
+// colaborador é POR DIA e o total do mês sai do fechamento na aba do vale.
+const VALE_ABA = { ALIMENTACAO: { tab: "vr", nome: "Vale-refeição" }, TRANSPORTE: { tab: "vt", nome: "Vale-transporte" } };
+const ehVale = (b) => !!VALE_ABA[b && b.categoria];
+const valeDe = (b) => VALE_ABA[b.categoria];
+const mediaDia = (b) => { const v = idsDo(b).map((id) => Number(b.fixos?.[id]) || 0).filter((x) => x > 0); return v.length ? v.reduce((a, x) => a + x, 0) / v.length : 0; };
+const faixaDia = (b) => { const v = idsDo(b).map((id) => Number(b.fixos?.[id]) || 0).filter((x) => x > 0); if (!v.length) return "—"; const mn = Math.min(...v), mx = Math.max(...v); return mn === mx ? `${brl(mn)}/dia` : `${brl(mn)} a ${brl(mx)}/dia`; };
+function irParaVale(b) { if (typeof window.rhValesIrPara === "function") window.rhValesIrPara(valeDe(b).tab); }
 function visual(b) {
   const cat = CATEGORIAS[b.categoria] || CATEGORIAS.OUTROS;
   const t = TONS[b.tone === "indigo" ? "blue" : b.tone];
@@ -435,7 +443,7 @@ function lanc(b, id, k) {
   const l = b.valores[id]?.[k];
   if (l) return l;
   const fixo = Number(b.fixos?.[id]) || 0;
-  if (fixo > 0 && k >= COMPETENCIA_ATUAL) return { valor: fixo, desconto: 0, lancado: false, doFixo: true };
+  if (fixo > 0 && k >= COMPETENCIA_ATUAL && !ehVale(b)) return { valor: fixo, desconto: 0, lancado: false, doFixo: true };
   return null;
 }
 // Garante uma entrada real (materializa o fixo) antes de editar/lançar.
@@ -491,7 +499,7 @@ function renderRH() {
   const k = ui.mes;
   const ativos = BENEFICIOS.filter((b) => b.status === "ATIVO");
   let bruto = 0, desc = 0, rec = 0; const atendidos = new Set();
-  ativos.forEach((b) => { const t = totaisDoMes(b, k); bruto += t.bruto; desc += t.desc; rec += t.rec; idsDo(b).forEach((id) => { if (lanc(b, id, k)) atendidos.add(id); }); });
+  ativos.forEach((b) => { const t = totaisDoMes(b, k); bruto += t.bruto; desc += t.desc; rec += t.rec; idsDo(b).forEach((id) => { if (lanc(b, id, k) || (ehVale(b) && Number(b.fixos?.[id]) > 0)) atendidos.add(id); }); });
 
   let lista = BENEFICIOS.slice();
   if (ui.filtroStatus) lista = lista.filter((b) => b.status === ui.filtroStatus);
@@ -523,6 +531,7 @@ function renderRH() {
     if (e.target.closest("[data-editar]")) { e.stopPropagation(); abrirForm(c.dataset.card, "valores"); return; }
     if (e.target.closest("[data-excluir]")) { e.stopPropagation(); excluirBeneficio(c.dataset.card); return; }
     if (e.target.closest("[data-lancar]")) { e.stopPropagation(); lancarMes(c.dataset.card, ui.mes); return; }
+    if (e.target.closest("[data-vale]")) { e.stopPropagation(); irParaVale(BENEFICIOS.find((x) => x.id === c.dataset.card)); return; }
     abrirDetalhes(c.dataset.card);
   }));
 }
@@ -544,16 +553,22 @@ function cardHtml(b, k) {
           <p class="bf-desc">${esc(b.descricao || cat.label)}</p>
         </div>
       </div>
-      <div class="bf-bcard-stats">
+      ${ehVale(b) ? `<div class="bf-bcard-stats">
+        <div class="bf-stat"><small>Colaboradores</small><b>${qtd}</b></div>
+        <div class="bf-stat"><small>Com valor/dia</small><b>${idsDo(b).filter((id) => Number(b.fixos?.[id]) > 0).length}</b></div>
+        <div class="bf-stat"><small>Valor por dia</small><b style="color:var(--blue-700)">${faixaDia(b)}</b></div>
+        <div class="bf-stat"><small>Fechamento do mês</small><b style="color:var(--green-700)">Aba ${valeDe(b).nome}</b></div>
+      </div>` : `<div class="bf-bcard-stats">
         <div class="bf-stat"><small>Competência</small><b>${rotuloMes(k)}</b></div>
         <div class="bf-stat"><small>Colaboradores</small><b>${qtd}</b></div>
         <div class="bf-stat"><small>Total recebido</small><b style="color:var(--green-700)">${brl(t.rec)}</b></div>
         <div class="bf-stat"><small>Previsto ${MESES[Number(addMes(k, 1).split("-")[1]) - 1]}</small><b style="color:var(--blue-700)">${brl(prox.bruto - prox.desc)}</b></div>
-      </div>
+      </div>`}
       <div class="bf-bcard-foot">
         <span class="bf-chip">${b.publico === "TODOS" ? I.users : I.user}${b.publico === "TODOS" ? "Todos os colaboradores" : `${qtd} específico${qtd > 1 ? "s" : ""}`}</span>
         <div class="bf-foot-actions">
-          ${pendentes.length && k <= COMPETENCIA_ATUAL ? `<button type="button" class="bf-btn bf-btn-launch bf-btn-sm" data-lancar title="Marcar como pagos os valores de ${rotuloMes(k)}">${I.send}<span>Lançar ${MESES[Number(k.split("-")[1]) - 1]}</span></button>` : ""}
+          ${ehVale(b) ? `<button type="button" class="bf-btn bf-btn-launch bf-btn-sm" data-vale title="Abrir a planilha do mês">${I.right}<span>Abrir ${valeDe(b).nome}</span></button>` : ""}
+          ${!ehVale(b) && pendentes.length && k <= COMPETENCIA_ATUAL ? `<button type="button" class="bf-btn bf-btn-launch bf-btn-sm" data-lancar title="Marcar como pagos os valores de ${rotuloMes(k)}">${I.send}<span>Lançar ${MESES[Number(k.split("-")[1]) - 1]}</span></button>` : ""}
           <button type="button" class="bf-btn bf-btn-ghost bf-btn-sm" data-editar>${I.edit}<span>Editar</span></button>
           <button type="button" class="bf-icon-btn bf-danger" data-excluir title="Excluir benefício" aria-label="Excluir benefício">${I.trash}</button>
         </div>
@@ -577,11 +592,16 @@ function abrirDetalhes(id) {
 function renderDetalhes() {
   const b = BENEFICIOS.find((x) => x.id === det.id);
   document.getElementById("det-title").innerHTML = `${esc(b.nome)} ${b.status === "ATIVO" ? '<span class="bf-badge bf-b-green">Ativo</span>' : '<span class="bf-badge bf-b-gray">Inativo</span>'}`;
-  document.getElementById("det-sub").textContent = `${(CATEGORIAS[b.categoria] || CATEGORIAS.OUTROS).label} · ${b.publico === "TODOS" ? "Todos os colaboradores" : "Colaboradores específicos"}`;
-  document.getElementById("det-tabs").innerHTML = [["valores", "Valores por colaborador"], ["historico", "Histórico"]]
+  document.getElementById("det-sub").textContent = `${(CATEGORIAS[b.categoria] || CATEGORIAS.OUTROS).label} · ${b.publico === "TODOS" ? "Todos os colaboradores" : "Colaboradores específicos"}${ehVale(b) ? ` · puxa para ${valeDe(b).nome}` : ""}`;
+  document.getElementById("det-tabs").innerHTML = (ehVale(b) ? [["valores", "Valor por dia"]] : [["valores", "Valores por colaborador"], ["historico", "Histórico"]])
     .map(([k, t]) => `<button type="button" class="${det.aba === k ? "bf-active" : ""}" data-dtab="${k}">${t}</button>`).join("");
   const body = document.getElementById("det-body");
-  if (det.aba === "valores") {
+  if (det.aba === "valores" && ehVale(b)) {
+    body.innerHTML = `
+      <div class="bf-note">${I.info}<span>Valor <b>por dia</b> de cada colaborador. O total do mês (dias do período × valor por dia) e o fechamento ficam na aba <b>${valeDe(b).nome}</b>.</span></div>
+      <div class="bf-tbl-wrap"><table class="bf-tbl"><thead><tr><th>Colaborador</th><th class="bf-num">Valor por dia</th></tr></thead>
+      <tbody>${idsDo(b).map((id) => { const c = colab(id), v = Number(b.fixos?.[id]) || 0; return `<tr><td><div class="bf-colab-name"><span class="bf-avatar ${corAvatar(c.nome)}">${iniciais(c.nome)}</span><div><b>${esc(c.nome)}</b><small>${esc(c.depto)}</small></div></div></td><td class="bf-num" style="font-weight:700;color:${v ? "var(--blue-700)" : "var(--orange-600)"}">${v ? brl(v) : "Sem valor"}</td></tr>`; }).join("")}</tbody></table></div>`;
+  } else if (det.aba === "valores") {
     const k = det.mes, prox = addMes(k, 1), t = totaisDoMes(b, k);
     body.innerHTML = `
       <div class="bf-values-bar">${monthNavHtml(k, "det")}<span class="bf-spacer"></span>
@@ -626,9 +646,15 @@ function renderDetalhes() {
   ex.innerHTML = I.trash; ex.onclick = () => excluirBeneficio(b.id);
   const la = document.getElementById("det-lancar");
   const pend = pendentesDoMes(b, det.mes);
-  la.style.display = pend.length && det.mes <= COMPETENCIA_ATUAL ? "" : "none";
-  la.innerHTML = `${I.send}<span>Lançar ${rotuloMes(det.mes)}</span>`;
-  la.onclick = () => lancarMes(b.id, det.mes, () => renderDetalhes());
+  if (ehVale(b)) {
+    la.style.display = "";
+    la.innerHTML = `${I.right}<span>Abrir ${valeDe(b).nome}</span>`;
+    la.onclick = () => { fechar("ov-det"); irParaVale(b); };
+  } else {
+    la.style.display = pend.length && det.mes <= COMPETENCIA_ATUAL ? "" : "none";
+    la.innerHTML = `${I.send}<span>Lançar ${rotuloMes(det.mes)}</span>`;
+    la.onclick = () => lancarMes(b.id, det.mes, () => renderDetalhes());
+  }
   const ed = document.getElementById("det-edit");
   ed.innerHTML = `${I.edit}<span>Editar benefício</span>`;
   ed.onclick = () => { fechar("ov-det"); abrirForm(b.id, "valores", det.mes); };
@@ -675,7 +701,8 @@ function renderForm() {
   const body = document.getElementById("form-body");
   body.scrollTop = 0;
   const ids = idsDo(form.b);
-  document.getElementById("form-hint").textContent = `${ids.length} colaborador${ids.length === 1 ? "" : "es"} · ${rotuloMes(form.mes)}`;
+  document.getElementById("form-hint").textContent = `${ids.length} colaborador${ids.length === 1 ? "" : "es"} · ${ehVale(form.b) ? `valor por dia → ${valeDe(form.b).nome}` : rotuloMes(form.mes)}`;
+  document.getElementById("btn-lancar-mes").style.display = ehVale(form.b) ? "none" : "";
   ({ info: formInfo, publico: formPublico, valores: formValores, historico: formHistorico })[form.aba](body);
 }
 
@@ -686,7 +713,8 @@ function formInfo(body) {
       <p class="bf-sec-title"><span class="bf-dot"></span>Informações do benefício</p>
       <div class="bf-form-grid">
         <div class="bf-field"><label for="ff-nome">Nome do benefício</label><input class="bf-inp ${form.erros.nome ? "bf-invalid" : ""}" id="ff-nome" value="${esc(b.nome)}" placeholder="Ex.: Alimentação" maxlength="60" /><div class="bf-err ${form.erros.nome ? "bf-show" : ""}">Informe o nome do benefício.</div></div>
-        <div class="bf-field"><label for="ff-cat">Tipo / categoria</label><select class="bf-inp" id="ff-cat">${Object.entries(CATEGORIAS).map(([k, c]) => `<option value="${k}" ${k === b.categoria ? "selected" : ""}>${c.label}</option>`).join("")}</select></div>
+        <div class="bf-field"><label for="ff-cat">Tipo / categoria</label><select class="bf-inp" id="ff-cat">${Object.entries(CATEGORIAS).map(([k, c]) => `<option value="${k}" ${k === b.categoria ? "selected" : ""}>${c.label}${VALE_ABA[k] ? ` → ${VALE_ABA[k].nome}` : ""}</option>`).join("")}</select></div>
+        <div class="bf-field bf-full" id="ff-cat-nota">${notaCategoria(b)}</div>
         <div class="bf-field bf-full"><label for="ff-desc">Descrição <span style="font-weight:500;color:var(--text-faint)">(opcional)</span></label><input class="bf-inp" id="ff-desc" value="${esc(b.descricao)}" placeholder="Ex.: Crédito mensal no cartão alimentação." maxlength="120" /></div>
         <div class="bf-field bf-full"><label>Ícone</label><div class="bf-swatches">${ICONES.map((k) => `<button type="button" class="bf-sw-icon ${b.icon === k ? "bf-active" : ""}" data-icon="${k}" aria-label="Ícone ${k}">${I[k]}</button>`).join("")}</div></div>
         <div class="bf-field"><label>Cor</label><div class="bf-swatches">${Object.entries(TONS).filter(([, t]) => !t.oculto).map(([k, t]) => `<button type="button" class="bf-sw-tone ${(b.tone === "indigo" ? "blue" : b.tone) === k ? "bf-active" : ""}" data-tone="${k}" style="background:${t.dot}" aria-label="Cor ${k}"></button>`).join("")}</div></div>
@@ -700,11 +728,16 @@ function formInfo(body) {
   const pintarPrev = () => { const v = visual(b); body.querySelector("#ff-prev").innerHTML = `<div class="bf-b-ico" style="background:${v.bg};color:${v.fg}">${v.icon}</div><div><b>${esc(b.nome || "Nome do benefício")}</b><small>${esc((CATEGORIAS[b.categoria] || CATEGORIAS.OUTROS).label)}</small></div>`; };
   pintarPrev();
   body.querySelector("#ff-nome").addEventListener("input", pintarPrev);
-  body.querySelector("#ff-cat").addEventListener("change", (e) => { b.categoria = e.target.value; pintarPrev(); });
+  body.querySelector("#ff-cat").addEventListener("change", (e) => { b.categoria = e.target.value; pintarPrev(); body.querySelector("#ff-cat-nota").innerHTML = notaCategoria(b); });
   body.querySelectorAll("[data-icon]").forEach((x) => x.addEventListener("click", () => { b.icon = x.dataset.icon; body.querySelectorAll("[data-icon]").forEach((y) => y.classList.toggle("bf-active", y === x)); pintarPrev(); }));
   body.querySelectorAll("[data-tone]").forEach((x) => x.addEventListener("click", () => { b.tone = x.dataset.tone; body.querySelectorAll("[data-tone]").forEach((y) => y.classList.toggle("bf-active", y === x)); pintarPrev(); }));
   body.querySelector("#ff-desc").addEventListener("input", (e) => { b.descricao = e.target.value; });
   body.querySelectorAll("[data-st]").forEach((x) => x.addEventListener("click", () => { b.status = x.dataset.st; formInfo(body); }));
+}
+
+function notaCategoria(b) {
+  if (!ehVale(b)) return "";
+  return `<div class="bf-note" style="margin:0">${I.info}<span>Este benefício puxa automaticamente para a aba <b>${valeDe(b).nome}</b>. Em “Valores por colaborador” você informa o <b>valor por dia</b> de cada pessoa; o total do mês sai do fechamento (do dia X até o dia Y) lá na aba.</span></div>`;
 }
 
 function formPublico(body) {
@@ -736,7 +769,37 @@ function formPublico(body) {
   }));
 }
 
+function formValoresVale(body) {
+  const b = form.b, ids = idsDo(b);
+  body.innerHTML = `
+    <div class="bf-note">${I.info}<span>Valor <b>por dia</b> de cada colaborador. Puxa para a aba <b>${valeDe(b).nome}</b>, onde o RH fecha o mês escolhendo o período (ex.: dia 1 a 30 ou dia 1 a 21).</span></div>
+    <div class="bf-values-bar">
+      <span class="bf-values-mes">Valor por dia</span>
+      <span class="bf-spacer"></span>
+      <div class="bf-apply-all"><div class="bf-money" style="width:120px"><span>R$</span><input class="bf-inp" id="ff-aplicar" inputmode="decimal" placeholder="0,00" style="height:36px" /></div><button type="button" class="bf-btn bf-btn-ghost bf-btn-sm" id="ff-aplicar-btn">Aplicar a todos</button></div>
+    </div>
+    ${ids.length ? `<div class="bf-colab-list">${ids.map((id) => { const c = colab(id); return `
+      <div class="bf-colab-row"><div style="display:flex;gap:.8rem;align-items:center;justify-content:space-between;flex-wrap:wrap">
+        <div class="bf-colab-name"><span class="bf-avatar ${corAvatar(c.nome)}">${iniciais(c.nome)}</span><div style="min-width:0"><b>${esc(c.nome)}</b><small>${esc(c.depto)}</small></div></div>
+        <div style="display:flex;align-items:center;gap:.5rem"><div class="bf-money bf-fixo" style="width:140px"><span>R$</span><input class="bf-inp" data-dia="${id}" inputmode="decimal" aria-label="Valor por dia de ${esc(c.nome)}" value="${fmtInput(b.fixos?.[id])}" placeholder="0,00" style="height:36px" /></div><small style="color:var(--text-faint);font-weight:700">/ dia</small></div>
+      </div></div>`; }).join("")}</div>`
+    : `<div class="bf-empty"><div class="bf-e-ico">${I.users}</div><b>Nenhum colaborador selecionado</b><p>Volte em “Para quem é” e escolha os colaboradores.</p></div>`}`;
+  body.querySelector("#ff-aplicar-btn").addEventListener("click", () => {
+    const v = num(body.querySelector("#ff-aplicar").value);
+    if (v === null || v <= 0) { toast("Informe um valor por dia válido para aplicar.", "error"); return; }
+    b.fixos = b.fixos || {};
+    ids.forEach((id) => { b.fixos[id] = v; });
+    toast(`${brl(v)} por dia aplicado a ${ids.length} colaborador(es).`, "success");
+    renderForm();
+  });
+  body.querySelectorAll("[data-dia]").forEach((inp) => {
+    inp.addEventListener("input", () => { const v = num(inp.value); b.fixos = b.fixos || {}; if (v === null || v <= 0) delete b.fixos[inp.dataset.dia]; else b.fixos[inp.dataset.dia] = v; });
+    inp.addEventListener("blur", () => { const n = num(inp.value); if (n !== null) inp.value = fmtInput(n); });
+  });
+}
+
 function formValores(body) {
+  if (ehVale(form.b)) return formValoresVale(body);
   const b = form.b, k = form.mes, prox = addMes(k, 1), ant = addMes(k, -1);
   const ids = idsDo(b);
   const t = totaisDoMes(b, k);
@@ -868,10 +931,10 @@ document.getElementById("btn-salvar").addEventListener("click", () => {
       <div><span>Benefício</span><b>${esc(b.nome)}</b></div>
       <div><span>Status</span><b style="color:${b.status === "ATIVO" ? "var(--green-700)" : "var(--red-600)"}">${b.status === "ATIVO" ? "Ativo" : "Inativo"}</b></div>
       <div><span>Para quem</span><b>${b.publico === "TODOS" ? "Todos" : "Específicos"} (${ids.length})</b></div>
-      <div><span>${rotuloMes(form.mes)} — concedido</span><b>${brl(t.bruto)}</b></div>
-      <div><span>Descontos</span><b style="color:var(--red-600)">${brl(t.desc)}</b></div>
+      ${ehVale(b) ? `<div><span>Valor por dia</span><b>${faixaDia(b)}</b></div><div><span>Puxa para</span><b>${valeDe(b).nome}</b></div>` : `<div><span>${rotuloMes(form.mes)} — concedido</span><b>${brl(t.bruto)}</b></div>
+      <div><span>Descontos</span><b style="color:var(--red-600)">${brl(t.desc)}</b></div>`}
     </div>
-    ${semValor ? `<p style="margin:.8rem 0 0;font-size:.78rem;color:var(--orange-600);display:flex;gap:.4rem">${I.alert.replace("<svg", '<svg style="width:15px;height:15px;flex-shrink:0"')}<span>${semValor} colaborador(es) ainda sem valor em ${rotuloMes(form.mes)} — dá para preencher depois.</span></p>` : ""}`;
+    ${ehVale(b) ? (ids.filter((id) => !(Number(b.fixos?.[id]) > 0)).length ? `<p style="margin:.8rem 0 0;font-size:.78rem;color:var(--orange-600)">${ids.filter((id) => !(Number(b.fixos?.[id]) > 0)).length} colaborador(es) sem valor por dia — dá para preencher depois.</p>` : "") : semValor ? `<p style="margin:.8rem 0 0;font-size:.78rem;color:var(--orange-600);display:flex;gap:.4rem">${I.alert.replace("<svg", '<svg style="width:15px;height:15px;flex-shrink:0"')}<span>${semValor} colaborador(es) ainda sem valor em ${rotuloMes(form.mes)} — dá para preencher depois.</span></p>` : ""}`;
   confirmAcao = salvarConfirmado;
   prepararBotaoConfirmar(`${I.check}<span>${b.id ? "Salvar" : "Cadastrar"}</span>`, false);
   abrir("ov-confirm");
@@ -962,6 +1025,11 @@ function excluirBeneficio(id) {
 // ---------------------------------------------------------------------------
 // Inicialização
 // ---------------------------------------------------------------------------
+// Botão "Editar valores" das abas Vale-refeição / Vale-transporte.
+window.rhAbrirBeneficio = async (id) => {
+  try { await recarregar(); render(); } catch (e) { /* segue com o que tem */ }
+  if (BENEFICIOS.some((x) => x.id === id)) abrirForm(id, "valores");
+};
 try {
   await recarregar();
   render();
