@@ -22,11 +22,20 @@
  */
 
 function rhGerarProtocoloSolicitacao() {
-  return `SOL-${Date.now().toString(36).toUpperCase()}`;
+  // Sufixo aleatório evita colisão (protocolo é unique) quando duas são criadas no mesmo milissegundo.
+  return `SOL-${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 4).toUpperCase()}`;
 }
 
 function rhHojeIsoSolic() {
-  return new Date().toISOString().slice(0, 10);
+  // Data LOCAL (Brasília), não UTC — toISOString() virava o dia às 21h.
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function rhFmtIsoBr(iso) {
+  if (!iso) return "—";
+  const [y, m, d] = String(iso).slice(0, 10).split("-");
+  return `${d}/${m}/${y}`;
 }
 
 function rhMapSolicitacaoGeral(row) {
@@ -56,12 +65,12 @@ function rhMapFeriasComoSolicitacao(row) {
     origem: "ferias",
     protocolo: row.protocolo,
     categoria: "Solicitação de férias",
-    descricao: `Férias de ${row.inicio} a ${row.fim} (${row.dias} dia${row.dias === 1 ? "" : "s"})${row.observacoes ? " — " + row.observacoes : ""}`,
+    descricao: `Férias de ${rhFmtIsoBr(row.inicio)} a ${rhFmtIsoBr(row.fim)} (${row.dias} dia${row.dias === 1 ? "" : "s"})${row.observacoes ? " — " + row.observacoes : ""}`,
     status: row.status, // status real da tabela de férias (PENDENTE/APROVADA/RECUSADA)
     statusExibicao, // mapeado pra combinar com os filtros da fila geral
     prioridade: "normal",
     data: row.solicitado_em,
-    respostas: [],
+    respostas: row.respostas || [], // conversa RH x colaborador (migração 34)
     ajustePonto: null,
     colaboradorId: row.colaborador_id,
     colaborador: row.colaborador?.nome || "—",
@@ -125,6 +134,32 @@ async function rhResponderSolicitacaoGeral(id, { texto, autor, novoStatus }) {
   const { error } = await sb.from("solicitacoes").update({ respostas, status: novoStatus }).eq("id", id);
   if (error) throw error;
   return true;
+}
+
+/** RH escreve na conversa de uma solicitação de FÉRIAS (rh.ferias_solicitacoes
+ * .respostas — migração 34). Só grava a mensagem; se `novoStatus` vier
+ * (ex.: "EM_ANALISE"), também atualiza o status. Aprovar/Recusar continuam
+ * passando por rhResolverFerias (débito real de saldo) — chamado pela tela. */
+async function rhResponderFeriasRH(id, { texto, autor, novoStatus }) {
+  if (!texto || !texto.trim()) throw new Error("Escreva a mensagem.");
+  const { data: atual, error: getErr } = await sb.from("ferias_solicitacoes").select("respostas").eq("id", id).single();
+  if (getErr) throw rhErroMigracao34(getErr);
+  const respostas = [...(atual.respostas || []), { autor, texto: texto.trim(), data: rhHojeIsoSolic(), origem: "RH" }];
+  const payload = { respostas };
+  if (novoStatus) payload.status = novoStatus;
+  const { error } = await sb.from("ferias_solicitacoes").update(payload).eq("id", id);
+  if (error) throw rhErroMigracao34(error);
+  return true;
+}
+
+/** Erro amigável quando a migração 34 (conversa nas férias) ainda não foi
+ * aplicada no Supabase. */
+function rhErroMigracao34(err) {
+  const msg = String(err?.message || err || "");
+  if (/respostas|colaborador_responder_ferias/i.test(msg) && /does not exist|schema cache|Could not find/i.test(msg)) {
+    return new Error("A conversa nas férias precisa da migração db/supabase/34_ferias_conversa.sql aplicada no Supabase.");
+  }
+  return err;
 }
 
 /** Colaborador responde na MESMA solicitação (continuação da conversa com o

@@ -16,13 +16,16 @@
  */
 
 function rhGerarProtocoloFerias() {
-  return `FER-${Date.now().toString(36).toUpperCase()}`;
+  // Sufixo aleatório: férias parceladas criam várias linhas no mesmo instante e protocolo é unique.
+  return `FER-${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 4).toUpperCase()}`;
 }
 
 /** Data de hoje em formato ISO (YYYY-MM-DD), usado como fallback quando
  * hojeIso nao e informado (ex.: rhCalcularAvisoFerias). */
 function rhTodayIso() {
-  return new Date().toISOString().slice(0, 10);
+  // Data LOCAL (Brasília), não UTC — toISOString() virava o dia às 21h.
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function rhDiasEntre(inicioIso, fimIso) {
@@ -45,7 +48,23 @@ function rhMapSolicitacaoFerias(row) {
     preAprovadaEm: row.pre_aprovada_em || null,
     preAprovadaPor: row.pre_aprovada_por || null,
     arquivado: row.arquivado === true,
+    respostas: row.respostas || [], // conversa RH x colaborador (migração 34)
   };
+}
+
+/** Colaborador responde na conversa da PRÓPRIA solicitação de férias — via
+ * função security definer rh.colaborador_responder_ferias (migração 34), que
+ * só acrescenta a mensagem; não muda status, datas nem saldo. */
+async function rhColaboradorResponderFerias(id, texto) {
+  if (!texto || !texto.trim()) throw new Error("Escreva sua resposta.");
+  const { data, error } = await sb.rpc("colaborador_responder_ferias", { p_ferias_id: id, p_texto: texto.trim() });
+  if (error) {
+    if (/colaborador_responder_ferias|schema cache|Could not find/i.test(error.message || "")) {
+      throw new Error("A conversa nas férias ainda não foi ativada no banco (migração 34). Avise o RH.");
+    }
+    throw error;
+  }
+  return data;
 }
 
 function isoOfDate(d) {
