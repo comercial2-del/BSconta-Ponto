@@ -47,6 +47,51 @@ function vlPeriodoVT(comp) {
   const [y, m] = comp.split("-").map(Number);
   return { inicio: vlIso(new Date(y, m - 2, 22)), fim: vlIso(new Date(y, m - 1, 21)) };
 }
+/** Período padrão do fechamento: VR = mês inteiro; VT = 22 do mês anterior a 21. */
+function vlPeriodoPadrao(tipo, comp) {
+  return tipo === "vt" ? vlPeriodoVT(comp) : vlPeriodoMes(comp);
+}
+/** Período gravado nas linhas do mês (o RH escolhe no fechamento), se houver. */
+function vlPeriodoSalvo(rows) {
+  const r = (rows || []).find((x) => x.periodo_inicio && x.periodo_fim);
+  return r ? { inicio: r.periodo_inicio, fim: r.periodo_fim } : null;
+}
+function vlPeriodoValido(p) {
+  return p && /^\d{4}-\d{2}-\d{2}$/.test(p.inicio || "") && /^\d{4}-\d{2}-\d{2}$/.test(p.fim || "") && p.inicio <= p.fim;
+}
+
+// ---------------------------------------------------------------------------
+// Ligação com a aba Benefícios (db/supabase/36_beneficios_vales_link.sql)
+// Benefício ATIVO da categoria ALIMENTACAO -> Vale-refeição;
+// TRANSPORTE -> Vale-transporte. O valor de cada colaborador no benefício
+// (rh.beneficio_valores_fixos) é o VALOR POR DIA. Quem recebe = público do
+// benefício (todos ou específicos). Sem benefício da categoria, as abas
+// continuam como antes (todos os colaboradores, valor geral/cadastro).
+// ---------------------------------------------------------------------------
+const VL_CATEGORIA = { vr: "ALIMENTACAO", vt: "TRANSPORTE" };
+async function vlBeneficiosDoTipo(tipo) {
+  const cat = VL_CATEGORIA[tipo];
+  const bRes = await sb.from("beneficios").select("id, nome, atribuicao_tipo, status, beneficios_colaboradores(colaborador_id)").eq("categoria", cat).eq("status", "ATIVO").order("created_at");
+  if (bRes.error || !(bRes.data || []).length) return null;
+  const ids = bRes.data.map((b) => b.id);
+  const fRes = await sb.from("beneficio_valores_fixos").select("beneficio_id, colaborador_id, valor").in("beneficio_id", ids);
+  if (fRes.error) throw fRes.error;
+  const publico = new Set();
+  let todos = false;
+  bRes.data.forEach((b) => {
+    if (b.atribuicao_tipo !== "ESPECIFICO") todos = true;
+    else (b.beneficios_colaboradores || []).forEach((bc) => publico.add(bc.colaborador_id));
+  });
+  const valorDia = new Map();
+  (fRes.data || []).forEach((f) => valorDia.set(f.colaborador_id, vlRound((valorDia.get(f.colaborador_id) || 0) + Number(f.valor || 0))));
+  return {
+    beneficios: bRes.data.map((b) => ({ id: b.id, nome: b.nome })),
+    todos,
+    recebe: (id) => todos || publico.has(id),
+    valorDia,
+  };
+}
+
 function vlNum(v) {
   if (v === null || v === undefined || v === "") return 0;
   const n = typeof v === "number" ? v : Number(String(v).replace(/\./g, "").replace(",", "."));
@@ -149,41 +194,59 @@ function vrTotal(l) {
   return vlRound(Math.max(0, l.dias_uteis - l.faltas - l.ferias_dias) * l.valor_dia);
 }
 
-async function rhVrCarregar(comp) {
-  const { inicio, fim } = vlPeriodoMes(comp);
-  const [base, valorDia, salvosRes] = await Promise.all([
-    vlCarregarBase(inicio, fim),
+/** `periodoNovo` (opcional) = período escolhido pelo RH agora: recalcula os
+ * dias das linhas ainda abertas. Sem ele, usa o período gravado no mês ou o padrão. */
+async function rhVrCarregar(comp, periodoNovo) {
+  const [valorDia, salvosRes, vinculo] = await Promise.all([
     rhParametro("vr_valor_dia", 23),
     sb.from("vr_mensal").select("*").eq("competencia", comp),
+    vlBeneficiosDoTipo("vr"),
   ]);
   if (salvosRes.error) throw salvosRes.error;
+  const padrao = vlPeriodoPadrao("vr", comp);
+  const periodo = vlPeriodoValido(periodoNovo) ? periodoNovo : vlPeriodoSalvo(salvosRes.data) || padrao;
+  const { inicio, fim } = periodo;
+  const base = await vlCarregarBase(inicio, fim);
   const salvos = new Map((salvosRes.data || []).map((r) => [r.colaborador_id, r]));
   const nomes = new Map(base.colabs.map((c) => [c.id, c.nome]));
-  const ids = new Set([...vlColaboradoresDoPeriodo(base.colabs, inicio, fim).map((c) => c.id), ...salvos.keys()]);
+  const doPeriodo = vlColaboradoresDoPeriodo(base.colabs, inicio, fim).map((c) => c.id).filter((id) => !vinculo || vinculo.recebe(id));
+  const ids = new Set([...doPeriodo, ...[...salvos.values()].filter((s) => !vinculo || s.fechado || vinculo.recebe(s.colaborador_id)).map((s) => s.colaborador_id)]);
+  const recalc = vlPeriodoValido(periodoNovo);
   const linhas = [...ids].map((id) => {
     const c = base.colabs.find((x) => x.id === id) || { id, dias_trabalho: null };
     const s = salvos.get(id);
+    const fechado = s ? s.fechado : false;
     const diasLista = vlDiasTrabalho(c, inicio, fim, base.feriadosSet);
     const sugerido = { dias_uteis: diasLista.length, ferias_dias: vlContarFerias(diasLista, base.feriasPor.get(id)) };
+    const doBenef = vinculo && vinculo.valorDia.has(id) ? vinculo.valorDia.get(id) : null;
+    const valorAtual = vinculo ? (doBenef ?? valorDia) : valorDia;
+    const valor_dia = s && (fechado || !vinculo) ? Number(s.valor_dia) : valorAtual;
+    const usarSugestao = !s || (recalc && !fechado);
     return {
       colaborador_id: id,
       nome: nomes.get(id) || "—",
       salvo: !!s,
-      dias_uteis: s ? s.dias_uteis : sugerido.dias_uteis,
+      dias_uteis: usarSugestao ? sugerido.dias_uteis : s.dias_uteis,
       faltas: s ? s.faltas : 0,
-      ferias_dias: s ? s.ferias_dias : sugerido.ferias_dias,
-      valor_dia: s ? Number(s.valor_dia) : valorDia,
+      ferias_dias: usarSugestao ? sugerido.ferias_dias : s.ferias_dias,
+      valor_dia,
+      semValorBeneficio: !!vinculo && doBenef === null,
       observacao: s ? s.observacao || "" : "",
-      fechado: s ? s.fechado : false,
+      fechado,
       fechado_em: s?.fechado_em || null,
       fechado_por: s?.fechado_por || null,
+      // Linha aberta que mudou (novo período ou novo valor no benefício): grava sozinha.
+      alterado: !!s && !fechado && ((recalc && (s.dias_uteis !== sugerido.dias_uteis || s.ferias_dias !== sugerido.ferias_dias || s.periodo_inicio !== inicio || s.periodo_fim !== fim)) || (vinculo && Number(s.valor_dia) !== valorAtual)),
       sugerido,
     };
   }).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
   const diasUteisMes = vlDiasTrabalho({ dias_trabalho: VL_DIAS_PADRAO }, inicio, fim, base.feriadosSet).length;
-  return { comp, valorDia, diasUteisMes, linhas, fechado: linhas.length > 0 && linhas.every((l) => l.fechado) };
+  return { comp, valorDia, diasUteisMes, linhas, periodo, padrao, vinculo, fechado: linhas.length > 0 && linhas.every((l) => l.fechado) };
 }
 
+function vlPayloadPeriodo(periodo) {
+  return vlPeriodoValido(periodo) ? { periodo_inicio: periodo.inicio, periodo_fim: periodo.fim } : {};
+}
 function vrPayload(comp, l, extra) {
   return {
     colaborador_id: l.colaborador_id,
@@ -197,13 +260,18 @@ function vrPayload(comp, l, extra) {
     ...(extra || {}),
   };
 }
-async function rhVrSalvarLinha(comp, l) {
-  const { error } = await sb.from("vr_mensal").upsert(vrPayload(comp, l), { onConflict: "colaborador_id,competencia" });
+async function rhVrSalvarLinha(comp, l, periodo) {
+  const { error } = await sb.from("vr_mensal").upsert(vrPayload(comp, l, vlPayloadPeriodo(periodo)), { onConflict: "colaborador_id,competencia" });
   if (error) throw error;
 }
-async function rhVrFecharMes(comp, linhas, autor) {
+async function rhVrSalvarLinhas(comp, linhas, periodo) {
+  if (!linhas.length) return;
+  const { error } = await sb.from("vr_mensal").upsert(linhas.map((l) => vrPayload(comp, l, vlPayloadPeriodo(periodo))), { onConflict: "colaborador_id,competencia" });
+  if (error) throw error;
+}
+async function rhVrFecharMes(comp, linhas, autor, periodo) {
   const agora = new Date().toISOString();
-  const { error } = await sb.from("vr_mensal").upsert(linhas.map((l) => vrPayload(comp, l, { fechado: true, fechado_em: agora, fechado_por: autor || null })), { onConflict: "colaborador_id,competencia" });
+  const { error } = await sb.from("vr_mensal").upsert(linhas.map((l) => vrPayload(comp, l, { ...vlPayloadPeriodo(periodo), fechado: true, fechado_em: agora, fechado_por: autor || null })), { onConflict: "colaborador_id,competencia" });
   if (error) throw error;
 }
 async function rhVrReabrirMes(comp) {
@@ -221,39 +289,52 @@ function vtCarregar(l) {
   return vlRound(Math.max(0, vtNecessidade(l) - l.saldo_cartao));
 }
 
-async function rhVtCarregar(comp) {
-  const { inicio, fim } = vlPeriodoVT(comp);
+async function rhVtCarregar(comp, periodoNovo) {
   const anterior = vlSomarMes(comp, -1);
-  const [base, salvosRes, antRes] = await Promise.all([
-    vlCarregarBase(inicio, fim),
+  const [salvosRes, antRes, vinculo] = await Promise.all([
     sb.from("vt_mensal").select("*").eq("competencia", comp),
     sb.from("vt_mensal").select("*").eq("competencia", anterior),
+    vlBeneficiosDoTipo("vt"),
   ]);
   if (salvosRes.error) throw salvosRes.error;
   if (antRes.error) throw antRes.error;
+  const padrao = vlPeriodoPadrao("vt", comp);
+  const periodo = vlPeriodoValido(periodoNovo) ? periodoNovo : vlPeriodoSalvo(salvosRes.data) || padrao;
+  const { inicio, fim } = periodo;
+  const recalc = vlPeriodoValido(periodoNovo);
+  const base = await vlCarregarBase(inicio, fim);
   const salvos = new Map((salvosRes.data || []).map((r) => [r.colaborador_id, r]));
   const ant = new Map((antRes.data || []).map((r) => [r.colaborador_id, r]));
-  const ids = new Set([...vlColaboradoresDoPeriodo(base.colabs, inicio, fim).map((c) => c.id), ...salvos.keys()]);
+  const doPeriodo = vlColaboradoresDoPeriodo(base.colabs, inicio, fim).map((c) => c.id).filter((id) => !vinculo || vinculo.recebe(id));
+  const ids = new Set([...doPeriodo, ...[...salvos.values()].filter((s) => !vinculo || s.fechado || vinculo.recebe(s.colaborador_id)).map((s) => s.colaborador_id)]);
   const linhas = [...ids].map((id) => {
     const c = base.colabs.find((x) => x.id === id) || { id, nome: "—", vt_modalidade: "PRESENCIAL", vt_valor_dia: 0 };
     const s = salvos.get(id);
     const a = ant.get(id);
+    const fechado = s ? s.fechado : false;
     const diasLista = vlDiasTrabalho(c, inicio, fim, base.feriadosSet);
     const uteis = diasLista.length - vlContarFerias(diasLista, base.feriasPor.get(id));
     const modalidade = s ? s.modalidade : c.vt_modalidade || "PRESENCIAL";
     const diasSug = modalidade === "HOME_OFFICE" ? 0 : modalidade === "HIBRIDO" && c.vt_dias_padrao != null ? Math.min(c.vt_dias_padrao, uteis) : uteis;
     // Saldo previsto: o que sobrou do mês anterior (saldo + carregado − necessidade).
     const saldoPrevisto = a ? vlRound(Math.max(0, Number(a.saldo_cartao) + Number(a.valor_carregar) - Number(a.dias_presenciais) * Number(a.valor_dia))) : 0;
+    const doBenef = vinculo && vinculo.valorDia.has(id) ? vinculo.valorDia.get(id) : null;
+    const valorAtual = doBenef ?? Number(c.vt_valor_dia || 0);
+    const valor_dia = s && (fechado || !vinculo) ? Number(s.valor_dia) : valorAtual;
+    const usarSugestao = !s || (recalc && !fechado);
     const l = {
       colaborador_id: id,
       nome: c.nome || "—",
       salvo: !!s,
       modalidade,
-      valor_dia: s ? Number(s.valor_dia) : Number(c.vt_valor_dia || 0),
-      dias_presenciais: s ? s.dias_presenciais : diasSug,
+      valor_dia,
+      doBeneficio: !!vinculo,
+      semValorBeneficio: !!vinculo && doBenef === null,
+      alterado: !!s && !fechado && ((recalc && (s.dias_presenciais !== diasSug || s.periodo_inicio !== inicio || s.periodo_fim !== fim)) || (vinculo && Number(s.valor_dia) !== valorAtual)),
+      dias_presenciais: usarSugestao ? diasSug : s.dias_presenciais,
       saldo_cartao: s ? Number(s.saldo_cartao) : saldoPrevisto,
       observacao: s ? s.observacao || "" : "",
-      fechado: s ? s.fechado : false,
+      fechado,
       fechado_em: s?.fechado_em || null,
       fechado_por: s?.fechado_por || null,
       sugerido: { dias: diasSug, uteis, saldo: saldoPrevisto },
@@ -262,7 +343,7 @@ async function rhVtCarregar(comp) {
     };
     return l;
   }).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
-  return { comp, periodo: { inicio, fim }, linhas, fechado: linhas.length > 0 && linhas.every((l) => l.fechado) };
+  return { comp, periodo, padrao, vinculo, linhas, fechado: linhas.length > 0 && linhas.every((l) => l.fechado) };
 }
 
 function vtPayload(comp, l, extra) {
@@ -279,13 +360,18 @@ function vtPayload(comp, l, extra) {
     ...(extra || {}),
   };
 }
-async function rhVtSalvarLinha(comp, l) {
-  const { error } = await sb.from("vt_mensal").upsert(vtPayload(comp, l), { onConflict: "colaborador_id,competencia" });
+async function rhVtSalvarLinha(comp, l, periodo) {
+  const { error } = await sb.from("vt_mensal").upsert(vtPayload(comp, l, vlPayloadPeriodo(periodo)), { onConflict: "colaborador_id,competencia" });
   if (error) throw error;
 }
-async function rhVtFecharMes(comp, linhas, autor) {
+async function rhVtSalvarLinhas(comp, linhas, periodo) {
+  if (!linhas.length) return;
+  const { error } = await sb.from("vt_mensal").upsert(linhas.map((l) => vtPayload(comp, l, vlPayloadPeriodo(periodo))), { onConflict: "colaborador_id,competencia" });
+  if (error) throw error;
+}
+async function rhVtFecharMes(comp, linhas, autor, periodo) {
   const agora = new Date().toISOString();
-  const { error } = await sb.from("vt_mensal").upsert(linhas.map((l) => vtPayload(comp, l, { fechado: true, fechado_em: agora, fechado_por: autor || null })), { onConflict: "colaborador_id,competencia" });
+  const { error } = await sb.from("vt_mensal").upsert(linhas.map((l) => vtPayload(comp, l, { ...vlPayloadPeriodo(periodo), fechado: true, fechado_em: agora, fechado_por: autor || null })), { onConflict: "colaborador_id,competencia" });
   if (error) throw error;
 }
 async function rhVtReabrirMes(comp) {

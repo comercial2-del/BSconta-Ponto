@@ -115,7 +115,8 @@ function rhValesInit(session) {
     ["vt", "Vale-transporte", ICONS.car],
     ["gratificacoes", "Gratificações", ICONS.award],
   ];
-  const st = { tab: "beneficios", comp: vlCompetenciaAtual(), dados: null };
+  // periodos["vr-2026-10"] = período escolhido agora pelo RH (recalcula as linhas abertas).
+  const st = { tab: "beneficios", comp: vlCompetenciaAtual(), dados: null, periodos: {} };
   const h = (location.hash || "").replace("#", "");
   if (TABS.some(([k]) => k === h)) st.tab = h;
   const autor = session?.name || null;
@@ -124,6 +125,8 @@ function rhValesInit(session) {
     tabsEl.innerHTML = TABS.map(([k, l, i]) => `<button type="button" data-vl-tab="${k}" class="${st.tab === k ? "on" : ""}">${i}<span>${l}</span></button>`).join("");
     tabsEl.querySelectorAll("[data-vl-tab]").forEach((b) => b.addEventListener("click", () => irPara(b.dataset.vlTab)));
   }
+  // Usado pela aba Benefícios e pelos botões "Editar valores no benefício".
+  window.rhValesIrPara = (tab) => irPara(tab);
   function irPara(tab) {
     st.tab = tab;
     try { history.replaceState(null, "", tab === "beneficios" ? location.pathname : `#${tab}`); } catch (e) { /* ok */ }
@@ -147,15 +150,107 @@ function rhValesInit(session) {
     return `<div class="vl-banner">${ICONS.checkCircle}<span>Mês fechado${l.fechado_em ? ` em ${fmtDate(String(l.fechado_em).slice(0, 10))}` : ""}${l.fechado_por ? ` por ${esc(l.fechado_por)}` : ""}. Os valores estão travados — use <b>Reabrir mês</b> para corrigir.</span></div>`;
   }
 
+  async function buscar(tab) {
+    const novo = st.periodos[`${tab}-${st.comp}`];
+    const d = tab === "vr" ? await rhVrCarregar(st.comp, novo) : await rhVtCarregar(st.comp, novo);
+    delete st.periodos[`${tab}-${st.comp}`];
+    // Linhas abertas que mudaram (novo período ou valor alterado no benefício) gravam sozinhas.
+    const alteradas = d.linhas.filter((l) => l.alterado);
+    if (alteradas.length) {
+      if (tab === "vr") await rhVrSalvarLinhas(d.comp, alteradas, d.periodo);
+      else await rhVtSalvarLinhas(d.comp, alteradas, d.periodo);
+      alteradas.forEach((l) => { l.alterado = false; });
+    }
+    return d;
+  }
   async function carregar() {
     area.innerHTML = `<div class="loading-wrap"><div class="spinner"></div></div>`;
     try {
-      if (st.tab === "vr") { st.dados = await rhVrCarregar(st.comp); renderVR(); }
-      else if (st.tab === "vt") { st.dados = await rhVtCarregar(st.comp); renderVT(); }
+      if (st.tab === "vr") { st.dados = await buscar("vr"); renderVR(); }
+      else if (st.tab === "vt") { st.dados = await buscar("vt"); renderVT(); }
       else if (st.tab === "gratificacoes") { st.dados = await rhGratCarregar(st.comp); renderGR(); }
     } catch (err) {
       area.innerHTML = `<div class="card card-p">${emptyStateHtml({ icon: ICONS.alertCircle, title: "Não foi possível carregar", desc: rhErroMigracao35(err) })}</div>`;
     }
+  }
+
+  const dm = (iso) => fmtDate(iso).slice(0, 5);
+  function periodoHtml(d) {
+    const dias = Math.round((new Date(d.periodo.fim + "T00:00:00") - new Date(d.periodo.inicio + "T00:00:00")) / 86400000) + 1;
+    return `<div class="vl-param">${ICONS.calendar}<span>Período:</span><b>${dm(d.periodo.inicio)} a ${fmtDate(d.periodo.fim)}</b><small style="color:var(--text-faint)">(${dias} dias)</small>${d.fechado ? "" : `<button type="button" class="btn-ghost vl-btn-sm" id="vl-periodo">${ICONS.edit}<span>Alterar</span></button>`}</div>`;
+  }
+  function fonteHtml(d, tipo) {
+    if (!d.vinculo) return "";
+    const b = d.vinculo.beneficios[0];
+    return `<div class="vl-param">${ICONS.heart}<span>Valor/dia vem do benefício:</span><b>${esc(d.vinculo.beneficios.map((x) => x.nome).join(", "))}</b><button type="button" class="btn-ghost vl-btn-sm" data-vl-benef="${b.id}">${ICONS.edit}<span>Editar valores</span></button></div>`;
+  }
+  function ligarFonte() {
+    area.querySelectorAll("[data-vl-benef]").forEach((b) => b.addEventListener("click", () => {
+      irPara("beneficios");
+      if (typeof window.rhAbrirBeneficio === "function") window.rhAbrirBeneficio(b.dataset.vlBenef);
+    }));
+  }
+  /** Modal do período (dia X até dia Y). `fechar` = também fecha o mês. */
+  function modalPeriodo(tipo, { fechar = false } = {}) {
+    const d = st.dados;
+    const nome = tipo === "vr" ? "vale-refeição" : "vale-transporte";
+    const ov = vlModal("vl-modal-periodo", {
+      titulo: fechar ? `Fechar ${nome} de ${vlRotuloMes(d.comp)}` : `Período do ${nome}`,
+      sub: "De que dia até que dia vale este benefício no mês. Os dias são contados de novo para quem ainda está aberto.",
+      largura: 500,
+      corpo: `<div class="form-grid" style="margin:0">
+          <div class="field"><label>Do dia</label><input id="vl-p-ini" type="date" class="vl-in-full" value="${d.periodo.inicio}" /></div>
+          <div class="field"><label>Até o dia</label><input id="vl-p-fim" type="date" class="vl-in-full" value="${d.periodo.fim}" /></div>
+        </div>
+        <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.7rem">
+          <button type="button" class="btn-ghost vl-btn-sm" data-vl-ate="padrao">Padrão (${dm(d.padrao.inicio)} a ${dm(d.padrao.fim)})</button>
+          ${tipo === "vr" ? `<button type="button" class="btn-ghost vl-btn-sm" data-vl-ate="21">Dia 1 a 21</button><button type="button" class="btn-ghost vl-btn-sm" data-vl-ate="30">Dia 1 a 30</button>` : ""}
+        </div>
+        <p class="vl-nota" id="vl-p-resumo"></p>`,
+      rodape: `<button type="button" class="btn-ghost" data-vl-close>Cancelar</button><button type="button" class="btn-primary auto" id="vl-p-ok">${fechar ? ICONS.checkCircle : ICONS.check}<span>${fechar ? "Fechar mês" : "Aplicar período"}</span></button>`,
+    });
+    const ini = ov.querySelector("#vl-p-ini"), fim = ov.querySelector("#vl-p-fim");
+    const resumo = () => {
+      const ok = ini.value && fim.value && ini.value <= fim.value;
+      const dias = ok ? Math.round((new Date(fim.value + "T00:00:00") - new Date(ini.value + "T00:00:00")) / 86400000) + 1 : 0;
+      ov.querySelector("#vl-p-resumo").innerHTML = ok
+        ? `${dias} dia(s) corridos — conta só os dias de trabalho de cada pessoa (sem feriados e férias aprovadas).${fechar ? ` <b>${d.linhas.length} colaborador(es)</b>; depois de fechado, os valores ficam travados (dá para reabrir).` : ""}`
+        : `<span style="color:var(--red-600)">O dia final precisa ser igual ou depois do inicial.</span>`;
+      ov.querySelector("#vl-p-ok").disabled = !ok;
+    };
+    ov.querySelectorAll("[data-vl-ate]").forEach((b) => b.addEventListener("click", () => {
+      const [y, m] = d.comp.split("-").map(Number);
+      if (b.dataset.vlAte === "padrao") { ini.value = d.padrao.inicio; fim.value = d.padrao.fim; }
+      else { const ultimo = new Date(y, m, 0).getDate(); ini.value = vlIso(new Date(y, m - 1, 1)); fim.value = vlIso(new Date(y, m - 1, Math.min(Number(b.dataset.vlAte), ultimo))); }
+      resumo();
+    }));
+    ini.addEventListener("input", resumo); fim.addEventListener("input", resumo);
+    resumo();
+    ov.querySelector("#vl-p-ok").addEventListener("click", async (e) => {
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      const novo = { inicio: ini.value, fim: fim.value };
+      try {
+        // Grava primeiro o que está na tela (faltas, observações…) para nada se perder.
+        [...timers.values()].forEach(clearTimeout); timers.clear();
+        const abertas = d.linhas.filter((l) => !l.fechado);
+        if (tipo === "vr") await rhVrSalvarLinhas(d.comp, abertas, d.periodo);
+        else await rhVtSalvarLinhas(d.comp, abertas, d.periodo);
+        if (novo.inicio !== d.periodo.inicio || novo.fim !== d.periodo.fim) st.periodos[`${tipo}-${d.comp}`] = novo;
+        const atual = await buscar(tipo);
+        if (fechar) {
+          if (tipo === "vr") await rhVrFecharMes(atual.comp, atual.linhas, autor, atual.periodo);
+          else await rhVtFecharMes(atual.comp, atual.linhas, autor, atual.periodo);
+          showToast(`${tipo === "vr" ? "Vale-refeição" : "Vale-transporte"} de ${vlRotuloMes(atual.comp)} fechado (${dm(atual.periodo.inicio)} a ${fmtDate(atual.periodo.fim)}).`, "success");
+        } else {
+          if (tipo === "vr") await rhVrSalvarLinhas(atual.comp, atual.linhas.filter((l) => !l.fechado), atual.periodo);
+          else await rhVtSalvarLinhas(atual.comp, atual.linhas.filter((l) => !l.fechado), atual.periodo);
+          showToast(`Período ${dm(atual.periodo.inicio)} a ${fmtDate(atual.periodo.fim)} aplicado.`, "success");
+        }
+        ov.classList.remove("open");
+        carregar();
+      } catch (err) { showToast(rhErroMigracao35(err), "error"); btn.disabled = false; }
+    });
   }
 
   // Salva a linha alguns instantes depois da última digitação.
@@ -184,9 +279,10 @@ function rhValesInit(session) {
     const trav = d.fechado;
     const total = d.linhas.reduce((a, l) => a + vrTotal(l), 0);
     area.innerHTML = `
-      ${cabecalho("Vale-refeição", "Dias úteis × valor por dia, mês a mês. Ajuste só faltas e afastamentos — o resto já vem calculado.")}
+      ${cabecalho("Vale-refeição", d.vinculo ? "Quem tem o benefício de alimentação/refeição e o valor por dia de cada um. Dias do período × valor por dia = total." : "Dias úteis × valor por dia, mês a mês. Ajuste só faltas e afastamentos — o resto já vem calculado.")}
       <div class="vl-bar">${navMes()}
-        <div class="vl-param">${ICONS.settings}<span>Valor por dia (todos):</span><b>R$ ${vlMoneyFmt(d.valorDia)}</b><button type="button" class="btn-ghost vl-btn-sm" id="vl-vr-alterar">${ICONS.edit}<span>Alterar</span></button></div>
+        ${periodoHtml(d)}
+        ${d.vinculo ? fonteHtml(d, "vr") : `<div class="vl-param">${ICONS.settings}<span>Valor por dia (todos):</span><b>R$ ${vlMoneyFmt(d.valorDia)}</b><button type="button" class="btn-ghost vl-btn-sm" id="vl-vr-alterar">${ICONS.edit}<span>Alterar</span></button></div>`}
         <span class="vl-esp"></span><span id="vl-salvo" class="vl-salvo ok">${d.linhas.some((l) => !l.salvo) && !trav ? "Valores sugeridos" : "Tudo salvo"}</span>
         <button type="button" class="btn-ghost" id="vl-exportar">${ICONS.download}<span>Exportar Excel</span></button>
         ${trav ? `<button type="button" class="btn-ghost" id="vl-reabrir">${ICONS.refresh}<span>Reabrir mês</span></button>` : `<button type="button" class="btn-primary auto" id="vl-fechar">${ICONS.checkCircle}<span>Fechar mês</span></button>`}
@@ -194,19 +290,19 @@ function rhValesInit(session) {
       ${trav ? bannerFechado(d.linhas) : ""}
       <div id="vl-kpi"></div>
       <div class="card card-p" style="margin-top:1rem">
-        <div class="table-scroll vl-tbl-wrap"><table class="vl-tbl"><thead><tr><th>Colaborador</th><th class="n">Dias úteis</th><th class="n">Faltas / afast.</th><th class="n">Férias</th><th class="n">Dias a pagar</th><th class="n">Valor/dia</th><th class="n">Total</th><th>Observação</th></tr></thead>
+        <div class="table-scroll vl-tbl-wrap"><table class="vl-tbl"><thead><tr><th>Colaborador</th><th class="n">Dias no período</th><th class="n">Faltas / afast.</th><th class="n">Férias</th><th class="n">Dias a pagar</th><th class="n">Valor/dia</th><th class="n">Total</th><th>Observação</th></tr></thead>
         <tbody>${d.linhas.map((l, i) => `<tr data-i="${i}">
           <td><b>${esc(l.nome)}</b></td>
           <td class="n">${inputNum("dias_uteis", l.dias_uteis, i, { travado: trav })}</td>
           <td class="n">${inputNum("faltas", l.faltas, i, { travado: trav })}</td>
           <td class="n">${inputNum("ferias_dias", l.ferias_dias, i, { travado: trav })}</td>
           <td class="n"><b data-out="dias">${Math.max(0, l.dias_uteis - l.faltas - l.ferias_dias)}</b></td>
-          <td class="n">${vlMoneyFmt(l.valor_dia)}</td>
+          <td class="n">${vlMoneyFmt(l.valor_dia)}${l.semValorBeneficio && !l.fechado ? `<br><small style="color:var(--orange-600)" title="Sem valor no benefício — usando o valor geral">valor geral</small>` : ""}</td>
           <td class="n"><b data-out="total">${vlMoneyFmt(vrTotal(l))}</b></td>
           <td><input class="vl-in txt" data-campo="observacao" data-i="${i}" value="${esc(l.observacao)}" placeholder="—" ${trav ? "disabled" : ""} /></td>
         </tr>`).join("") || `<tr><td colspan="8" class="vl-vazio">Nenhum colaborador ativo neste mês.</td></tr>`}</tbody>
         <tfoot><tr><td>Total do mês</td><td></td><td></td><td></td><td class="n" id="vl-f-dias">${d.linhas.reduce((a, l) => a + Math.max(0, l.dias_uteis - l.faltas - l.ferias_dias), 0)}</td><td></td><td class="n" id="vl-f-total">R$ ${vlMoneyFmt(total)}</td><td></td></tr></tfoot></table></div>
-        <p class="vl-nota">Dias úteis vêm do calendário (dias de trabalho do cadastro, sem feriados) e Férias das férias aprovadas — dá para ajustar. Mudar o valor por dia vale deste mês em diante; meses fechados não mudam.</p>
+        <p class="vl-nota">${d.vinculo ? "Quem aparece aqui e o valor por dia vêm da aba <b>Benefícios</b> (categoria Alimentação / Refeição). " : ""}Dias no período vêm do calendário (dias de trabalho do cadastro, sem feriados) e Férias das férias aprovadas — dá para ajustar. Meses fechados guardam o valor e o período da época.</p>
       </div>`;
     kpisVR();
     ligarNavMes();
@@ -219,9 +315,11 @@ function rhValesInit(session) {
       document.getElementById("vl-f-dias").textContent = d.linhas.reduce((a, x) => a + Math.max(0, x.dias_uteis - x.faltas - x.ferias_dias), 0);
       document.getElementById("vl-f-total").textContent = "R$ " + vlMoneyFmt(d.linhas.reduce((a, x) => a + vrTotal(x), 0));
       kpisVR();
-      agendarSalvar(`vr-${l.colaborador_id}`, async () => { await rhVrSalvarLinha(d.comp, l); l.salvo = true; });
+      agendarSalvar(`vr-${l.colaborador_id}`, async () => { await rhVrSalvarLinha(d.comp, l, d.periodo); l.salvo = true; });
     }));
-    document.getElementById("vl-vr-alterar").addEventListener("click", alterarValorVR);
+    document.getElementById("vl-vr-alterar")?.addEventListener("click", alterarValorVR);
+    document.getElementById("vl-periodo")?.addEventListener("click", () => modalPeriodo("vr"));
+    ligarFonte();
     document.getElementById("vl-exportar").addEventListener("click", () => vlExportarCsv(`vale-refeicao-${d.comp}.csv`,
       ["Colaborador", "Dias úteis", "Faltas/afast.", "Férias", "Dias a pagar", "Valor/dia", "Total", "Observação"],
       d.linhas.map((l) => [l.nome, l.dias_uteis, l.faltas, l.ferias_dias, Math.max(0, l.dias_uteis - l.faltas - l.ferias_dias), l.valor_dia, vrTotal(l), l.observacao])));
@@ -232,8 +330,8 @@ function rhValesInit(session) {
     const d = st.dados;
     renderKpiGrid(document.getElementById("vl-kpi"), [
       { label: "Colaboradores", value: d.linhas.length, tone: "indigo", icon: ICONS.users },
-      { label: "Dias úteis no mês", value: d.diasUteisMes, tone: "amber", icon: ICONS.calendar },
-      { label: "Valor por dia", value: d.valorDia, format: "currency", tone: "green", icon: ICONS.utensils },
+      { label: "Dias úteis no período", value: d.diasUteisMes, tone: "amber", icon: ICONS.calendar },
+      { label: d.vinculo ? "Valor por dia (média)" : "Valor por dia", value: d.vinculo && d.linhas.length ? vlRound(d.linhas.reduce((a, l) => a + l.valor_dia, 0) / d.linhas.length) : d.valorDia, format: "currency", tone: "green", icon: ICONS.utensils },
       { label: "Total do mês", value: d.linhas.reduce((a, l) => a + vrTotal(l), 0), format: "currency", tone: "red", icon: ICONS.dollarSign },
     ]);
   }
@@ -273,7 +371,8 @@ function rhValesInit(session) {
     area.innerHTML = `
       ${cabecalho("Vale-transporte", "Cada colaborador tem uma conta corrente: o saldo que sobra no cartão abate a próxima recarga.")}
       <div class="vl-bar">${navMes()}
-        <div class="vl-param">${ICONS.calendar}<span>Período de uso:</span><b>${fmtDate(d.periodo.inicio).slice(0, 5)} a ${fmtDate(d.periodo.fim)}</b></div>
+        ${periodoHtml(d)}
+        ${fonteHtml(d, "vt")}
         <span class="vl-esp"></span><span id="vl-salvo" class="vl-salvo ok">${d.linhas.some((l) => !l.salvo) && !trav ? "Valores sugeridos" : "Tudo salvo"}</span>
         <button type="button" class="btn-ghost" id="vl-exportar">${ICONS.download}<span>Exportar Excel</span></button>
         ${trav ? `<button type="button" class="btn-ghost" id="vl-reabrir">${ICONS.refresh}<span>Reabrir mês</span></button>` : `<button type="button" class="btn-primary auto" id="vl-fechar">${ICONS.checkCircle}<span>Fechar mês</span></button>`}
@@ -285,7 +384,7 @@ function rhValesInit(session) {
         <tbody>${d.linhas.map((l, i) => `<tr data-i="${i}">
           <td><b>${esc(l.nome)}</b></td>
           <td><select class="vl-sel vl-mod-${l.modalidade}" data-campo="modalidade" data-i="${i}" ${trav ? "disabled" : ""}>${Object.entries(VL_MODALIDADES).map(([k, v]) => `<option value="${k}" ${l.modalidade === k ? "selected" : ""}>${v}</option>`).join("")}</select></td>
-          <td class="n">${inputNum("valor_dia", l.valor_dia, i, { dinheiro: true, travado: trav })}</td>
+          <td class="n">${l.doBeneficio ? `${vlMoneyFmt(l.valor_dia)}${l.semValorBeneficio && !l.fechado ? `<br><small style="color:var(--orange-600)" title="Sem valor no benefício — usando o do cadastro">do cadastro</small>` : ""}` : inputNum("valor_dia", l.valor_dia, i, { dinheiro: true, travado: trav })}</td>
           <td class="n">${inputNum("dias_presenciais", l.dias_presenciais, i, { travado: trav })}</td>
           <td class="n" data-out="nec">${vlMoneyFmt(vtNecessidade(l))}</td>
           <td class="n">${inputNum("saldo_cartao", l.saldo_cartao, i, { dinheiro: true, travado: trav })}</td>
@@ -294,7 +393,7 @@ function rhValesInit(session) {
           <td class="n"><button type="button" class="btn-ghost vl-btn-sm" data-conta="${l.colaborador_id}" title="Configuração e extrato">${ICONS.fileText}<span>Extrato</span></button></td>
         </tr>`).join("") || `<tr><td colspan="9" class="vl-vazio">Nenhum colaborador ativo neste período.</td></tr>`}</tbody>
         <tfoot><tr><td>Total do mês</td><td></td><td></td><td class="n" id="vl-f-dias"></td><td class="n" id="vl-f-nec"></td><td class="n" id="vl-f-saldo"></td><td class="n" id="vl-f-car"></td><td></td><td></td></tr></tfoot></table></div>
-        <p class="vl-nota">A carregar = necessidade (dias presenciais × valor/dia) − saldo que sobrou no cartão, nunca negativo. Modalidade e valor/dia ficam salvos no cadastro de cada pessoa. O saldo já vem previsto a partir do mês anterior — confira com o extrato do cartão.</p>
+        <p class="vl-nota">A carregar = necessidade (dias presenciais × valor/dia) − saldo que sobrou no cartão, nunca negativo. ${d.vinculo ? "Quem aparece aqui e o valor por dia vêm da aba <b>Benefícios</b> (categoria Transporte); a modalidade fica no cadastro de cada pessoa." : "Modalidade e valor/dia ficam salvos no cadastro de cada pessoa."} O saldo já vem previsto a partir do mês anterior — confira com o extrato do cartão.</p>
       </div>`;
     totaisVT();
     ligarNavMes();
@@ -313,11 +412,11 @@ function rhValesInit(session) {
       tr.querySelector('[data-out="sit"]').innerHTML = situacaoVT(l);
       totaisVT();
       agendarSalvar(`vt-${l.colaborador_id}`, async () => {
-        await rhVtSalvarLinha(d.comp, l);
+        await rhVtSalvarLinha(d.comp, l, d.periodo);
         l.salvo = true;
-        // Modalidade e valor/dia também ficam no cadastro da pessoa.
-        if (l.cadMod !== l.modalidade || l.cadValor !== l.valor_dia) {
-          await rhVtSalvarConfig(l.colaborador_id, { modalidade: l.modalidade, valorDia: l.valor_dia });
+        // Modalidade (e o valor/dia, quando não vem do benefício) também ficam no cadastro da pessoa.
+        if (l.cadMod !== l.modalidade || (!l.doBeneficio && l.cadValor !== l.valor_dia)) {
+          await rhVtSalvarConfig(l.colaborador_id, l.doBeneficio ? { modalidade: l.modalidade } : { modalidade: l.modalidade, valorDia: l.valor_dia });
           l.cadMod = l.modalidade; l.cadValor = l.valor_dia;
         }
       });
@@ -325,6 +424,8 @@ function rhValesInit(session) {
     // Formata dinheiro ao sair do campo.
     area.querySelectorAll('[data-campo="valor_dia"], [data-campo="saldo_cartao"]').forEach((inp) => inp.addEventListener("blur", () => { inp.value = vlMoneyFmt(vlNumInput(inp.value)); }));
     area.querySelectorAll("[data-conta]").forEach((b) => b.addEventListener("click", () => rhVtAbrirConta(b.dataset.conta, { aoSalvar: carregar })));
+    document.getElementById("vl-periodo")?.addEventListener("click", () => modalPeriodo("vt"));
+    ligarFonte();
     document.getElementById("vl-exportar").addEventListener("click", () => vlExportarCsv(`vale-transporte-${d.comp}.csv`,
       ["Colaborador", "Modalidade", "Valor/dia", "Dias presenciais", "Necessidade", "Saldo no cartão", "A carregar", "Observação"],
       d.linhas.map((l) => [l.nome, VL_MODALIDADES[l.modalidade], l.valor_dia, l.dias_presenciais, vtNecessidade(l), l.saldo_cartao, vtCarregar(l), l.observacao])));
@@ -349,6 +450,8 @@ function rhValesInit(session) {
 
   // ------------------------- Fechar / reabrir mês -----------------------------
   async function fecharMes(tipo) {
+    // Fechamento pede o período (do dia X até o dia Y) antes de travar o mês.
+    if (st.dados && st.dados.periodo) { modalPeriodo(tipo, { fechar: true }); return; }
     const d = st.dados;
     const nome = tipo === "vr" ? "vale-refeição" : "vale-transporte";
     const total = tipo === "vr" ? d.linhas.reduce((a, l) => a + vrTotal(l), 0) : d.linhas.reduce((a, l) => a + vtCarregar(l), 0);
