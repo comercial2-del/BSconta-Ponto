@@ -33,9 +33,16 @@
           </div>
           <div class="field full" style="margin-top:0.8rem">
             <label>Depois de enviar, a conversa fica</label>
-            <div class="sol-destino">
+            <div class="sol-destino" id="responder-destino-geral">
               <label class="opt-analise"><input type="radio" name="responder-destino" value="ANALISE" /><span class="ico" data-ico="edit"></span><span><strong>Em análise</strong><small>Ainda há pendência — continuo acompanhando</small></span></label>
               <label class="opt-concluir"><input type="radio" name="responder-destino" value="CONCLUIR" checked /><span class="ico" data-ico="checkCircle"></span><span><strong>Concluída</strong><small>Sem pendências — pronta para arquivar</small></span></label>
+            </div>
+            <!-- Férias: concluir = aprovar/recusar de verdade (débito de saldo), por isso opções próprias. -->
+            <div class="sol-destino" id="responder-destino-ferias" hidden>
+              <label data-fer-opt="MANTER"><input type="radio" name="responder-destino-fer" value="MANTER" /><span class="ico" data-ico="messageSquare"></span><span><strong>Só enviar a mensagem</strong><small>Mantém o status atual da solicitação</small></span></label>
+              <label class="opt-analise" data-fer-opt="ANALISE"><input type="radio" name="responder-destino-fer" value="ANALISE" /><span class="ico" data-ico="edit"></span><span><strong>Em análise</strong><small>Aguardando retorno do colaborador / gestor</small></span></label>
+              <label class="opt-concluir" data-fer-opt="APROVAR"><input type="radio" name="responder-destino-fer" value="APROVAR" /><span class="ico" data-ico="checkCircle"></span><span><strong>Aprovar férias</strong><small>Aprova e debita os dias do saldo</small></span></label>
+              <label data-fer-opt="RECUSAR"><input type="radio" name="responder-destino-fer" value="RECUSAR" /><span class="ico" data-ico="x"></span><span><strong>Recusar férias</strong><small>Recusa o pedido — o saldo não é alterado</small></span></label>
             </div>
           </div>
         </div>
@@ -54,8 +61,8 @@
   <script src="../js/supabase-client.js"></script>
   <script src="../js/rh-supabase-auth.js"></script>
   <script src="../js/rh-ponto-data.js?v=20261013a"></script>
-  <script src="../js/rh-ferias-data.js?v=20261014a"></script>
-  <script src="../js/rh-solicitacoes-data.js?v=20261007a"></script>
+  <script src="../js/rh-ferias-data.js?v=20261022a"></script>
+  <script src="../js/rh-solicitacoes-data.js?v=20261022a"></script>
   <script src="../js/rh-historia-data.js?v=20261013a"></script>
   <script>
 (async function () {
@@ -113,6 +120,8 @@
       const btns = [];
       if (!s.arquivado) {
         if (s.origem === "ferias") {
+          const temConversa = s.respostas.length > 0;
+          btns.push(`<button type="button" class="btn-primary auto" data-responder="${s.id}">${temConversa ? ICONS.messageSquare : ICONS.send}<span>${temConversa ? "Continuar conversa" : "Responder"}</span></button>`);
           if (["PENDENTE", "EM_ANALISE", "PRE_APROVADA"].includes(st)) {
             btns.push(`<div class="approve-reject">
                     <button type="button" class="approve" data-aprovar-ferias="${s.id}" aria-label="Aprovar">${ICONS.check}</button>
@@ -218,7 +227,7 @@
               </div>
             </div>
             <p style="margin:0.6rem 0 0;font-size:0.85rem;color:var(--text-muted)">${esc(s.descricao)}</p>
-            ${!s.arquivado && s.respostas.length && s.respostas[s.respostas.length - 1].origem === "COLABORADOR" && !["RESOLVIDA", "RECUSADA"].includes(s.status) ? `<div class="sol-flag"><span class="dot"></span>Nova resposta do colaborador — aguardando retorno do RH</div>` : ""}
+            ${!s.arquivado && s.respostas.length && s.respostas[s.respostas.length - 1].origem === "COLABORADOR" && (s.origem === "ferias" || !["RESOLVIDA", "RECUSADA"].includes(s.status)) ? `<div class="sol-flag"><span class="dot"></span>Nova resposta do colaborador — aguardando retorno do RH</div>` : ""}
             ${!s.arquivado && statusFiltro(s) === "EM_ANALISE" ? `<div class="sol-flag"><span class="dot"></span>Em acompanhamento — ainda há pendência neste atendimento</div>` : ""}
             ${
               s.respostas.length
@@ -353,9 +362,27 @@
             <p style="margin:0.3rem 0 0;font-size:0.83rem;color:var(--text-muted)">${esc(s.descricao)}</p>
           `;
           document.getElementById("responder-texto").value = "";
-          const continuando = s.status === "EM_ANALISE";
-          document.getElementById("responder-titulo").textContent = continuando ? "Continuar atendimento" : "Responder solicitação";
-          document.querySelector(`[name="responder-destino"][value="${continuando ? "ANALISE" : "CONCLUIR"}"]`).checked = true;
+          const ehFerias = s.origem === "ferias";
+          document.getElementById("responder-destino-geral").hidden = ehFerias;
+          document.getElementById("responder-destino-ferias").hidden = !ehFerias;
+          if (ehFerias) {
+            // Opções conforme o momento: aberta -> pode aprovar/recusar;
+            // já aprovada/recusada -> só conversa (para desfazer, use "Reabrir").
+            const aberta = ["PENDENTE", "EM_ANALISE", "PRE_APROVADA"].includes(s.status);
+            const visiveis = aberta ? ["MANTER", "ANALISE", "APROVAR", "RECUSAR"] : ["MANTER"];
+            if (s.status === "EM_ANALISE") visiveis.splice(visiveis.indexOf("ANALISE"), 1);
+            document.querySelectorAll("[data-fer-opt]").forEach((l) => (l.hidden = !visiveis.includes(l.dataset.ferOpt)));
+            const padrao = s.status === "PENDENTE" ? "ANALISE" : "MANTER";
+            document.querySelector(`[name="responder-destino-fer"][value="${padrao}"]`).checked = true;
+            document.getElementById("responder-titulo").textContent = s.respostas.length ? "Conversa sobre as férias" : "Responder solicitação de férias";
+            document.getElementById("responder-resumo").innerHTML += s.respostas.length
+              ? `<div style="margin-top:.6rem;padding-top:.5rem;border-top:1px solid var(--surface-2);max-height:180px;overflow:auto">${s.respostas.map((r) => `<p style="margin:0 0 .3rem;font-size:.8rem;${r.origem === "COLABORADOR" ? "padding-left:.5rem;border-left:3px solid var(--primary, #2563eb)" : ""}"><strong>${esc(r.autor)}</strong> — ${esc(r.texto)} <span style="color:var(--text-faint)">(${fmtDate(r.data)})</span></p>`).join("")}</div>`
+              : "";
+          } else {
+            const continuando = s.status === "EM_ANALISE";
+            document.getElementById("responder-titulo").textContent = continuando ? "Continuar atendimento" : "Responder solicitação";
+            document.querySelector(`[name="responder-destino"][value="${continuando ? "ANALISE" : "CONCLUIR"}"]`).checked = true;
+          }
           openModal("modal-responder");
         })
       );
@@ -401,6 +428,28 @@
         }
         const btn = e.target.querySelector('button[type="submit"]');
         btn.disabled = true;
+        if (s.origem === "ferias") {
+          const destino = document.querySelector('[name="responder-destino-fer"]:checked')?.value || "MANTER";
+          try {
+            const autor = `${session.name} (RH)`;
+            // Aprovar/Recusar primeiro (pode falhar por falta de saldo) — só
+            // depois grava a mensagem, para não avisar algo que não aconteceu.
+            if (destino === "APROVAR" || destino === "RECUSAR") await rhResolverFerias(s.id, destino === "APROVAR");
+            await rhResponderFeriasRH(s.id, { texto, autor, novoStatus: destino === "ANALISE" ? "EM_ANALISE" : null });
+            await refrescarSolicitacoes();
+            closeModal("modal-responder");
+            showToast(
+              destino === "APROVAR" ? "Mensagem enviada e férias aprovadas." : destino === "RECUSAR" ? "Mensagem enviada e férias recusadas." : destino === "ANALISE" ? "Mensagem enviada — férias em análise." : "Mensagem enviada ao colaborador.",
+              "success"
+            );
+            render();
+          } catch (err) {
+            showToast(err?.message && !err.code ? err.message : rhMensagemErroSupabase(err), "error");
+          } finally {
+            btn.disabled = false;
+          }
+          return;
+        }
         try {
           const autor = `${session.name} (RH)`;
           // "Ajuste de ponto" tem um fluxo real próprio (aplica a correção
