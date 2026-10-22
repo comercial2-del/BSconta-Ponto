@@ -1361,3 +1361,69 @@ td.cell-check input, th.cell-check input { width: 16px; height: 16px; accent-col
 .sol-destino label[data-fer-opt="MANTER"] .ico { background: var(--surface-2); color: var(--text-muted); }
 .sol-destino label[data-fer-opt="MANTER"]:has(input:checked) { border-color: var(--indigo-400, #818cf8); box-shadow: 0 0 0 3px rgba(224, 226, 255, .45); }
 .sol-destino label[data-fer-opt="RECUSAR"]:has(input:checked) { border-color: #ef4444; box-shadow: 0 0 0 3px rgba(254, 226, 226, .7); }
+
+/* ===== Benefícios: abas Vale-refeição / Vale-transporte / Gratificações (js/rh-vales-ui.js) ===== */
+.vl-tabs{display:flex;gap:.2rem;border-bottom:1px solid var(--border);margin:0 0 1.2rem;overflow-x:auto;scrollbar-width:none}
+.vl-tabs button{border:0;background:transparent;padding:.75rem .3rem;margin-right:1.1rem;font:inherit;font-weight:700;font-size:.86rem;color:var(--text-soft);border-bottom:2px solid transparent;display:flex;gap:.45rem;align-items:center;white-space:nowrap;cursor:pointer}
+.vl-tabs button svg{width:16px;height:16px}
+.vl-tabs button:hover{color:var(--text)}
+.vl-tabs button.on{color:var(--indigo-600,#4f46e5);border-bottom-color:var(--indigo-600,#4f46e5)}
+html[data-theme="dark"] .vl-tabs button.on{color:#93a5ff;border-bottom-color:#93a5ff}
+#vl-content[hidden],#content[hidden]{display:none!important}
+.vl-bar{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;margin-bottom:1rem}
+.vl-esp{flex:1}
+.vl-mes{width:fit-content;margin:0}
+.vl-mes button svg{width:15px;height:15px}
+.vl-param{display:flex;align-items:center;gap:.5rem;padding:.4rem .5rem .4rem .75rem;border:1px dashed var(--border);border-radius:10px;font-size:.83rem;color:var(--text-soft)}
+.vl-param svg{width:15px;height:15px}
+.vl-param b{color:var(--text);font-size:.93rem}
+.vl-btn-sm{height:30px;padding:0 .6rem;font-size:.78rem}
+.vl-btn-sm svg{width:14px;height:14px}
+.vl-salvo{font-size:.76rem;font-weight:600;color:var(--text-faint)}
+.vl-salvo.ok::before{content:"● ";color:#22c55e}
+.vl-salvo.pend::before{content:"● ";color:#f59e0b}
+.vl-banner{display:flex;gap:.6rem;align-items:center;padding:.7rem .9rem;border-radius:10px;margin-bottom:1rem;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);font-size:.84rem;color:var(--text)}
+.vl-banner svg{width:18px;height:18px;color:#16a34a;flex-shrink:0}
+.vl-tbl-wrap{border:1px solid var(--border);border-radius:12px}
+.vl-tbl{width:100%;border-collapse:collapse;font-size:.83rem;min-width:900px}
+.vl-tbl.vl-tbl-compacta{min-width:0}
+.vl-tbl th{text-align:left;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;color:var(--text-faint);padding:.6rem .7rem;border-bottom:1px solid var(--border);white-space:nowrap}
+.vl-tbl td{padding:.45rem .7rem;border-bottom:1px solid var(--border);vertical-align:middle;color:var(--text)}
+.vl-tbl tbody tr:hover td{background:var(--surface-2)}
+.vl-tbl .n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.vl-tbl tfoot td{font-weight:800;border-bottom:0;padding-top:.75rem}
+.vl-in{width:64px;text-align:right;padding:.32rem .5rem;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text);font:inherit;font-size:.83rem;margin:0;min-height:0;height:auto}
+.vl-in.w{width:96px}
+.vl-in.txt{width:100%;min-width:160px;text-align:left}
+.vl-in:focus,.vl-sel:focus{outline:2px solid var(--indigo-500,#6366f1);outline-offset:0;border-color:transparent}
+.vl-in:disabled,.vl-sel:disabled{opacity:.75;background:transparent;border-color:transparent}
+.vl-in-full{width:100%}
+.vl-sel{padding:.28rem .45rem;border-radius:999px;border:1px solid var(--border);font:inherit;font-size:.76rem;font-weight:700;margin:0;min-height:0;height:auto;width:auto;background:var(--surface-2);color:var(--text)}
+.vl-mod-PRESENCIAL{color:#2563eb}.vl-mod-HIBRIDO{color:#9333ea}.vl-mod-HOME_OFFICE{color:#b45309}
+html[data-theme="dark"] .vl-mod-PRESENCIAL{color:#93c5fd}html[data-theme="dark"] .vl-mod-HIBRIDO{color:#d8b4fe}html[data-theme="dark"] .vl-mod-HOME_OFFICE{color:#fcd34d}
+.vl-sit{font-size:.78rem;font-weight:700;white-space:nowrap}
+.vl-sit.ok{color:#16a34a}.vl-sit.meio{color:#d97706}.vl-sit.alerta{color:#dc2626}.vl-sit.neutra{color:var(--text-faint);font-weight:600}
+html[data-theme="dark"] .vl-sit.ok{color:#4ade80}html[data-theme="dark"] .vl-sit.meio{color:#fbbf24}html[data-theme="dark"] .vl-sit.alerta{color:#f87171}
+.vl-nota{font-size:.77rem;color:var(--text-faint);margin:.7rem 0 0;line-height:1.45}
+.vl-vazio{text-align:center;color:var(--text-faint);padding:1.6rem .7rem!important}
+.vl-erro{color:#dc2626}
+.vl-tag{font-size:.65rem;font-weight:700;padding:.05rem .4rem;border-radius:999px;background:var(--surface-2);color:var(--text-faint);border:1px solid var(--border)}
+.vl-conta{display:grid;grid-template-columns:240px 1fr;gap:1.1rem}
+.vl-conta-cfg .field{margin-bottom:.85rem}
+.vl-seg{display:flex;gap:.3rem;flex-wrap:wrap}
+.vl-seg button{padding:.38rem .65rem;border:1px solid var(--border);border-radius:8px;background:transparent;font:inherit;font-size:.8rem;font-weight:700;color:var(--text-soft);cursor:pointer}
+.vl-seg button.on{border-color:var(--indigo-500,#6366f1);color:var(--indigo-600,#4f46e5);background:rgba(99,102,241,.1)}
+html[data-theme="dark"] .vl-seg button.on{color:#a5b4fc}
+.vl-saldo-box{border:1px solid var(--border);border-radius:10px;padding:.7rem .8rem;background:var(--surface-2)}
+.vl-saldo-box span{display:block;font-size:.74rem;font-weight:700;color:var(--text-soft)}
+.vl-saldo-box b{display:block;font-size:1.25rem;color:#16a34a;margin-top:.15rem}
+html[data-theme="dark"] .vl-saldo-box b{color:#4ade80}
+.vl-saldo-box small{display:block;font-size:.7rem;color:var(--text-faint)}
+@media (max-width:720px){.vl-conta{grid-template-columns:1fr}.vl-param{width:100%}}
+.vl-conta-ext{min-width:0}
+.vl-conta-ext .vl-tbl-wrap{overflow-x:auto}
+.vl-tbl-compacta th,.vl-tbl-compacta td{padding:.45rem .55rem}
+.vl-salvo{white-space:nowrap}
+.vl-conta{grid-template-columns:1fr}
+.vl-conta-cfg{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 1rem;align-items:start}
+.vl-conta-cfg .field[hidden]{display:none}
