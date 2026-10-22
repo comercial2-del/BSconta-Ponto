@@ -269,7 +269,7 @@ table.bf-tbl{width:100%;border-collapse:collapse;font-size:.83rem}
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../js/supabase-client.js"></script>
   <script src="../js/rh-supabase-auth.js"></script>
-  <script src="../js/rh-beneficios-data.js"></script>
+  <script src="../js/rh-beneficios-data.js?v=20261022c"></script>
   <script>
 /*
  * Meus benefícios (colaborador) — SOMENTE VISUALIZAÇÃO.
@@ -319,6 +319,23 @@ table.bf-tbl{width:100%;border-collapse:collapse;font-size:.83rem}
 
   let beneficios = [];
   let mes = ATUAL;
+  // VR / VT: o valor do benefício é por dia; o total do mês vem do fechamento
+  // feito pelo RH (rh.vr_mensal / rh.vt_mensal — só meses fechados, ver SQL 36).
+  const VALE = { ALIMENTACAO: "vr", TRANSPORTE: "vt" };
+  let vales = { vr: {}, vt: {} };
+  const dm = (iso) => (iso ? iso.slice(8, 10) + "/" + iso.slice(5, 7) : "");
+  function valeHtml(b) {
+    const tipo = VALE[b.categoria], dia = Number(b.fixos[session.employeeId]) || 0, f = vales[tipo][mes];
+    const dias = f ? (tipo === "vr" ? Math.max(0, f.dias_uteis - f.faltas - f.ferias_dias) : f.dias_presenciais) : null;
+    const total = f ? (tipo === "vr" ? dias * Number(f.valor_dia) : Number(f.valor_carregar)) : null;
+    return `<div class="bf-mine-grid">
+      <div class="bf-stat bf-fixo"><small>Valor por dia</small><b>${dia ? brl(dia) : "—"}</b></div>
+      <div class="bf-stat"><small>Período em ${mesCurto(mes)}</small><b>${f && f.periodo_inicio ? `${dm(f.periodo_inicio)} a ${dm(f.periodo_fim)}` : f ? "Mês inteiro" : "—"}</b></div>
+      <div class="bf-stat"><small>${tipo === "vr" ? "Dias pagos" : "Dias presenciais"}</small><b>${f ? dias : "—"}</b></div>
+      <div class="bf-stat ${f ? "bf-pos" : ""}"><small>${tipo === "vr" ? "Total do mês" : "Recarga do mês"}</small><b>${f ? brl(total) : "Aguardando fechamento"}</b></div>
+      <div class="bf-stat bf-next"><small>Como é calculado</small><b style="font-size:.78rem">${tipo === "vr" ? "Dias × valor/dia" : "Dias × valor/dia − saldo do cartão"}</b></div>
+    </div>`;
+  }
 
   function render() {
     const prox = addMes(mes, 1);
@@ -332,16 +349,16 @@ table.bf-tbl{width:100%;border-collapse:collapse;font-size:.83rem}
       <div class="bf-mine">${lista.length ? lista.map((b) => {
         const cat = CATEGORIAS[b.categoria] || CATEGORIAS.OUTROS, tom = TONS[b.tone] || TONS.blue, ico = I[ALIAS[b.icon] || b.icon] || I[cat[1]];
         const l = lanc(b, mes), n = lanc(b, prox), fixo = Number(b.fixos[session.employeeId]) || 0;
-        const hist = Object.keys(b.valores[session.employeeId] || {}).filter((k) => k < mes).sort().reverse();
+        const hist = VALE[b.categoria] ? [] : Object.keys(b.valores[session.employeeId] || {}).filter((k) => k < mes).sort().reverse();
         return `<div class="bf-card bf-mine-card">
           <div class="bf-mine-head"><div class="bf-b-ico" style="background:${tom[0]};color:${tom[1]}">${ico}</div><div><h3>${esc(b.nome)} ${b.status === "ATIVO" ? '<span class="bf-badge bf-b-green">Ativo</span>' : '<span class="bf-badge bf-b-gray">Inativo</span>'}</h3><small style="color:var(--text-faint)">${esc(b.descricao || cat[0])}</small></div><span class="bf-readonly">${I.lock}Somente visualização</span></div>
-          <div class="bf-mine-grid">
+          ${VALE[b.categoria] ? valeHtml(b) : `<div class="bf-mine-grid">
             <div class="bf-stat bf-fixo"><small>Valor fixo mensal</small><b>${fixo ? brl(fixo) : "—"}</b></div>
             <div class="bf-stat"><small>Valor em ${mesCurto(mes)}</small><b>${l ? brl(l.valor) : "—"}</b></div>
             <div class="bf-stat ${l?.desconto ? "bf-neg" : ""}"><small>Desconto</small><b>${l ? (l.desconto ? "- " + brl(l.desconto) : "Sem desconto") : "—"}</b></div>
             <div class="bf-stat ${l?.lancado ? "bf-pos" : ""}"><small>Você recebeu</small><b>${l ? (l.lancado ? brl(recebido(l)) : "Ainda não lançado") : "—"}</b></div>
             <div class="bf-stat bf-next"><small>Previsto ${rotulo(prox)}</small><b>${n ? brl(n.valor) : "—"}</b></div>
-          </div>
+          </div>`}
           ${hist.length ? `<details><summary>Histórico (${hist.length} ${hist.length === 1 ? "mês" : "meses"})</summary><div class="bf-hist-box" style="margin-left:0;margin-top:.6rem">${hist.map((k) => { const x = b.valores[session.employeeId][k]; return `<div class="bf-hist-item"><b>${rotulo(k)}</b><span>Valor ${brl(x.valor)}</span><span class="${x.desconto ? "bf-neg" : ""}">Desconto ${brl(x.desconto)}</span><span class="${x.lancado ? "bf-ok" : ""}">${x.lancado ? "Recebido " + brl(recebido(x)) : "Não lançado"}</span></div>`; }).join("")}</div></details>` : ""}
         </div>`;
       }).join("") : `<div class="bf-card bf-empty"><div class="bf-e-ico">${I.heart}</div><b>Nenhum benefício para você</b><p>Quando o RH conceder um benefício, ele aparece aqui.</p></div>`}</div>
@@ -355,6 +372,14 @@ table.bf-tbl{width:100%;border-collapse:collapse;font-size:.83rem}
   }
   try {
     beneficios = await rhCarregarMeusBeneficios(session.employeeId);
+    try {
+      const [vr, vt] = await Promise.all([
+        sb.from("vr_mensal").select("competencia, dias_uteis, faltas, ferias_dias, valor_dia, periodo_inicio, periodo_fim").eq("colaborador_id", session.employeeId).eq("fechado", true),
+        sb.from("vt_mensal").select("competencia, dias_presenciais, valor_dia, valor_carregar, periodo_inicio, periodo_fim").eq("colaborador_id", session.employeeId).eq("fechado", true),
+      ]);
+      (vr.data || []).forEach((x) => { vales.vr[x.competencia] = x; });
+      (vt.data || []).forEach((x) => { vales.vt[x.competencia] = x; });
+    } catch (e) { /* sem acesso ainda: mostra só o valor por dia */ }
     render();
   } catch (err) {
     document.getElementById("content").innerHTML = `<div class="bnf"><div class="bf-card bf-empty"><div class="bf-e-ico">${I.alert}</div><b>Não foi possível carregar seus benefícios</b><p>${esc(rhErroMigracao26(err))}</p></div></div>`;
