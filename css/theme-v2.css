@@ -1354,3 +1354,10 @@ td.cell-check input, th.cell-check input { width: 16px; height: 16px; accent-col
 .sol-destino .opt-concluir:has(input:checked) { border-color: #10b981; background: #f0fdf6; box-shadow: 0 0 0 3px rgba(209, 250, 229, .7); }
 .sol-destino input:focus-visible + .ico { outline: 2px solid var(--indigo-500); outline-offset: 2px; }
 @media (max-width: 560px) { .sol-destino { grid-template-columns: 1fr; } }
+
+/* Conversa nas férias (rh/solicitacoes.html): grupo de opções alternável. */
+.sol-destino[hidden], .sol-destino label[hidden] { display: none !important; }
+.sol-destino label[data-fer-opt="RECUSAR"] .ico { background: var(--red-50, #fef2f2); color: var(--red-600, #dc2626); }
+.sol-destino label[data-fer-opt="MANTER"] .ico { background: var(--surface-2); color: var(--text-muted); }
+.sol-destino label[data-fer-opt="MANTER"]:has(input:checked) { border-color: var(--indigo-400, #818cf8); box-shadow: 0 0 0 3px rgba(224, 226, 255, .45); }
+.sol-destino label[data-fer-opt="RECUSAR"]:has(input:checked) { border-color: #ef4444; box-shadow: 0 0 0 3px rgba(254, 226, 226, .7); }
