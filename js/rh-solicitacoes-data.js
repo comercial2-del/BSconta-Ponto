@@ -177,6 +177,14 @@ async function rhColaboradorResponderSolicitacao(id, texto) {
  * diz de qual tabela apagar: "ferias" -> rh.ferias_solicitacoes, qualquer
  * outra coisa (inclusive "geral") -> rh.solicitacoes. Não há como desfazer. */
 async function rhExcluirSolicitacao(id, origem) {
+  // Férias (migração 35): se estavam APROVADAS, os dias voltam ao saldo
+  // antes de apagar — tudo numa transação só no banco.
+  if (origem === "ferias") {
+    const rpc = await sb.rpc("rh_excluir_ferias", { p_id: id });
+    if (!rpc.error) return true;
+    const ausente = rpc.error.code === "PGRST202" || /Could not find the function|schema cache/i.test(rpc.error.message || "");
+    if (!ausente) throw rpc.error.code === "P0001" ? new Error(rpc.error.message) : rpc.error;
+  }
   const tabela = origem === "ferias" ? "ferias_solicitacoes" : "solicitacoes";
   const { error } = await sb.from(tabela).delete().eq("id", id);
   if (error) throw error;

@@ -440,7 +440,28 @@ function rhAvisoFeriasColaborador(colaborador, historicoFerias, hojeIso) {
  * verdade em rh.ferias_saldos (cria a linha de saldo com valores padrão se o
  * colaborador ainda não tiver uma — RH_ADMIN pode ajustar depois em
  * Configurações/Colaboradores). */
+/** true quando a função do banco (migração 35) ainda não existe — aí cai no
+ * caminho antigo, feito pelo navegador, para nada parar de funcionar. */
+function rhFuncaoAusente(error) {
+  return !!error && (error.code === "PGRST202" || /Could not find the function|schema cache/i.test(error.message || ""));
+}
+
+/** Erro de regra vindo das funções do banco (raise exception) vira um Error
+ * simples, para a tela mostrar a mensagem como está. */
+function rhErroRegraBanco(error) {
+  return error && error.code === "P0001" ? new Error(error.message) : error;
+}
+
 async function rhResolverFerias(solicitacaoId, aprovado) {
+  // Migração 35: status + saldo numa transação só, travando a linha — dois
+  // cliques simultâneos não descontam o saldo duas vezes.
+  const rpc = await sb.rpc("rh_resolver_ferias", { p_id: solicitacaoId, p_aprovado: !!aprovado });
+  if (!rpc.error) return true;
+  if (!rhFuncaoAusente(rpc.error)) throw rhErroRegraBanco(rpc.error);
+  return rhResolverFeriasLegado(solicitacaoId, aprovado);
+}
+
+async function rhResolverFeriasLegado(solicitacaoId, aprovado) {
   const { data: solicitacao, error: getErr } = await sb.from("ferias_solicitacoes").select("*").eq("id", solicitacaoId).single();
   if (getErr) throw getErr;
 
@@ -482,6 +503,13 @@ async function rhResolverFerias(solicitacaoId, aprovado) {
  * aprovação (rh.ferias_saldos), desfazendo exatamente o que
  * rhResolverFerias fez. */
 async function rhReabrirFerias(solicitacaoId) {
+  const rpc = await sb.rpc("rh_reabrir_ferias", { p_id: solicitacaoId });
+  if (!rpc.error) return true;
+  if (!rhFuncaoAusente(rpc.error)) throw rhErroRegraBanco(rpc.error);
+  return rhReabrirFeriasLegado(solicitacaoId);
+}
+
+async function rhReabrirFeriasLegado(solicitacaoId) {
   const { data: solicitacao, error: getErr } = await sb.from("ferias_solicitacoes").select("*").eq("id", solicitacaoId).single();
   if (getErr) throw getErr;
   if (!["APROVADA", "RECUSADA"].includes(solicitacao.status)) {

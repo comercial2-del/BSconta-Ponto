@@ -414,7 +414,8 @@ async function rhNavBadges() {
   try {
     const [geraisRes, feriasRes, docsRes, colabRes, feriasTodasRes] = await Promise.all([
       sb.from("solicitacoes").select("id", { count: "exact", head: true }).in("status", ["PENDENTE", "EM_ANALISE"]).eq("arquivado", false),
-      sb.from("ferias_solicitacoes").select("id", { count: "exact", head: true }).in("status", ["PENDENTE", "EM_ANALISE"]),
+      // Arquivadas não contam; pré-aprovadas ainda aguardam a aprovação final.
+      sb.from("ferias_solicitacoes").select("id", { count: "exact", head: true }).in("status", ["PENDENTE", "EM_ANALISE", "PRE_APROVADA"]).eq("arquivado", false),
       sb.from("documentos").select("id", { count: "exact", head: true }).in("status", ["PENDENTE", "AGUARDANDO_IMPORTACAO", "RECEBIDO"]),
       // Item "Lembrete de férias": colaboradores com o período aquisitivo
       // vigente perto de vencer (ou já vencido) e ainda sem férias
