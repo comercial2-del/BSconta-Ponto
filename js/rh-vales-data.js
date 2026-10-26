@@ -110,6 +110,9 @@ function vlRound(n) {
 
 function rhErroMigracao35(err) {
   const msg = String(err?.message || err || "");
+  if (/dias_periodo|desconto_anterior|ajuste_manual|ferias_dias|faltas/i.test(msg) && /vt_mensal|schema cache|Could not find|does not exist/i.test(msg)) {
+    return "O cálculo automático do vale-transporte precisa da migração db/supabase/37_vt_dias_elegiveis.sql aplicada no Supabase.";
+  }
   if (/vr_mensal|vt_mensal|gratificacoes|parametros|vt_modalidade|vt_valor_dia/i.test(msg) && /does not exist|schema cache|Could not find/i.test(msg)) {
     return "Estas abas precisam da migração db/supabase/35_vales_gratificacoes_ferias_seguras.sql aplicada no Supabase.";
   }
@@ -149,7 +152,9 @@ function vlColaboradoresDoPeriodo(colabs, inicio, fim) {
   });
 }
 
-async function vlCarregarBase(inicio, fim) {
+/** `presenca: true` também carrega o que é preciso para apurar faltas e
+ * afastamentos (ponto, abonos aprovados, início do controle de ponto). */
+async function vlCarregarBase(inicio, fim, { presenca = false } = {}) {
   const [colabRes, ferRes, feriasRes] = await Promise.all([
     sb.from("colaboradores").select("id, nome, status, admissao, data_desligamento, dias_trabalho, vt_modalidade, vt_valor_dia, vt_dias_padrao").order("nome"),
     sb.from("feriados").select("data").gte("data", inicio).lte("data", fim),
@@ -163,7 +168,61 @@ async function vlCarregarBase(inicio, fim) {
     if (!feriasPor.has(f.colaborador_id)) feriasPor.set(f.colaborador_id, []);
     feriasPor.get(f.colaborador_id).push(f);
   });
-  return { colabs: colabRes.data || [], feriadosSet, feriasPor };
+  const base = { colabs: colabRes.data || [], feriadosSet, feriasPor };
+  if (presenca) Object.assign(base, await vlCarregarPresenca(inicio, fim));
+  return base;
+}
+
+/** Ponto (dias com entrada), abonos APROVADOS e início do controle de ponto. */
+async function vlCarregarPresenca(inicio, fim) {
+  const [pontoRes, primeiroRes] = await Promise.all([
+    sb.from("ponto_registros").select("colaborador_id, data, entrada").gte("data", inicio).lte("data", fim),
+    sb.from("ponto_registros").select("data").order("data", { ascending: true }).limit(1),
+  ]);
+  if (pontoRes.error) throw pontoRes.error;
+  const comEntrada = new Set((pontoRes.data || []).filter((r) => r.entrada).map((r) => `${r.colaborador_id}|${r.data}`));
+  const abonosPor = new Map();
+  try {
+    const { data, error } = await sb.from("colaborador_abonos").select("colaborador_id, tipo, data_inicio, data_fim, status").eq("status", "APROVADO").lte("data_inicio", fim).gte("data_fim", inicio);
+    if (!error) (data || []).forEach((a) => {
+      if (!abonosPor.has(a.colaborador_id)) abonosPor.set(a.colaborador_id, []);
+      abonosPor.get(a.colaborador_id).push(a);
+    });
+  } catch (e) { /* migração 22 ausente: sem abonos */ }
+  let controleInicio = null;
+  try {
+    const { data } = await sb.from("configuracoes_ponto").select("controle_ponto_inicio").eq("id", 1).maybeSingle();
+    controleInicio = data?.controle_ponto_inicio || null;
+  } catch (e) { /* sem configuração */ }
+  controleInicio = controleInicio || primeiroRes.data?.[0]?.data || null;
+  return { comEntrada, abonosPor, controleInicio };
+}
+
+// Abono aprovado que NÃO tira o direito ao VT do dia (a pessoa se desloca).
+const VL_ABONO_COM_DESLOCAMENTO = ["COMPROMISSO_EXTERNO"];
+
+/** Apura os dias do colaborador no período:
+ *   periodo = dias de trabalho do cadastro (sem feriados, dentro de admissão/desligamento)
+ *   ferias  = férias aprovadas (ou abono do tipo FERIAS)
+ *   afast   = atestados, afastamentos, folgas e ausências aprovados
+ *   faltas  = dias que já passaram, sem entrada no ponto e sem abono
+ *             (só a partir do início do controle de ponto)
+ * Colaborador com status AFASTADO: todo dia que não é férias conta como afastamento. */
+function vlApurarDias(colab, inicio, fim, base, hojeIso) {
+  const lista = vlDiasTrabalho(colab, inicio, fim, base.feriadosSet);
+  const ferias = base.feriasPor.get(colab.id) || [];
+  const abonos = (base.abonosPor && base.abonosPor.get(colab.id)) || [];
+  const out = { periodo: lista.length, ferias: 0, afast: 0, faltas: 0 };
+  lista.forEach((iso) => {
+    const cobre = (a) => iso >= a.data_inicio && iso <= a.data_fim;
+    if (ferias.some((f) => iso >= f.inicio && iso <= f.fim) || abonos.some((a) => a.tipo === "FERIAS" && cobre(a))) { out.ferias++; return; }
+    if (colab.status === "AFASTADO") { out.afast++; return; }
+    if (base.comEntrada && base.comEntrada.has(`${colab.id}|${iso}`)) return; // trabalhou
+    if (abonos.some((a) => cobre(a) && VL_ABONO_COM_DESLOCAMENTO.includes(a.tipo))) return; // compromisso externo: deslocou-se
+    if (abonos.some((a) => cobre(a))) { out.afast++; return; }
+    if (base.comEntrada && iso < hojeIso && base.controleInicio && iso >= base.controleInicio) out.faltas++;
+  });
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -289,6 +348,23 @@ function vtCarregar(l) {
   return vlRound(Math.max(0, vtNecessidade(l) - l.saldo_cartao));
 }
 
+/** Dias elegíveis ao VT (fórmula única — tela, gravação e exportação usam esta):
+ *   base = dias no período − férias − faltas/afastamentos
+ *   modalidade: home office = 0; híbrido = mín(dias presenciais do cadastro, base)
+ *   − desconto do mês anterior (faltas que aconteceram depois do fechamento anterior). */
+function vtDiasElegiveis(l) {
+  const base = Math.max(0, (l.dias_periodo || 0) - (l.ferias_dias || 0) - (l.faltas || 0));
+  const presencial = l.modalidade === "HOME_OFFICE" ? 0 : l.modalidade === "HIBRIDO" && l.dias_padrao != null ? Math.min(l.dias_padrao, base) : base;
+  return Math.max(0, presencial - (l.desconto_anterior || 0));
+}
+/** Recalcula os dias elegíveis da linha (linhas fechadas ficam como foram gravadas). */
+function vtRecalcular(l) {
+  if (!l.fechado) l.dias_presenciais = vtDiasElegiveis(l);
+  return l;
+}
+
+const VT_CAMPOS_DIAS = ["dias_periodo", "ferias_dias", "faltas", "desconto_anterior"];
+
 async function rhVtCarregar(comp, periodoNovo) {
   const anterior = vlSomarMes(comp, -1);
   const [salvosRes, antRes, vinculo] = await Promise.all([
@@ -302,7 +378,10 @@ async function rhVtCarregar(comp, periodoNovo) {
   const periodo = vlPeriodoValido(periodoNovo) ? periodoNovo : vlPeriodoSalvo(salvosRes.data) || padrao;
   const { inicio, fim } = periodo;
   const recalc = vlPeriodoValido(periodoNovo);
-  const base = await vlCarregarBase(inicio, fim);
+  const hoje = vlIso(new Date());
+  // Período anterior (para descontar faltas que aconteceram depois do fechamento dele).
+  const periodoAnt = vlPeriodoSalvo(antRes.data) || vlPeriodoVT(anterior);
+  const base = await vlCarregarBase(periodoAnt.inicio < inicio ? periodoAnt.inicio : inicio, fim, { presenca: true });
   const salvos = new Map((salvosRes.data || []).map((r) => [r.colaborador_id, r]));
   const ant = new Map((antRes.data || []).map((r) => [r.colaborador_id, r]));
   const doPeriodo = vlColaboradoresDoPeriodo(base.colabs, inicio, fim).map((c) => c.id).filter((id) => !vinculo || vinculo.recebe(id));
@@ -312,35 +391,63 @@ async function rhVtCarregar(comp, periodoNovo) {
     const s = salvos.get(id);
     const a = ant.get(id);
     const fechado = s ? s.fechado : false;
-    const diasLista = vlDiasTrabalho(c, inicio, fim, base.feriadosSet);
-    const uteis = diasLista.length - vlContarFerias(diasLista, base.feriasPor.get(id));
     const modalidade = s ? s.modalidade : c.vt_modalidade || "PRESENCIAL";
-    const diasSug = modalidade === "HOME_OFFICE" ? 0 : modalidade === "HIBRIDO" && c.vt_dias_padrao != null ? Math.min(c.vt_dias_padrao, uteis) : uteis;
+
+    // Apuração automática do período.
+    const ap = vlApurarDias(c, inicio, fim, base, hoje);
+    // Desconto do mês anterior: só quando ele foi fechado já com a apuração
+    // (migração 37) e era presencial. Conta o que deixou de ser trabalhado e
+    // ainda não tinha sido descontado no fechamento dele.
+    let descAnt = 0;
+    if (a && a.fechado && a.faltas != null && a.modalidade === "PRESENCIAL") {
+      const apA = vlApurarDias(c, a.periodo_inicio || periodoAnt.inicio, a.periodo_fim || periodoAnt.fim, base, hoje);
+      const naoTrab = apA.ferias + apA.afast + apA.faltas;
+      const jaDesc = Number(a.ferias_dias || 0) + Number(a.faltas || 0);
+      descAnt = Math.min(Math.max(0, naoTrab - jaDesc), Number(a.dias_presenciais) || 0);
+    }
+    const sugerido = { dias_periodo: ap.periodo, ferias_dias: ap.ferias, faltas: ap.afast + ap.faltas, desconto_anterior: descAnt, detFaltas: ap.faltas, detAfast: ap.afast };
+
+    // Linha aberta: segue a apuração automática, a não ser que o RH tenha
+    // ajustado os dias à mão (ajuste_manual). Mudar o período recalcula tudo.
+    const manual = !!(s && s.ajuste_manual) && !recalc;
+    const usarSaved = s && (fechado || manual);
+    const dias = {};
+    // Mês fechado antes da migração 37 não tem o detalhe dos dias: mostra "—".
+    VT_CAMPOS_DIAS.forEach((k) => { dias[k] = usarSaved ? (s[k] != null ? Number(s[k]) : fechado ? null : sugerido[k]) : sugerido[k]; });
+
     // Saldo previsto: o que sobrou do mês anterior (saldo + carregado − necessidade).
     const saldoPrevisto = a ? vlRound(Math.max(0, Number(a.saldo_cartao) + Number(a.valor_carregar) - Number(a.dias_presenciais) * Number(a.valor_dia))) : 0;
-    const doBenef = vinculo && vinculo.valorDia.has(id) ? vinculo.valorDia.get(id) : null;
-    const valorAtual = doBenef ?? Number(c.vt_valor_dia || 0);
-    const valor_dia = s && (fechado || !vinculo) ? Number(s.valor_dia) : valorAtual;
-    const usarSugestao = !s || (recalc && !fechado);
+    // Valor por dia: vem do cadastro do colaborador (fonte única do VT).
+    const cadValor = Number(c.vt_valor_dia || 0);
+    const valor_dia = fechado ? Number(s.valor_dia) : cadValor > 0 ? cadValor : s ? Number(s.valor_dia) : 0;
     const l = {
       colaborador_id: id,
       nome: c.nome || "—",
       salvo: !!s,
       modalidade,
       valor_dia,
-      doBeneficio: !!vinculo,
-      semValorBeneficio: !!vinculo && doBenef === null,
-      alterado: !!s && !fechado && ((recalc && (s.dias_presenciais !== diasSug || s.periodo_inicio !== inicio || s.periodo_fim !== fim)) || (vinculo && Number(s.valor_dia) !== valorAtual)),
-      dias_presenciais: usarSugestao ? diasSug : s.dias_presenciais,
+      dias_padrao: c.vt_dias_padrao != null ? Number(c.vt_dias_padrao) : null,
+      ...dias,
+      ajuste_manual: manual,
+      dias_presenciais: fechado ? Number(s.dias_presenciais) : 0,
       saldo_cartao: s ? Number(s.saldo_cartao) : saldoPrevisto,
       observacao: s ? s.observacao || "" : "",
       fechado,
       fechado_em: s?.fechado_em || null,
       fechado_por: s?.fechado_por || null,
-      sugerido: { dias: diasSug, uteis, saldo: saldoPrevisto },
+      sugerido: { ...sugerido, saldo: saldoPrevisto },
       cadMod: c.vt_modalidade || "PRESENCIAL",
-      cadValor: Number(c.vt_valor_dia || 0),
+      cadValor,
     };
+    vtRecalcular(l);
+    // Linha aberta que mudou (apuração, período ou valor no cadastro): grava sozinha.
+    l.alterado = !!s && !fechado && (
+      VT_CAMPOS_DIAS.some((k) => s[k] == null || Number(s[k]) !== l[k]) ||
+      Number(s.dias_presenciais) !== l.dias_presenciais ||
+      Number(s.valor_dia) !== l.valor_dia ||
+      !!s.ajuste_manual !== l.ajuste_manual ||
+      (recalc && (s.periodo_inicio !== inicio || s.periodo_fim !== fim))
+    );
     return l;
   }).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
   return { comp, periodo, padrao, vinculo, linhas, fechado: linhas.length > 0 && linhas.every((l) => l.fechado) };
@@ -352,6 +459,11 @@ function vtPayload(comp, l, extra) {
     competencia: comp,
     modalidade: l.modalidade,
     valor_dia: vlRound(l.valor_dia),
+    dias_periodo: Math.max(0, Math.round(l.dias_periodo || 0)),
+    ferias_dias: Math.max(0, Math.round(l.ferias_dias || 0)),
+    faltas: Math.max(0, Math.round(l.faltas || 0)),
+    desconto_anterior: Math.max(0, Math.round(l.desconto_anterior || 0)),
+    ajuste_manual: !!l.ajuste_manual,
     dias_presenciais: Math.max(0, Math.round(l.dias_presenciais)),
     saldo_cartao: vlRound(l.saldo_cartao),
     valor_carregar: vtCarregar(l),
