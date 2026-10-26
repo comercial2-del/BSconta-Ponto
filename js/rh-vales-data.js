@@ -194,7 +194,10 @@ async function vlCarregarPresenca(inicio, fim) {
     const { data } = await sb.from("configuracoes_ponto").select("controle_ponto_inicio").eq("id", 1).maybeSingle();
     controleInicio = data?.controle_ponto_inicio || null;
   } catch (e) { /* sem configuração */ }
-  controleInicio = controleInicio || primeiroRes.data?.[0]?.data || null;
+  // Falta só conta a partir do que for MAIS TARDE: o início configurado ou o
+  // primeiro registro de ponto do sistema (antes disso ninguém batia ponto).
+  const primeiro = primeiroRes.data?.[0]?.data || null;
+  controleInicio = controleInicio && primeiro ? (controleInicio > primeiro ? controleInicio : primeiro) : controleInicio || primeiro;
   return { comEntrada, abonosPor, controleInicio };
 }
 
