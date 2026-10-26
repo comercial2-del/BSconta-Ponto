@@ -381,7 +381,23 @@ function rhValesInit(session) {
     if (!l.ajuste_manual || l.fechado) return "";
     return `<br><button type="button" class="btn-ghost vl-btn-sm" data-vt-auto="${i}" title="Voltar para os dias calculados automaticamente" style="margin-top:.25rem;padding:.1rem .4rem;font-size:.68rem">${ICONS.refresh}<span>manual · recalcular</span></button>`;
   }
+  // Tabela do VT mais compacta, para caber na tela sem rolar para o lado.
+  function estiloVT() {
+    if (document.getElementById("vl-vt-css")) return;
+    const css = document.createElement("style");
+    css.id = "vl-vt-css";
+    css.textContent = `.vl-tbl.vl-tbl-vt{min-width:0}
+.vl-tbl-vt th{white-space:normal;line-height:1.15;padding:.55rem .4rem;font-size:.63rem;vertical-align:bottom}
+.vl-tbl-vt td{padding:.4rem .4rem}
+.vl-tbl-vt td:first-child,.vl-tbl-vt th:first-child{padding-left:.75rem;min-width:170px}
+.vl-tbl-vt td:last-child,.vl-tbl-vt th:last-child{padding-right:.75rem}
+.vl-tbl-vt .vl-in{width:44px;padding:.28rem .35rem}
+.vl-tbl-vt .vl-in.w{width:76px}
+.vl-tbl-vt .vl-sel{max-width:112px}`;
+    document.head.appendChild(css);
+  }
   function renderVT() {
+    estiloVT();
     const d = st.dados;
     const trav = d.fechado;
     area.innerHTML = `
@@ -396,9 +412,9 @@ function rhValesInit(session) {
       ${trav ? bannerFechado(d.linhas) : ""}
       <div id="vl-kpi"></div>
       <div class="card card-p" style="margin-top:1rem">
-        <div class="table-scroll vl-tbl-wrap"><table class="vl-tbl"><thead><tr><th>Colaborador</th><th>Modalidade</th><th class="n">Valor/dia</th><th class="n">Dias no período</th><th class="n">Férias</th><th class="n">Faltas / afast.</th><th class="n" title="Dias do período anterior não trabalhados que aconteceram depois do fechamento dele">Desc. mês ant.</th><th class="n">Dias elegíveis</th><th class="n">Valor do VT</th><th class="n">Saldo no cartão</th><th class="n">A carregar</th></tr></thead>
+        <div class="table-scroll vl-tbl-wrap"><table class="vl-tbl vl-tbl-vt"><thead><tr><th>Colaborador</th><th>Modalidade</th><th class="n">Valor/dia</th><th class="n">Dias no período</th><th class="n">Férias</th><th class="n">Faltas / afast.</th><th class="n" title="Dias do período anterior não trabalhados que aconteceram depois do fechamento dele">Desc. mês ant.</th><th class="n">Dias elegíveis</th><th class="n">Valor do VT</th><th class="n">Saldo no cartão</th><th class="n">A carregar</th></tr></thead>
         <tbody>${d.linhas.map((l, i) => `<tr data-i="${i}">
-          <td style="min-width:190px"><b>${esc(l.nome)}</b></td>
+          <td><b>${esc(l.nome)}</b></td>
           <td><select class="vl-sel vl-mod-${l.modalidade}" data-campo="modalidade" data-i="${i}" ${trav ? "disabled" : ""}>${Object.entries(VL_MODALIDADES).map(([k, v]) => `<option value="${k}" ${l.modalidade === k ? "selected" : ""}>${v}</option>`).join("")}</select>${l.modalidade === "HIBRIDO" && !l.fechado ? `<br><small style="color:var(--text-faint)">${l.dias_padrao != null ? `até ${l.dias_padrao} dia(s)` : "todos os dias"}</small>` : ""}</td>
           <td class="n">${inputNum("valor_dia", l.valor_dia, i, { dinheiro: true, travado: trav })}</td>
           <td class="n">${l.fechado ? vtDiaTxt(l.dias_periodo) : inputNum("dias_periodo", l.dias_periodo, i)}</td>
