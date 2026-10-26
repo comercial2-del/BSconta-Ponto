@@ -310,8 +310,8 @@ table.bf-tbl{width:100%;border-collapse:collapse;font-size:.83rem}
   <script src="../js/supabase-client.js"></script>
   <script src="../js/rh-supabase-auth.js"></script>
   <script src="../js/rh-beneficios-data.js?v=20261022c"></script>
-  <script src="../js/rh-vales-data.js?v=20261022c"></script>
-  <script src="../js/rh-vales-ui.js?v=20261022c"></script>
+  <script src="../js/rh-vales-data.js?v=20261026a"></script>
+  <script src="../js/rh-vales-ui.js?v=20261026a"></script>
   <script>
 /*
  * Benefícios (RH) — cadastro unificado.
@@ -493,7 +493,15 @@ function monthNavHtml(k, id) {
 /* =========================================================================
    TELA PRINCIPAL (RH)
    ========================================================================= */
-function render() { return renderRH(); }
+// A aba "Benefícios" não aparece mais (26/10/2026): só VR, VT e Gratificações.
+// O catálogo continua sendo montado (oculto) porque o modal de edição dele é
+// usado pelas abas de vale. Depois de qualquer alteração, a aba de vale recarrega.
+let jaRenderizou = false;
+function render() {
+  renderRH();
+  if (jaRenderizou && typeof window.rhValesRecarregar === "function") window.rhValesRecarregar();
+  jaRenderizou = true;
+}
 
 function renderRH() {
   const k = ui.mes;
@@ -737,6 +745,7 @@ function formInfo(body) {
 
 function notaCategoria(b) {
   if (!ehVale(b)) return "";
+  if (b.categoria === "TRANSPORTE") return `<div class="bf-note" style="margin:0">${I.info}<span>Este benefício define <b>quem recebe</b> o vale-transporte. O valor por dia fica no cadastro de cada colaborador e é editado direto na aba <b>Vale-transporte</b>; o total sai dos dias elegíveis do período.</span></div>`;
   return `<div class="bf-note" style="margin:0">${I.info}<span>Este benefício puxa automaticamente para a aba <b>${valeDe(b).nome}</b>. Em “Valores por colaborador” você informa o <b>valor por dia</b> de cada pessoa; o total do mês sai do fechamento (do dia X até o dia Y) lá na aba.</span></div>`;
 }
 
@@ -771,6 +780,10 @@ function formPublico(body) {
 
 function formValoresVale(body) {
   const b = form.b, ids = idsDo(b);
+  if (b.categoria === "TRANSPORTE") {
+    body.innerHTML = `<div class="bf-note">${I.info}<span>O <b>valor por dia</b> do vale-transporte fica no cadastro de cada colaborador e é editado direto na tabela da aba <b>Vale-transporte</b>. O valor do mês é calculado automaticamente: dias elegíveis × valor por dia. Aqui você define só <b>para quem é</b> o benefício (${ids.length} colaborador${ids.length === 1 ? "" : "es"}).</span></div>`;
+    return;
+  }
   body.innerHTML = `
     <div class="bf-note">${I.info}<span>Valor <b>por dia</b> de cada colaborador. Puxa para a aba <b>${valeDe(b).nome}</b>, onde o RH fecha o mês escolhendo o período (ex.: dia 1 a 30 ou dia 1 a 21).</span></div>
     <div class="bf-values-bar">
@@ -1026,9 +1039,9 @@ function excluirBeneficio(id) {
 // Inicialização
 // ---------------------------------------------------------------------------
 // Botão "Editar valores" das abas Vale-refeição / Vale-transporte.
-window.rhAbrirBeneficio = async (id) => {
-  try { await recarregar(); render(); } catch (e) { /* segue com o que tem */ }
-  if (BENEFICIOS.some((x) => x.id === id)) abrirForm(id, "valores");
+window.rhAbrirBeneficio = async (id, aba = "valores") => {
+  try { await recarregar(); renderRH(); } catch (e) { /* segue com o que tem */ }
+  if (BENEFICIOS.some((x) => x.id === id)) abrirForm(id, aba);
 };
 try {
   await recarregar();
