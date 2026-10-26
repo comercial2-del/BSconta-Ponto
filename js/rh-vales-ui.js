@@ -396,9 +396,9 @@ function rhValesInit(session) {
       ${trav ? bannerFechado(d.linhas) : ""}
       <div id="vl-kpi"></div>
       <div class="card card-p" style="margin-top:1rem">
-        <div class="table-scroll vl-tbl-wrap"><table class="vl-tbl"><thead><tr><th>Colaborador</th><th>Modalidade</th><th class="n">Valor/dia</th><th class="n">Dias no período</th><th class="n">Férias</th><th class="n">Faltas / afast.</th><th class="n" title="Dias do período anterior não trabalhados que aconteceram depois do fechamento dele">Desc. mês ant.</th><th class="n">Dias elegíveis</th><th class="n">Valor do VT</th><th class="n">Saldo no cartão</th><th class="n">A carregar</th><th>Situação</th><th></th></tr></thead>
+        <div class="table-scroll vl-tbl-wrap"><table class="vl-tbl"><thead><tr><th>Colaborador</th><th>Modalidade</th><th class="n">Valor/dia</th><th class="n">Dias no período</th><th class="n">Férias</th><th class="n">Faltas / afast.</th><th class="n" title="Dias do período anterior não trabalhados que aconteceram depois do fechamento dele">Desc. mês ant.</th><th class="n">Dias elegíveis</th><th class="n">Valor do VT</th><th class="n">Saldo no cartão</th><th class="n">A carregar</th></tr></thead>
         <tbody>${d.linhas.map((l, i) => `<tr data-i="${i}">
-          <td><b>${esc(l.nome)}</b></td>
+          <td style="min-width:190px"><b>${esc(l.nome)}</b></td>
           <td><select class="vl-sel vl-mod-${l.modalidade}" data-campo="modalidade" data-i="${i}" ${trav ? "disabled" : ""}>${Object.entries(VL_MODALIDADES).map(([k, v]) => `<option value="${k}" ${l.modalidade === k ? "selected" : ""}>${v}</option>`).join("")}</select>${l.modalidade === "HIBRIDO" && !l.fechado ? `<br><small style="color:var(--text-faint)">${l.dias_padrao != null ? `até ${l.dias_padrao} dia(s)` : "todos os dias"}</small>` : ""}</td>
           <td class="n">${inputNum("valor_dia", l.valor_dia, i, { dinheiro: true, travado: trav })}</td>
           <td class="n">${l.fechado ? vtDiaTxt(l.dias_periodo) : inputNum("dias_periodo", l.dias_periodo, i)}</td>
@@ -408,11 +408,9 @@ function rhValesInit(session) {
           <td class="n"><b data-out="dias">${l.dias_presenciais}</b></td>
           <td class="n" data-out="nec">${vlMoneyFmt(vtNecessidade(l))}</td>
           <td class="n">${inputNum("saldo_cartao", l.saldo_cartao, i, { dinheiro: true, travado: trav })}</td>
-          <td class="n"><b data-out="car">${vlMoneyFmt(vtCarregar(l))}</b></td>
-          <td data-out="sit">${situacaoVT(l)}</td>
-          <td class="n"><button type="button" class="btn-ghost vl-btn-sm" data-conta="${l.colaborador_id}" title="Configuração e extrato">${ICONS.fileText}<span>Extrato</span></button></td>
-        </tr>`).join("") || `<tr><td colspan="13" class="vl-vazio">Nenhum colaborador ativo neste período.</td></tr>`}</tbody>
-        <tfoot><tr><td>Total do mês</td><td></td><td></td><td></td><td></td><td></td><td></td><td class="n" id="vl-f-dias"></td><td class="n" id="vl-f-nec"></td><td class="n" id="vl-f-saldo"></td><td class="n" id="vl-f-car"></td><td></td><td></td></tr></tfoot></table></div>
+          <td class="n"><b data-out="car">${vlMoneyFmt(vtCarregar(l))}</b><small data-out="semv" style="display:${!l.fechado && l.valor_dia === 0 && l.dias_presenciais > 0 ? "block" : "none"};color:var(--red-600)" title="Preencha o valor por dia">sem valor/dia</small></td>
+        </tr>`).join("") || `<tr><td colspan="11" class="vl-vazio">Nenhum colaborador ativo neste período.</td></tr>`}</tbody>
+        <tfoot><tr><td>Total do mês</td><td></td><td></td><td></td><td></td><td></td><td></td><td class="n" id="vl-f-dias"></td><td class="n" id="vl-f-nec"></td><td class="n" id="vl-f-saldo"></td><td class="n" id="vl-f-car"></td></tr></tfoot></table></div>
         <p class="vl-nota"><b>Valor do VT = dias elegíveis × valor por dia.</b> Dias elegíveis = dias de trabalho no período (cadastro, sem feriados, respeitando admissão e desligamento) − férias aprovadas − faltas e afastamentos (faltas no ponto, atestados, afastamentos, folgas e ausências aprovados). Home office não recebe; híbrido recebe até os dias presenciais do cadastro. <b>Desc. mês ant.</b> = dias do período anterior que não foram trabalhados e aconteceram depois do fechamento dele (o VT é pago antes). A carregar = valor do VT − saldo que sobrou no cartão. Os dias são recalculados sozinhos enquanto o mês está aberto; se você ajustar à mão, a linha fica como <i>manual</i>. O valor por dia fica no cadastro de cada pessoa${d.vinculo ? "; quem recebe vem do benefício Vale-transporte" : ""}.</p>
       </div>`;
     totaisVT();
@@ -432,7 +430,7 @@ function rhValesInit(session) {
       tr.querySelector('[data-out="dias"]').textContent = l.dias_presenciais;
       tr.querySelector('[data-out="nec"]').textContent = vlMoneyFmt(vtNecessidade(l));
       tr.querySelector('[data-out="car"]').textContent = vlMoneyFmt(vtCarregar(l));
-      tr.querySelector('[data-out="sit"]').innerHTML = situacaoVT(l);
+      tr.querySelector('[data-out="semv"]').style.display = l.valor_dia === 0 && l.dias_presenciais > 0 ? "block" : "none";
       totaisVT();
     };
     area.querySelectorAll("[data-campo]").forEach((inp) => inp.addEventListener(inp.tagName === "SELECT" ? "change" : "input", () => {
@@ -458,7 +456,6 @@ function rhValesInit(session) {
     }));
     // Formata dinheiro ao sair do campo.
     area.querySelectorAll('[data-campo="valor_dia"], [data-campo="saldo_cartao"]').forEach((inp) => inp.addEventListener("blur", () => { inp.value = vlMoneyFmt(vlNumInput(inp.value)); }));
-    area.querySelectorAll("[data-conta]").forEach((b) => b.addEventListener("click", () => rhVtAbrirConta(b.dataset.conta, { aoSalvar: carregar })));
     document.getElementById("vl-periodo")?.addEventListener("click", () => modalPeriodo("vt"));
     ligarFonte();
     document.getElementById("vl-exportar").addEventListener("click", () => vlExportarCsv(`vale-transporte-${d.comp}.csv`,
