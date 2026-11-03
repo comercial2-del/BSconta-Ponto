@@ -12,8 +12,9 @@
 -- usar a regra automaticamente):
 --   * Dia de trabalho já encerrado, com entrada registrada e batida
 --     faltando, sem abono → descricao = 'Pendente de ajuste', incompleto =
---     true e saldo 0 (não desconta). Atraso acima da tolerância e almoço
---     excedido, se houver, continuam contando normalmente.
+--     true e saldo 0 (não desconta). Só o atraso acima da tolerância, se
+--     houver, continua contando (almoço não, pois o "retorno" costuma ser
+--     a saída do dia).
 --   * Assim que o RH lança/aprova o horário que faltou, o dia fica completo
 --     e volta ao cálculo normal (trabalhadas + abono − previstas).
 --   * Dia SEM entrada continua sendo FALTA (nada muda).
@@ -201,11 +202,16 @@ begin
         end if;
         -- (38) Ponto NÃO FINALIZADO não é falta nem débito de horas: a
         -- pessoa trabalhou, só esqueceu de bater a saída/retorno. O dia fica
-        -- "Pendente de ajuste" com saldo 0 (só atraso acima da tolerância /
-        -- almoço excedido, se houver, continuam contando) até o RH lançar o horário que
+        -- "Pendente de ajuste" com saldo 0 (só o atraso acima da tolerância,
+        -- se houver, continua contando) até o RH lançar o horário que
         -- faltou — aí o dia fica completo e volta ao cálculo normal.
         if v_incompleto and v_prev > 0 and v_abono = 0 then
-          v_saldo := case when v_regra_ini is not null and d >= v_regra_ini then -coalesce(v_debito, 0) else 0 end;
+          -- O almoço NÃO é cobrado aqui: em dia não finalizado o "retorno do
+          -- intervalo" muitas vezes é, na verdade, a saída do dia (ex.:
+          -- 12:12 → 17:35), e cobrar isso como almoço excedido seria
+          -- descontar como falta de novo.
+          v_saldo := case when v_regra_ini is not null and d >= v_regra_ini and coalesce(v_atraso, 0) > v_tol_atraso
+                          then -v_atraso else 0 end;
           v_desc := 'Pendente de ajuste';
         end if;
         if v_incompleto and v_desc is null then v_desc := 'Registro incompleto'; end if;
