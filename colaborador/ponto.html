@@ -54,7 +54,14 @@
 html[data-theme="dark"] .history-day-card.feriado{background:rgba(41,163,230,.10);border-color:rgba(41,163,230,.28)}
 .saldo-pos{color:#067647;font-weight:700}.saldo-neg{color:#d92d20;font-weight:700}html[data-theme="dark"] .saldo-pos{color:#4ade80}html[data-theme="dark"] .saldo-neg{color:#f87171}
 .history-day-card.semregistro{background:#fff;border-style:dashed}.history-day-card.semregistro .status-label{color:#98a2b3}
-.history-day-card.pendente{background:#f8f5ff;border-color:#ded2fb;border-style:dashed}.history-day-card.pendente .status-label{color:#7c3aed}.history-day-card.pendente .status-meta{color:#7c3aed;border-top-color:rgba(124,58,237,.14)}
+/* Pendente de ajuste (laranja): ajuste solicitado aguardando o RH, ou dia
+   encerrado sem finalizar o ponto. Some sozinho quando o RH valida. */
+.history-day-card.pendente{background:#fff7ed;border-color:#fdba74;border-style:solid;box-shadow:inset 3px 0 0 #f97316}.history-day-card.pendente .status-label{color:#c2410c}.history-day-card.pendente .status-meta{color:#c2410c;border-top-color:rgba(234,88,12,.18)}
+html[data-theme="dark"] .history-day-card.pendente{background:rgba(249,115,22,.12);border-color:rgba(249,115,22,.45)}html[data-theme="dark"] .history-day-card.pendente .status-label,html[data-theme="dark"] .history-day-card.pendente .status-meta{color:#fdba74}
+.status-badge.status-PENDENTE-AJUSTE{background:#fff7ed;color:#c2410c;border:1px solid #fdba74}
+.pj-dia-track{margin-top:.9rem;padding:1rem 1rem .2rem;border:1px solid #e7ecf2;border-radius:12px;background:#fff}
+.pj-dia-track .pj-dia-head{font-size:.78rem;font-weight:800;color:#344054;margin:0 0 .8rem}
+html[data-theme="dark"] .pj-dia-track{background:var(--surface);border-color:var(--border)}
 .history-day-card.is-today,.history-day-card.is-selected{border-color:#2f5bea;box-shadow:0 0 0 2px rgba(47,91,234,.12)}
 .history-day-card.corrigido::after{content:"";position:absolute;right:.55rem;bottom:.55rem;width:7px;height:7px;border-radius:50%;background:#2f5bea}
 .history-single{display:grid;grid-template-columns:minmax(0,300px)}
@@ -71,7 +78,7 @@ html[data-theme="dark"] .history-day-card.feriado{background:rgba(41,163,230,.10
 .history-month-cell.extra{background:#f5f3ff;color:#6d42c7;border-color:#e9e2ff}.history-month-cell.extra .dot{background:#8b5cf6}
 .history-month-cell.futuro{color:#98a2b3;border-style:dashed}
 .history-month-cell.abonado{background:#f7f3ff;color:#7c3aed;border-color:#e3d9fc}.history-month-cell.abonado .dot{background:#8b5cf6}
-.history-month-cell.pendente{background:#f8f5ff;color:#7c3aed;border-color:#ded2fb;border-style:dashed}.history-month-cell.pendente .dot{background:#8b5cf6}
+.history-month-cell.pendente{background:#fff7ed;color:#c2410c;border-color:#fdba74}.history-month-cell.pendente .dot{background:#f97316}
 .history-month-cell.hoje{box-shadow:0 0 0 2px #2f5bea}
 .history-month-cell.selected{border-color:#2f5bea;box-shadow:0 0 0 2px rgba(47,91,234,.1)}
 .history-custom-summary{display:flex;align-items:center;gap:.65rem;flex-wrap:wrap;margin-bottom:.8rem}
@@ -171,6 +178,13 @@ html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px r
 .pj-st .p{font-size:11.5px;color:var(--text-faint);margin-top:2px}
 .pj-st.now b,.pj-st.now .t{color:var(--pj-sky)}
 .pj-st.todo .t{color:var(--text-faint);font-weight:600;font-size:16px}
+/* Ponto com alteração pendente de validação do RH: círculo laranja com o
+   status "Pendente de ajuste" — volta ao normal quando o RH valida. */
+.pj-st.pend .pj-dot{display:flex;align-items:center;justify-content:center;width:64px;height:64px;margin:-8px auto 4px;background:var(--orange-50,#fff7ed);border-color:var(--orange-500,#f97316);color:var(--orange-600,#ea580c);box-shadow:0 0 0 6px rgba(249,115,22,.16);flex-direction:column;gap:0;font-size:8px;line-height:1.05;font-weight:800;text-transform:uppercase;letter-spacing:.01em;text-align:center;padding:2px}
+.pj-st.pend .pj-dot svg{width:15px;height:15px;margin-bottom:1px}
+.pj-st.pend b,.pj-st.pend .t{color:var(--orange-600,#ea580c)}
+.pj-st.pend .t{font-size:14px;font-weight:800}
+.pj-st.pend .p{color:var(--orange-700,#c2410c)}
 .pj-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
 .pj-stat{background:var(--surface-2);border:1px solid var(--border);border-radius:14px;padding:14px 16px}
 .pj-stat span{font-size:11px;color:var(--text-faint);font-weight:700;text-transform:uppercase;letter-spacing:.05em;display:flex;gap:6px;align-items:center}
@@ -215,7 +229,7 @@ html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px r
   .pj-cta-wrap{max-width:none}.pj-hero .ponto-cta-btn{width:100%;justify-content:center}.pj-hero .ponto-cta-hint{text-align:center}
   .pj-ring{margin:0 auto}
   .pj-stats,.pj-grid3{grid-template-columns:1fr 1fr}
-  .pj-dot{width:40px;height:40px}.pj-steps:before,.pj-steps:after{top:19px}.pj-st .t{font-size:15px}.pj-st b{font-size:12px}
+  .pj-dot{width:40px;height:40px}.pj-st.pend .pj-dot{width:56px;height:56px;font-size:7px}.pj-steps:before,.pj-steps:after{top:19px}.pj-st .t{font-size:15px}.pj-st b{font-size:12px}
   .pj-tabs.tabs{width:100%}.pj-tabs .tab-btn{flex:1;justify-content:center;padding:9px 8px}
 }
 @media (max-width:560px){.pj-grid3{grid-template-columns:1fr}}
@@ -884,7 +898,7 @@ html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px r
         </div>
       `;
 
-      document.getElementById("punch-track").innerHTML = renderPunchTrack(steps, previstoPorPasso);
+      document.getElementById("punch-track").innerHTML = renderPunchTrack(steps, previstoPorPasso, pontosPendentesDoDia(p.hoje));
       document.querySelectorAll("#aba-conteudo .pj-fade").forEach((el, i) => { el.style.animationDelay = `${i * 0.05}s`; });
       iniciarRelogioAoVivo();
 
@@ -1199,14 +1213,47 @@ html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px r
       }, 1000);
     }
 
-    function renderPunchTrack(steps, previstos = {}) {
+    // Pontos "pendentes de ajuste" de um dia: os que têm alteração
+    // solicitada aguardando o RH (rec.pendenteAjuste) e, em dia já
+    // encerrado, os que ficaram sem registro (ponto não finalizado).
+    // Mapa key → horário solicitado ("" quando é só batida esquecida).
+    // Quando o RH valida (aprova/recusa ou lança o horário), o dia deixa de
+    // ter pendência e o destaque some sozinho na próxima carga.
+    function pontosPendentesDoDia(rec) {
+      const mapa = {};
+      if (!rec) return mapa;
+      if (rec.data && rec.data < todayIso() && rec.entrada) {
+        if (!rec.saida) mapa.saida = "";
+        if (rec.intervaloSaida && !rec.intervaloVolta) mapa.intervaloVolta = "";
+        if (!rec.intervaloSaida && rec.intervaloVolta) mapa.intervaloSaida = "";
+      }
+      itensAjustePendente(rec.pendenteAjuste).forEach((it) => { if (it?.campo) mapa[it.campo] = it.horario || ""; });
+      return mapa;
+    }
+    function diaPendenteDeAjuste(rec) {
+      return !!rec && (!!rec.pendenteAjuste || !!rec.batidasFaltando?.length);
+    }
+
+    function renderPunchTrack(steps, previstos = {}, pendentes = {}, { modoHistorico = false } = {}) {
       let currentSet = false;
       return steps
         .map((s, i) => {
           const done = !!s.hora;
-          const isCurrent = !done && !currentSet;
+          const pend = Object.prototype.hasOwnProperty.call(pendentes, s.key);
+          const isCurrent = !modoHistorico && !done && !currentSet && !pend;
           if (isCurrent) currentSet = true;
           const prev = previstos[s.key];
+          if (pend) {
+            const solicitado = pendentes[s.key];
+            const info = solicitado ? `solicitado ${solicitado}${s.hora ? ` (era ${s.hora})` : ""}` : s.hora ? `registrado ${s.hora}` : "não registrado";
+            return `
+          <div class="pj-st pend" title="Pendente de ajuste — aguardando validação do RH">
+            <div class="pj-dot">${ICONS.edit || ICONS.alertCircle || ""}<span>Pendente<br>de ajuste</span></div>
+            <b>${s.label}</b>
+            <div class="t">Pendente de ajuste</div>
+            <div class="p">${info}</div>
+          </div>`;
+          }
           return `
           <div class="pj-st ${done ? "done" : isCurrent ? "now" : "todo"}">
             <div class="pj-dot">${done ? ICONS.check : i + 1}</div>
@@ -1248,7 +1295,7 @@ html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px r
                 <span class="item"><span class="dot" style="background:var(--indigo-500)"></span>Home office</span>
                 <span class="item"><span class="dot" style="background:var(--amber-500)"></span>Atraso</span>
                 <span class="item"><span class="dot" style="background:var(--red-500)"></span>Falta</span>
-                <span class="item"><span class="dot" style="background:var(--violet-500)"></span>Ajuste pendente</span>
+                <span class="item"><span class="dot" style="background:var(--orange-500,#f97316)"></span>Pendente de ajuste</span>
                 <span class="item"><span class="dot" style="background:var(--indigo-600)"></span>Alterado pelo RH</span>
               </div>
             </div>
@@ -1377,7 +1424,7 @@ html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px r
     function diaClasse(rec, isToday) {
       let base = "futuro";
       if (rec) {
-        if (rec.pendenteAjuste) base = "pendente";
+        if (diaPendenteDeAjuste(rec)) base = "pendente";
         else if (rec.status === "falta") base = "falta";
         else if (rec.status === "atraso") base = "atraso";
         else if (rec.horasExtras > 0) base = "extra";
@@ -1434,14 +1481,15 @@ html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px r
         // marcado como "pendente" — assim que for aprovado, o registro
         // ganha alteradoPeloRH e volta ao fluxo normal (com o selo "corrigido").
         bucket = "pendente";
-        statusLabel = "Ajuste pendente";
-        metaLabel = rec.pendenteAjuste.modo === "dia" ? "Ajuste do dia aguardando RH" : "Ajuste de ponto aguardando RH";
-      } else if (rec && rec.batidasFaltando?.length) {
-        // Dia encerrado com batida esquecida: fica identificado no histórico
-        // (nada foi apagado) — o colaborador pode pedir o ajuste ao RH.
-        bucket = "atraso"; statusLabel = "Registro incompleto";
+        statusLabel = "Pendente de ajuste";
         timeLabel = rec.entrada ? `${rec.entrada} – ${rec.saida || "sem saída"}` : "";
-        metaLabel = `Não registrado: ${rec.batidasFaltando.join(", ")}`;
+        metaLabel = rec.pendenteAjuste.modo === "dia" ? "Ajuste do dia aguardando RH" : "Ajuste aguardando RH";
+      } else if (rec && rec.batidasFaltando?.length) {
+        // Dia encerrado com batida esquecida: NÃO é falta (houve entrada) —
+        // fica "Pendente de ajuste" (laranja) até o RH validar o horário.
+        bucket = "pendente"; statusLabel = "Pendente de ajuste";
+        timeLabel = rec.entrada ? `${rec.entrada} – ${rec.saida || "sem saída"}` : "";
+        metaLabel = `Não finalizado: ${rec.batidasFaltando.join(", ")}`;
       } else if (rec) {
         if (rec.status === "falta") {
           bucket = "falta"; statusLabel = "Falta";
@@ -1493,7 +1541,9 @@ html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px r
       else if (selected) classes.push("is-selected");
 
       const tituloCard = rec?.pendenteAjuste
-        ? `Ajuste pendente — ${esc(resumoAjustePendente(rec.pendenteAjuste))}, aguardando aprovação do RH`
+        ? `Pendente de ajuste — ${esc(resumoAjustePendente(rec.pendenteAjuste))}, aguardando validação do RH`
+        : rec?.batidasFaltando?.length
+        ? esc(`Pendente de ajuste — ponto não finalizado (${rec.batidasFaltando.join(", ")}). Não conta como falta; solicite o ajuste para o RH validar.`)
         : rec?.alteradoPeloRH
         ? esc(`Alterado pelo RH — ${rec.alteradoPeloRH.motivo}`)
         : "";
@@ -1509,11 +1559,28 @@ html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px r
         </div>`;
     }
 
+    // Visão "Dia": os 4 pontos do dia selecionado, com o círculo laranja
+    // "Pendente de ajuste" nos pontos alterados/não finalizados.
+    function trackDoDiaHtml(iso) {
+      const rec = porData(iso);
+      if (!rec || (!rec.entrada && !rec.pendenteAjuste)) return "";
+      const steps = [
+        { key: "entrada", label: "Entrada", hora: rec.entrada },
+        { key: "intervaloSaida", label: "Saída intervalo", hora: rec.intervaloSaida },
+        { key: "intervaloVolta", label: "Retorno intervalo", hora: rec.intervaloVolta },
+        { key: "saida", label: "Saída", hora: rec.saida },
+      ];
+      const pend = iso === todayIso() && !rec.pendenteAjuste ? {} : pontosPendentesDoDia(rec);
+      const feitos = steps.filter((s) => s.hora).length;
+      return `<div class="pj-dia-track"><p class="pj-dia-head">Registros do dia${Object.keys(pend).length ? ' · <span style="color:var(--orange-600,#ea580c)">pendente de ajuste</span>' : ""}</p>
+        <div class="pj-steps" style="--pj-prog:${Math.min(feitos, 3) * 25}%">${renderPunchTrack(steps, {}, pend, { modoHistorico: true })}</div></div>`;
+    }
+
     function renderCalendarioSemanaOuDia() {
       const wrap = document.getElementById("calendario-wrap");
       let html;
       if (periodoTipo === "dia") {
-        html = `<div class="history-single">${weekDayCardHtml(diaSelecionado, { selected: true })}</div>`;
+        html = `<div class="history-single">${weekDayCardHtml(diaSelecionado, { selected: true })}</div>${trackDoDiaHtml(diaSelecionado)}`;
       } else {
         const d = new Date(diaSelecionado + "T00:00:00");
         const dow = (d.getDay() + 6) % 7;
@@ -1626,7 +1693,7 @@ html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px r
               <td class="cell-num">${h.horasExtras ? fmtDuracao(h.horasExtras, { sinal: true }) : "—"}</td>
               <td class="cell-num">${h.atrasoMin ? fmtMinutos(-h.atrasoMin) : "—"}</td>`}
               <td>${localBadgeHtml(h.local)}${geoLinkForPonto(h.geo, h.data)}</td>
-              <td>${h.batidasFaltando?.length ? `<span class="status-badge status-ATRASO" title="Não registrado: ${esc(h.batidasFaltando.join(", "))}">Incompleto</span>` : h.sintetico ? statusPillApuracao(h) : statusPillPonto(h.status)}</td>
+              <td>${h.pendenteAjuste ? `<span class="status-badge status-PENDENTE-AJUSTE" title="${esc(resumoAjustePendente(h.pendenteAjuste))} — aguardando validação do RH">Pendente de ajuste</span>` : h.batidasFaltando?.length ? `<span class="status-badge status-PENDENTE-AJUSTE" title="Ponto não finalizado: ${esc(h.batidasFaltando.join(", "))} — não conta como falta">Pendente de ajuste</span>` : h.sintetico ? statusPillApuracao(h) : statusPillPonto(h.status)}</td>
               <td>${h.alteradoPeloRH ? `<span class="badge-alterado" title="${esc(h.alteradoPeloRH.motivo)} — ${fmtDate(h.alteradoPeloRH.em.slice(0,10))}">${ICONS.edit}Alterado</span>` : "—"}</td>
             </tr>`
               )
