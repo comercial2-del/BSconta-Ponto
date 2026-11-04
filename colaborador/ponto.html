@@ -286,8 +286,8 @@ html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px r
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../js/supabase-client.js?v=20260929c"></script>
   <script src="../js/rh-supabase-auth.js?v=20260929c"></script>
-  <script src="../js/rh-ponto-data.js?v=20261013a"></script>
-  <script src="../js/rh-historia-data.js?v=20261104a"></script>
+  <script src="../js/rh-ponto-data.js?v=20261104b"></script>
+  <script src="../js/rh-historia-data.js?v=20261104b"></script>
   <script src="../js/rh-historia-ui.js?v=20260929c"></script>
   <script>
 (async function () {
@@ -489,7 +489,7 @@ html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px r
       return [
         { key: "entrada", label: "Entrada", ctaLabel: "Registrar entrada", hora: p.hoje.entrada },
         { key: "intervaloSaida", label: "Saída intervalo", ctaLabel: "Registrar saída para intervalo", hora: p.hoje.intervaloSaida },
-        { key: "intervaloVolta", label: "Retorno intervalo", ctaLabel: "Registrar retorno do intervalo", hora: p.hoje.intervaloVolta },
+        { key: "intervaloVolta", label: "Retorno intervalo", ctaLabel: "Registrar retorno do intervalo", hora: p.hoje.intervaloVolta, real: p.hoje.intervaloVoltaReal },
         { key: "saida", label: "Saída", ctaLabel: "Registrar saída", hora: p.hoje.saida },
       ];
     }
@@ -787,7 +787,10 @@ html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px r
       } else {
         const variant = nextStep.key === "intervaloSaida" ? "pause-variant" : "";
         const avisoIntervalo = rhValidarBatidaIntervalo(nextStep.key, horaAgora(), p.hoje, configPonto);
-        const dicaIntervalo = nextStep.key === "intervaloVolta" && p.hoje.intervaloSaida && Number(configPonto.intervalo_minimo_min) > 0
+        const provisorioAgora = nextStep.key === "intervaloVolta" ? rhRetornoProvisorio(horaAgora(), p.hoje, configPonto) : null;
+        const dicaIntervalo = provisorioAgora
+          ? `Sua saída do intervalo está pendente de ajuste: o retorno será considerado às ${provisorioAgora.considerado} (intervalo mínimo de ${configPonto.intervalo_minimo_min} min) até o RH validar. Se o RH aprovar, ele é recalculado automaticamente.`
+          : nextStep.key === "intervaloVolta" && p.hoje.intervaloSaida && Number(configPonto.intervalo_minimo_min) > 0
           ? `Intervalo mínimo de ${configPonto.intervalo_minimo_min} min.`
           : nextStep.key === "intervaloSaida" && configPonto.almoco_inicio_minimo
           ? `O intervalo pode começar a partir das ${configPonto.almoco_inicio_minimo}.`
@@ -961,7 +964,7 @@ html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px r
       _batendoPonto = true;
       (async () => {
         const p = DEMO.ponto;
-        const antes = { local: p.hoje.local, geo: p.hoje.geo, entrada: p.hoje.entrada, intervaloSaida: p.hoje.intervaloSaida, intervaloVolta: p.hoje.intervaloVolta, saida: p.hoje.saida };
+        const antes = { local: p.hoje.local, geo: p.hoje.geo, entrada: p.hoje.entrada, intervaloSaida: p.hoje.intervaloSaida, intervaloVolta: p.hoje.intervaloVolta, intervaloVoltaReal: p.hoje.intervaloVoltaReal, saida: p.hoje.saida };
         try {
           if (nextStep.key === "entrada" && (!geo || !Number.isFinite(Number(geo.lat)) || !Number.isFinite(Number(geo.lng)))) {
             throw new Error("é necessário permitir o acesso à localização para registrar o ponto.");
@@ -980,13 +983,22 @@ html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px r
             return;
           }
           if (geo) p.hoje.geo = geoComBatida(p.hoje.geo, nextStep.key, local, geo);
+          let provisorio = null;
           if (nextStep.key === "entrada") { p.hoje.entrada = hora; p.hoje.local = local; }
           else if (nextStep.key === "intervaloSaida") p.hoje.intervaloSaida = hora;
-          else if (nextStep.key === "intervaloVolta") p.hoje.intervaloVolta = hora;
+          else if (nextStep.key === "intervaloVolta") {
+            // Saída do intervalo pendente de ajuste e volta antes do mínimo:
+            // retorno provisório (considerado saída + mínimo; real guardado).
+            provisorio = rhRetornoProvisorio(hora, p.hoje, configPonto);
+            p.hoje.intervaloVolta = provisorio ? provisorio.considerado : hora;
+            if (provisorio) p.hoje.intervaloVoltaReal = provisorio.real;
+          }
           else if (nextStep.key === "saida") p.hoje.saida = hora;
           else throw new Error("Etapa de ponto desconhecida.");
           await persistirPonto();
-          showToast(`✓ Ponto registrado com sucesso${LOCAL_PONTO_LABELS[p.hoje.local] ? ` (${LOCAL_PONTO_LABELS[p.hoje.local]})` : ""} — horário registrado: ${hora}.`, "success");
+          showToast(provisorio
+            ? `✓ Retorno registrado às ${hora}. Como a saída do intervalo está pendente de ajuste, o retorno fica considerado às ${provisorio.considerado} até o RH validar.`
+            : `✓ Ponto registrado com sucesso${LOCAL_PONTO_LABELS[p.hoje.local] ? ` (${LOCAL_PONTO_LABELS[p.hoje.local]})` : ""} — horário registrado: ${hora}.`, "success");
           render();
           requestAnimationFrame(piscarSucesso);
         } catch (err) {
@@ -1259,7 +1271,7 @@ html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px r
             <div class="pj-dot">${done ? ICONS.check : i + 1}</div>
             <b>${s.label}</b>
             <div class="t">${s.hora || (isCurrent ? "Aguardando" : "—")}</div>
-            ${prev && !(s.key === "saida" && done) ? `<div class="p">previsto ${prev}</div>` : ""}
+            ${s.real && done ? `<div class="p" style="color:var(--orange-600,#ea580c)" title="Saída do intervalo pendente de ajuste: retorno considerado até o RH validar">considerado · batido ${s.real}</div>` : prev && !(s.key === "saida" && done) ? `<div class="p">previsto ${prev}</div>` : ""}
           </div>`;
         })
         .join("");
@@ -1567,7 +1579,7 @@ html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px r
       const steps = [
         { key: "entrada", label: "Entrada", hora: rec.entrada },
         { key: "intervaloSaida", label: "Saída intervalo", hora: rec.intervaloSaida },
-        { key: "intervaloVolta", label: "Retorno intervalo", hora: rec.intervaloVolta },
+        { key: "intervaloVolta", label: "Retorno intervalo", hora: rec.intervaloVolta, real: rec.intervaloVoltaReal },
         { key: "saida", label: "Saída", hora: rec.saida },
       ];
       const pend = iso === todayIso() && !rec.pendenteAjuste ? {} : pontosPendentesDoDia(rec);
