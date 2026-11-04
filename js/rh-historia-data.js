@@ -424,8 +424,20 @@ function rhValidarBatidaIntervalo(etapa, hora, hoje, config) {
   if (etapa === "intervaloSaida" && cfg.almoco_inicio_minimo && min(hora) < min(cfg.almoco_inicio_minimo)) {
     return `O intervalo não pode começar antes das ${cfg.almoco_inicio_minimo}.`;
   }
-  if (etapa === "intervaloVolta" && hoje?.intervaloSaida && Number(cfg.intervalo_minimo_min) > 0) {
-    const liberado = min(hoje.intervaloSaida) + Number(cfg.intervalo_minimo_min);
+  // Saída do intervalo com ajuste PENDENTE (aguardando o RH): a contagem do
+  // intervalo mínimo parte do horário SOLICITADO, não do registrado — senão o
+  // colaborador fica travado no retorno por causa de uma batida que ele mesmo
+  // já pediu para corrigir. Mesma regra no banco (script 39).
+  const ajusteSaida = (() => {
+    const aj = hoje?.pendenteAjuste;
+    if (!aj) return null;
+    const itens = Array.isArray(aj.itens) && aj.itens.length ? aj.itens : aj.campo ? [{ campo: aj.campo, horario: aj.horario }] : [];
+    const it = itens.find((i) => i?.campo === "intervaloSaida" && /^\d{1,2}:\d{2}/.test(String(i.horario || "")));
+    return it ? String(it.horario).slice(0, 5) : null;
+  })();
+  const baseSaida = ajusteSaida || hoje?.intervaloSaida;
+  if (etapa === "intervaloVolta" && baseSaida && Number(cfg.intervalo_minimo_min) > 0) {
+    const liberado = min(baseSaida) + Number(cfg.intervalo_minimo_min);
     if (min(hora) < liberado) {
       const hh = String(Math.floor(liberado / 60) % 24).padStart(2, "0");
       const mm = String(liberado % 60).padStart(2, "0");
