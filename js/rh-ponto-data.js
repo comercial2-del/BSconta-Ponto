@@ -264,6 +264,9 @@ function rhMapPontoRow(row) {
     entrada: rhHoraCurta(row.entrada),
     intervaloSaida: rhHoraCurta(row.intervalo_saida),
     intervaloVolta: rhHoraCurta(row.intervalo_volta),
+    // Retorno provisório (script 39): horário REAL da batida de retorno
+    // enquanto a saída do intervalo aguarda ajuste do RH; null no normal.
+    intervaloVoltaReal: rhHoraCurta(row.intervalo_volta_real) || null,
     saida: rhHoraCurta(row.saida),
     horasTrabalhadas: row.horas_trabalhadas != null ? Number(row.horas_trabalhadas) : null,
     horasExtras: row.horas_extras != null ? Number(row.horas_extras) : 0,
@@ -518,6 +521,9 @@ async function rhSalvarPontoHoje(colaboradorId, diaHoje) {
     geo: diaHoje.geo || null,
     ...calculo,
   };
+  // Retorno provisório (script 39): só envia quando existe — quem limpa é o
+  // RH ao aprovar/recusar o ajuste da saída do intervalo.
+  if (diaHoje.intervaloVoltaReal) payload.intervalo_volta_real = diaHoje.intervaloVoltaReal;
   const { data, error } = await sb.from("ponto_registros").upsert(payload, { onConflict: "colaborador_id,data" }).select().single();
   if (error) throw error;
   return rhMapPontoRow(data);
@@ -620,8 +626,23 @@ async function rhResolverAjustePonto(solicitacaoId, aprovado, resolvidoPorNome) 
       base[coluna] = item.horario;
     }
     const config = await rhBuscarConfigJornada(solicitacao.colaborador_id);
+    let resumo = itens.map((it) => `${it.campoLabel} definido para ${it.horario}`).join("; ");
+    // Retorno provisório (script 39): o colaborador voltou enquanto a saída
+    // do intervalo aguardava este ajuste, e o retorno ficou "considerado"
+    // (saída registrada + mínimo). Aprovado o ajuste, o retorno passa a ser
+    // o maior entre a batida real e a nova saída + intervalo mínimo — a
+    // hora em que ele deveria voltar. Se o próprio ajuste já define o
+    // retorno, vale o do ajuste.
+    const voltaReal = rhHoraCurta(linhaAtual?.intervalo_volta_real);
+    if (voltaReal && base.intervalo_saida && !itens.some((it) => it.campo === "intervaloVolta")) {
+      const minimo = rhIntervaloMinimoEfetivo(config, await rhIntervaloMinimoConfigurado());
+      const saidaMin = rhParseHora(rhHoraCurta(base.intervalo_saida));
+      const alvo = Math.max(rhParseHora(voltaReal), saidaMin + minimo);
+      const novaVolta = `${String(Math.floor(alvo / 60) % 24).padStart(2, "0")}:${String(alvo % 60).padStart(2, "0")}`;
+      base.intervalo_volta = novaVolta;
+      resumo += `; Retorno intervalo recalculado para ${novaVolta} (batido às ${voltaReal})`;
+    }
     const calculo = rhCalcularDia(base, config);
-    const resumo = itens.map((it) => `${it.campoLabel} definido para ${it.horario}`).join("; ");
 
     const payload = {
       colaborador_id: solicitacao.colaborador_id,
@@ -631,6 +652,7 @@ async function rhResolverAjustePonto(solicitacaoId, aprovado, resolvidoPorNome) 
       local: linhaAtual?.local || null,
       geo: linhaAtual?.geo || null,
       pendente_ajuste: null,
+      intervalo_volta_real: null,
       alterado_pelo_rh: { por: resolvidoPorNome || "RH", em: new Date().toISOString(), motivo: `Ajuste aprovado — ${resumo}.` },
     };
     const { error: upsertErr } = await sb.from("ponto_registros").upsert(payload, { onConflict: "colaborador_id,data" });
