@@ -1,17 +1,27 @@
 -- =============================================================================
--- 39 — Retorno do intervalo liberado quando a saída está "Pendente de ajuste"
+-- 39 — Retorno do intervalo com a saída "Pendente de ajuste" (retorno provisório)
 -- =============================================================================
 -- Problema: o colaborador bateu a saída do intervalo no horário errado (ex.:
--- 13:35 em vez de 12:00) e pediu ajuste. Enquanto o RH não valida, a regra do
--- intervalo mínimo continuava contando a partir do horário REGISTRADO (13:35)
--- e travava o retorno até 14:35, mesmo ele já tendo voltado.
+-- 13:35 em vez de 12:00) e pediu ajuste. Enquanto o RH não valida, a trava do
+-- intervalo mínimo (contada da saída registrada) bloqueava o retorno.
 --
--- Regra nova: se existe solicitação PENDENTE de "Ajuste de ponto" para o dia
--- com novo horário para a saída do intervalo, o intervalo mínimo conta a
--- partir do horário SOLICITADO. O resto da função é igual ao script 30.
+-- Regra nova (a trava continua valendo nos horários gravados):
+--   * Saída do intervalo com ajuste PENDENTE e retorno antes do mínimo → o
+--     retorno é aceito como PROVISÓRIO: intervalo_volta = saída registrada +
+--     mínimo (ex.: 14:35, "considerado 1h") e o horário real da batida fica em
+--     intervalo_volta_real (ex.: 13:38).
+--   * RH APROVA o ajuste → o retorno vira o maior entre a batida real e a
+--     saída aprovada + mínimo (feito em rhResolverAjustePonto, que recalcula
+--     as horas) e intervalo_volta_real é limpo.
+--   * RH RECUSA (ou a solicitação sai de PENDENTE sem aprovação) → o retorno
+--     considerado continua valendo; intervalo_volta_real é limpo (trigger).
 --
 -- Seguro para rodar mais de uma vez. Rodar no Supabase: SQL Editor → Run.
+-- (Já aplicado em produção em 04/11/2026.)
 -- =============================================================================
+
+alter table rh.ponto_registros add column if not exists intervalo_volta_real time;
+comment on column rh.ponto_registros.intervalo_volta_real is 'Retorno provisório (script 39): horário REAL da batida de retorno enquanto a saída do intervalo aguarda ajuste. intervalo_volta guarda o retorno considerado (saída + mínimo). Null = retorno normal/concluído.';
 
 -- Horário solicitado (pendente) para a saída do intervalo de um dia, ou null.
 create or replace function rh.ponto_intervalo_saida_solicitada(p_colaborador uuid, p_data date)
@@ -42,6 +52,7 @@ as $$
   ) x;
 $$;
 
+-- Validação do ponto (igual ao script 30 + regra do retorno provisório).
 create or replace function rh.ponto_validar_intervalo()
 returns trigger
 language plpgsql
@@ -56,7 +67,6 @@ declare
   v_volta_mudou boolean;
   v_fim_mudou boolean;
   v_min integer;
-  v_base_saida time;
 begin
   if auth.uid() is null or rh.is_rh_staff() then
     return new;
@@ -94,6 +104,27 @@ begin
       using errcode = 'P0001', hint = 'regra_batida_gravada';
   end if;
 
+  -- Retorno provisório (script 39): o horário real da batida de retorno só
+  -- pode ser gravado pelo colaborador uma vez, e só quando a saída do
+  -- intervalo tem ajuste PENDENTE. O retorno gravado (intervalo_volta)
+  -- continua respeitando o mínimo a partir da saída registrada (abaixo).
+  if new.intervalo_volta_real is not null
+     and (not v_tem_old or new.intervalo_volta_real is distinct from v_old.intervalo_volta_real) then
+    if v_tem_old and v_old.intervalo_volta_real is not null then
+      raise exception 'O retorno do intervalo já foi registrado e não pode ser alterado. Atualize a página.'
+        using errcode = 'P0001', hint = 'regra_batida_gravada';
+    end if;
+    if rh.ponto_intervalo_saida_solicitada(new.colaborador_id, new.data) is null then
+      raise exception 'Retorno provisório só é permitido quando a saída do intervalo está pendente de ajuste.'
+        using errcode = 'P0001', hint = 'regra_retorno_provisorio';
+    end if;
+  end if;
+  if v_tem_old and v_old.intervalo_volta_real is not null and new.intervalo_volta_real is null
+     and rh.ponto_intervalo_saida_solicitada(new.colaborador_id, new.data) is not null then
+    raise exception 'Só o RH pode concluir o retorno provisório do intervalo.'
+      using errcode = 'P0001', hint = 'regra_retorno_provisorio';
+  end if;
+
   v_saida_mudou := new.intervalo_saida is not null
     and (not v_tem_old or new.intervalo_saida is distinct from v_old.intervalo_saida);
   v_volta_mudou := new.intervalo_volta is not null
@@ -111,13 +142,10 @@ begin
       using errcode = 'P0001', hint = 'regra_intervalo_ordem';
   end if;
 
-  -- Saída do intervalo com ajuste pendente: conta a partir do horário solicitado.
-  v_base_saida := coalesce(rh.ponto_intervalo_saida_solicitada(new.colaborador_id, new.data), new.intervalo_saida);
-
   if v_volta_mudou and v_min > 0
-     and (new.intervalo_volta - v_base_saida) < make_interval(mins => v_min) then
+     and (new.intervalo_volta - new.intervalo_saida) < make_interval(mins => v_min) then
     raise exception 'O intervalo mínimo é de % minutos. Retorno permitido a partir das %.',
-      v_min, to_char(date '2000-01-01' + v_base_saida + make_interval(mins => v_min), 'HH24:MI')
+      v_min, to_char(date '2000-01-01' + new.intervalo_saida + make_interval(mins => v_min), 'HH24:MI')
       using errcode = 'P0001', hint = 'regra_intervalo_minimo';
   end if;
 
@@ -131,4 +159,29 @@ begin
 end;
 $$;
 
--- (trigger trg_ponto_validar_intervalo continua o mesmo — só a função mudou)
+-- Solicitação de ajuste sai de PENDENTE sem aprovação (recusada/cancelada):
+-- o retorno considerado fica valendo e o provisório é encerrado.
+create or replace function rh.ponto_encerrar_retorno_provisorio()
+returns trigger
+language plpgsql
+security definer
+set search_path = rh, pg_temp
+as $$
+begin
+  if new.categoria = 'Ajuste de ponto' and old.status = 'PENDENTE'
+     and new.status is distinct from 'PENDENTE' and new.status is distinct from 'RESOLVIDA'
+     and new.ajuste_ponto ? 'data' then
+    update rh.ponto_registros
+       set intervalo_volta_real = null
+     where colaborador_id = new.colaborador_id
+       and data = (new.ajuste_ponto->>'data')::date
+       and intervalo_volta_real is not null;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_ponto_encerrar_retorno_provisorio on rh.solicitacoes;
+create trigger trg_ponto_encerrar_retorno_provisorio
+  after update of status on rh.solicitacoes
+  for each row execute function rh.ponto_encerrar_retorno_provisorio();
