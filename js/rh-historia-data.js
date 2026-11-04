@@ -415,6 +415,38 @@ async function rhExcluirFeriado(data) {
   if (error) throw error;
 }
 
+/** Horário SOLICITADO (ajuste pendente, aguardando o RH) para a saída do
+ * intervalo do dia, ou null. Aceita `hoje.pendenteAjuste` no formato atual
+ * (`itens`) e no antigo (`campo`/`horario` direto). */
+function rhSaidaIntervaloPendente(hoje) {
+  const aj = hoje?.pendenteAjuste;
+  if (!aj) return null;
+  const itens = Array.isArray(aj.itens) && aj.itens.length ? aj.itens : aj.campo ? [{ campo: aj.campo, horario: aj.horario }] : [];
+  const it = itens.find((i) => i?.campo === "intervaloSaida" && /^\d{1,2}:\d{2}/.test(String(i.horario || "")));
+  return it ? String(it.horario).slice(0, 5) : null;
+}
+
+/** Retorno PROVISÓRIO do intervalo (script 39). Quando a saída do intervalo
+ * está pendente de ajuste e o colaborador volta antes do mínimo contado a
+ * partir da saída REGISTRADA, o retorno não é bloqueado: fica considerado
+ * saída registrada + intervalo mínimo (a trava continua valendo nos
+ * horários gravados) e o horário real da batida é guardado à parte
+ * (intervalo_volta_real). Quando o RH:
+ *   - APROVA o ajuste → retorno = maior entre a batida real e a saída
+ *     aprovada + mínimo (ver rhResolverAjustePonto);
+ *   - RECUSA → o retorno considerado continua valendo.
+ * Devolve { considerado, real } ou null quando a batida é normal. */
+function rhRetornoProvisorio(hora, hoje, config) {
+  const cfg = config || RH_CONFIG_PONTO_PADRAO;
+  const minimo = Number(cfg.intervalo_minimo_min);
+  if (!hoje?.intervaloSaida || !(minimo > 0) || !rhSaidaIntervaloPendente(hoje)) return null;
+  const min = (hhmm) => { const [h, m] = String(hhmm).split(":").map(Number); return h * 60 + m; };
+  const liberado = min(hoje.intervaloSaida) + minimo;
+  if (min(hora) >= liberado) return null;
+  const considerado = `${String(Math.floor(liberado / 60) % 24).padStart(2, "0")}:${String(liberado % 60).padStart(2, "0")}`;
+  return { considerado, real: String(hora).slice(0, 5) };
+}
+
 /** Validação no navegador (a mesma regra também é aplicada NO BANCO, por
  * trigger — ver rh.ponto_validar_intervalo). Devolve null se pode bater, ou
  * uma mensagem explicando o bloqueio. `hora` = "HH:MM". */
@@ -424,20 +456,10 @@ function rhValidarBatidaIntervalo(etapa, hora, hoje, config) {
   if (etapa === "intervaloSaida" && cfg.almoco_inicio_minimo && min(hora) < min(cfg.almoco_inicio_minimo)) {
     return `O intervalo não pode começar antes das ${cfg.almoco_inicio_minimo}.`;
   }
-  // Saída do intervalo com ajuste PENDENTE (aguardando o RH): a contagem do
-  // intervalo mínimo parte do horário SOLICITADO, não do registrado — senão o
-  // colaborador fica travado no retorno por causa de uma batida que ele mesmo
-  // já pediu para corrigir. Mesma regra no banco (script 39).
-  const ajusteSaida = (() => {
-    const aj = hoje?.pendenteAjuste;
-    if (!aj) return null;
-    const itens = Array.isArray(aj.itens) && aj.itens.length ? aj.itens : aj.campo ? [{ campo: aj.campo, horario: aj.horario }] : [];
-    const it = itens.find((i) => i?.campo === "intervaloSaida" && /^\d{1,2}:\d{2}/.test(String(i.horario || "")));
-    return it ? String(it.horario).slice(0, 5) : null;
-  })();
-  const baseSaida = ajusteSaida || hoje?.intervaloSaida;
-  if (etapa === "intervaloVolta" && baseSaida && Number(cfg.intervalo_minimo_min) > 0) {
-    const liberado = min(baseSaida) + Number(cfg.intervalo_minimo_min);
+  if (etapa === "intervaloVolta" && hoje?.intervaloSaida && Number(cfg.intervalo_minimo_min) > 0) {
+    // Saída pendente de ajuste: não bloqueia — vira retorno provisório.
+    if (rhRetornoProvisorio(hora, hoje, cfg)) return null;
+    const liberado = min(hoje.intervaloSaida) + Number(cfg.intervalo_minimo_min);
     if (min(hora) < liberado) {
       const hh = String(Math.floor(liberado / 60) % 24).padStart(2, "0");
       const mm = String(liberado % 60).padStart(2, "0");
