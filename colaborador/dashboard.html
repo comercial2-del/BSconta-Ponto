@@ -213,6 +213,16 @@
         .filter((h) => h.data >= inicioIso && h.data <= iso(hoje) && h.horasTrabalhadas)
         .reduce((acc, h) => acc + h.horasTrabalhadas, 0);
     }
+    // Total de horas trabalhadas no mês, sem o dia de hoje (ainda em andamento).
+    function horasTrabalhadasMes() {
+      const hoje = new Date();
+      const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const hojeIso = iso(hoje);
+      const mesIso = hojeIso.slice(0, 7);
+      return dados.ponto.historico
+        .filter((h) => h.data.startsWith(mesIso) && h.data < hojeIso && h.horasTrabalhadas)
+        .reduce((acc, h) => acc + Number(h.horasTrabalhadas), 0);
+    }
     // Formato único (1:30h / 0:30m) — ver fmtDuracao em js/ui.js.
     function fmtHorasCurto(h) { return fmtDuracao(h); }
     function proximoHorarioPonto() {
@@ -302,6 +312,7 @@
                 <div class="dbx-kpi-h"><span>Banco de horas</span><div class="dbx-ic ${saldo < 0 ? "red" : "green"}">${ICONS.hourglass}</div></div>
                 <div class="dbx-val ${saldo < 0 ? "neg" : saldo > 0 ? "pos" : ""}">${fmtDuracao(saldo, { sinal: true })}</div>
                 <div class="dbx-foot">${saldo < 0 ? '<span class="dbx-tag neg">a compensar</span>' : saldo > 0 ? '<span class="dbx-tag ok">saldo positivo</span>' : '<span class="dbx-tag ok">em dia</span>'} acumulado no mês</div>
+                <div class="dbx-foot" style="margin-top:6px">Total trabalhado no mês: <b>${fmtHorasCurto(horasTrabalhadasMes())}</b> <span title="O dia de hoje entra amanhã">(sem hoje)</span></div>
               </a>
             </div>
             <div class="dbx-grid3">
