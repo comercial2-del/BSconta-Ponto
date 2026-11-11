@@ -4,7 +4,7 @@
  *
  * Colunas: Data · Entrada · Saída intervalo · Retorno · Saída ·
  *          Total trabalhado (com "de X previstas" e abono) · Saldo ·
- *          Local · Status · RH
+ *          Local · Status (com "Alterado pelo RH")
  *
  * Cada página passa só o que é dela (status do dia, texto da saída quando
  * falta batida, link do mapa). O resto do visual vive aqui.
@@ -12,19 +12,20 @@
 (function injetarCssPontoTabela() {
   if (document.getElementById("pt-tabela-css")) return;
   const css = `
-.pt-table{width:100%;border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums}
-.pt-table thead th{position:sticky;top:0;z-index:1;background:var(--surface,#fff);font-size:.66rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#98a2b3;padding:.7rem .6rem;border-bottom:1px solid #eaecf0;text-align:left;white-space:nowrap}
+.table-scroll:has(.pt-table){overflow-x:visible!important;background:none!important}
+.pt-table{width:100%;min-width:0!important;table-layout:auto;border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums}
+.pt-table thead th{background:var(--surface,#fff);font-size:.62rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#98a2b3;padding:.6rem .4rem;border-bottom:1px solid #eaecf0;text-align:left;white-space:normal!important;line-height:1.25}
 .pt-table thead th.pt-grp{color:#667085}
 .pt-table thead tr.pt-head-grp th{padding:.45rem .6rem .1rem;border-bottom:0;font-size:.6rem}
 .pt-table thead tr.pt-head-grp th.pt-batidas-h{text-align:center;color:#2f5bea}
 .pt-table thead tr.pt-head-grp th.pt-batidas-h span{display:block;border-bottom:2px solid rgba(47,91,234,.25);padding-bottom:.25rem}
-.pt-table tbody td{padding:.7rem .6rem;border-bottom:1px solid #f2f4f7;vertical-align:middle;font-size:.84rem;color:#344054}
+.pt-table tbody td{white-space:normal!important;padding:.6rem .4rem;border-bottom:1px solid #f2f4f7;vertical-align:middle;font-size:.84rem;color:#344054}
 .pt-table tbody tr:hover td{background:#f9fafb}
 .pt-table .num{text-align:right}
 .pt-table .ctr{text-align:center}
 .pt-date b{display:block;font-weight:800;color:#1d2939;font-size:.86rem}
 .pt-date small{display:block;font-size:.66rem;font-weight:700;color:#98a2b3;text-transform:uppercase;letter-spacing:.04em}
-.pt-hora{display:inline-block;min-width:3.1rem;text-align:center;padding:.22rem .45rem;border-radius:7px;background:#f2f4f7;color:#1d2939;font-weight:700;font-size:.8rem}
+.pt-hora{display:inline-block;min-width:2.9rem;text-align:center;padding:.22rem .45rem;border-radius:7px;background:#f2f4f7;color:#1d2939;font-weight:700;font-size:.8rem}
 .pt-hora.vazio{background:transparent;color:#d0d5dd;font-weight:600}
 .pt-hora.falta{background:#fff7ed;color:#c2410c;font-size:.68rem}
 .pt-hora.andamento{background:#eef4ff;color:#2f5bea;font-size:.68rem}
@@ -43,7 +44,8 @@
 .pt-table tr.pt-folga td{background:#fcfcfd;color:#98a2b3}
 .pt-table tr.pt-pend td:first-child{box-shadow:inset 3px 0 0 #f97316}
 .pt-table tr.pt-falta td:first-child{box-shadow:inset 3px 0 0 #f04438}
-.pt-rh{display:inline-flex;align-items:center;justify-content:center}
+.pt-status{display:flex;flex-direction:column;align-items:flex-start;gap:.3rem}
+.pt-status .badge-alterado{font-size:.62rem}
 html[data-theme="dark"] .pt-table thead th{background:var(--surface);border-bottom-color:var(--border);color:#98a2b3}
 html[data-theme="dark"] .pt-table thead th.pt-total-h{background:rgba(47,91,234,.14);color:#93b0ff}
 html[data-theme="dark"] .pt-table tbody td{border-bottom-color:var(--border);color:var(--text,#e4e7ec)}
@@ -59,7 +61,23 @@ html[data-theme="dark"] .pt-saldo.pos{background:rgba(74,222,128,.12);color:#4ad
 html[data-theme="dark"] .pt-saldo.neg{background:rgba(248,113,113,.12);color:#f87171}
 html[data-theme="dark"] .pt-table tr.pt-hoje td{background:rgba(47,91,234,.08)}
 html[data-theme="dark"] .pt-table tr.pt-folga td{background:transparent;color:#667085}
-@media (max-width:900px){.table-scroll .pt-table{min-width:56rem}}
+/* Celular/tablet: cada dia vira um cartão — sem rolagem lateral. */
+@media (max-width:900px){
+.pt-table thead{display:none}
+.pt-table,.pt-table tbody,.pt-table tr{display:block;width:100%}
+.pt-table tr{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.45rem .5rem;padding:.8rem .7rem;border:1px solid #eaecf0;border-radius:12px;margin-bottom:.6rem}
+.pt-table tbody td{display:block;padding:0;border:0;background:transparent!important;text-align:left}
+.pt-table tbody td::before{content:attr(data-label);display:block;font-size:.58rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#98a2b3;margin-bottom:.15rem}
+.pt-table td.pt-date{grid-column:1/3}.pt-table td.pt-date::before{display:none}
+.pt-table td.pt-total{grid-column:3/5;text-align:right}.pt-table td.pt-total::before{display:none}
+.pt-table td.pt-local{grid-column:1/3}.pt-table td.pt-st{grid-column:3/5}
+.pt-table td.ctr{text-align:center}
+.pt-table tr.pt-hoje{border-color:#2f5bea;background:#f5f8ff}
+.pt-table tr.pt-pend{border-left:3px solid #f97316}.pt-table tr.pt-falta{border-left:3px solid #f04438}
+.pt-table tr.pt-hoje td:first-child,.pt-table tr.pt-pend td:first-child,.pt-table tr.pt-falta td:first-child{box-shadow:none}
+html[data-theme="dark"] .pt-table tr{border-color:var(--border)}
+html[data-theme="dark"] .pt-table tr.pt-hoje{background:rgba(47,91,234,.08)}
+}
 `;
   const el = document.createElement("style");
   el.id = "pt-tabela-css";
@@ -147,17 +165,16 @@ function pontoTabelaHtml(rows, o) {
       <td class="ctr" data-label="Saída">${hora(h.saida, vazioSaida)}</td>
       <td class="pt-total" data-label="Total trabalhado">${totalHtml}${subs.join("")}</td>
       <td class="num" data-label="Saldo">${saldoHtml}</td>
-      <td data-label="Local">${o.localHtml ? o.localHtml(h) : ""}</td>
-      <td data-label="Status">${o.statusHtml(h)}</td>
-      <td class="ctr" data-label="RH">${h.alteradoPeloRH ? `<span class="badge-alterado" title="${esc(h.alteradoPeloRH.motivo)} — ${fmtDate(String(h.alteradoPeloRH.em || "").slice(0, 10))}">${ICONS.edit}Alterado</span>` : `<span class="pt-hora vazio">—</span>`}</td>
+      <td class="pt-local" data-label="Local">${o.localHtml ? o.localHtml(h) : ""}</td>
+      <td class="pt-st" data-label="Status"><div class="pt-status">${o.statusHtml(h)}${h.alteradoPeloRH ? `<span class="badge-alterado" title="${esc(h.alteradoPeloRH.motivo)} — ${fmtDate(String(h.alteradoPeloRH.em || "").slice(0, 10))}">${ICONS.edit}Alterado pelo RH</span>` : ""}</div></td>
     </tr>`;
   };
 
   return `
   <table class="pt-table">
     <thead>
-      <tr class="pt-head-grp"><th></th><th class="pt-batidas-h" colspan="4"><span>Batidas</span></th><th colspan="5"></th></tr>
-      <tr><th>Data</th><th class="ctr">Entrada</th><th class="ctr">Saída intervalo</th><th class="ctr">Retorno</th><th class="ctr">Saída</th><th class="pt-total-h">Total trabalhado</th><th class="num">${o.comApuracao ? "Saldo do dia" : "Extras / Atraso"}</th><th>Local</th><th>Status</th><th class="ctr">RH</th></tr>
+      <tr class="pt-head-grp"><th></th><th class="pt-batidas-h" colspan="4"><span>Batidas</span></th><th colspan="4"></th></tr>
+      <tr><th>Data</th><th class="ctr">Entrada</th><th class="ctr">Saída intervalo</th><th class="ctr">Retorno</th><th class="ctr">Saída</th><th class="pt-total-h">Total trabalhado</th><th class="num">${o.comApuracao ? "Saldo do dia" : "Extras / atraso"}</th><th>Local</th><th>Status</th></tr>
     </thead>
     <tbody>${rows.map(linha).join("")}</tbody>
   </table>`;
