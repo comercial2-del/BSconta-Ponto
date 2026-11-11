@@ -107,6 +107,7 @@
   <script src="../js/supabase-client.js?v=20260929c"></script>
   <script src="../js/rh-supabase-auth.js?v=20260929c"></script>
   <script src="../js/rh-ponto-data.js?v=20261104b"></script>
+  <script src="../js/ponto-tabela.js?v=20261111b"></script>
   <script src="../js/rh-historia-data.js?v=20261013a"></script>
   <script>
 (async function () {
@@ -922,32 +923,13 @@
         return `<span class="status-badge ${cls}">${esc(label)}</span>`;
       };
       document.getElementById("tabela-historico").innerHTML = rows.length
-        ? `
-        <table>
-          <thead><tr><th>Data</th><th>Entrada</th><th>Saída</th><th>Intervalo</th><th class="cell-num">Horas</th>${comApuracao ? `<th class="cell-num">Previstas</th><th class="cell-num">Abono</th><th class="cell-num">Saldo</th>` : `<th class="cell-num">Extras</th><th class="cell-num">Atraso</th>`}<th>Local</th><th>Status</th><th>RH</th></tr></thead>
-          <tbody>
-            ${rows
-              .map(
-                (h) => `<tr>
-              <td>${fmtDate(h.data)}</td>
-              <td>${h.entrada || "—"}</td>
-              <td>${h.saida || (h.status === "hoje" ? "Em andamento" : "—")}</td>
-              <td>${h.intervaloSaida && h.intervaloVolta ? `${h.intervaloSaida}–${h.intervaloVolta}` : "—"}${Number(h.descontoAlmocoH) > 0 ? `<small class="intervalo-excesso" title="Intervalo passou do mínimo (1h) e não foi compensado no dia — conta como horas negativas no banco de horas.">${fmtMinutos(-Math.round(Number(h.descontoAlmocoH) * 60))} intervalo</small>` : ""}</td>
-              <td class="cell-num">${h.horasTrabalhadas != null ? fmtHoras(h.horasTrabalhadas) : h.trabalhadasMin ? fmtMinutos(h.trabalhadasMin) : "—"}</td>
-              ${comApuracao ? `
-              <td class="cell-num">${h.previstasMin ? fmtMinutos(h.previstasMin) : "—"}</td>
-              <td class="cell-num">${h.abonoMin ? fmtMinutos(h.abonoMin) : "—"}</td>
-              <td class="cell-num">${h.data === todayIso() ? '<span class="hint">entra amanhã</span>' : h.contaNoBanco === false ? '<span class="hint" title="Antes do início da apuração — já incluído no saldo anterior">—</span>' : h.saldoMin ? `<b style="color:${h.saldoMin < 0 ? "var(--red-600,#d92d20)" : "var(--emerald-600,#067647)"}">${fmtMinutos(h.saldoMin, { sinal: true })}</b>` : "0:00"}</td>` : `
-              <td class="cell-num">${h.horasExtras ? fmtDuracao(h.horasExtras, { sinal: true }) : "—"}</td>
-              <td class="cell-num">${h.atrasoMin ? fmtMinutos(-h.atrasoMin) : "—"}</td>`}
-              <td>${localBadgeHtml(h.local)}${geoLinkForPonto(h.geo, h.data)}</td>
-              <td>${(() => { const pend = pendenciaAjusteDoDia(colaboradorSelecionado, h.data, h); return pend ? `<span class="status-badge status-PENDENTE-AJUSTE" title="${esc(pend.detalhe)}">Pendente de ajuste</span>` : h.sintetico ? pillApuracao(h) : statusPillPonto(h.status); })()}</td>
-              <td>${h.alteradoPeloRH ? `<span class="badge-alterado" title="${esc(h.alteradoPeloRH.motivo)} — ${fmtDate(h.alteradoPeloRH.em.slice(0,10))}">${ICONS.edit}Alterado</span>` : "—"}</td>
-            </tr>`
-              )
-              .join("")}
-          </tbody>
-        </table>`
+        ? pontoTabelaHtml(rows, {
+            hoje: todayIso(),
+            comApuracao,
+            statusHtml: (h) => (() => { const pend = pendenciaAjusteDoDia(colaboradorSelecionado, h.data, h); return pend ? `<span class="status-badge status-PENDENTE-AJUSTE" title="${esc(pend.detalhe)}">Pendente de ajuste</span>` : h.sintetico ? pillApuracao(h) : statusPillPonto(h.status); })(),
+            saidaVazia: (h) => h.status === "hoje" || (h.data === todayIso() && h.entrada) ? { texto: "em andamento", cls: "andamento" } : h.batidasFaltando?.length ? { texto: "não registrada", cls: "falta" } : null,
+            localHtml: (h) => `${localBadgeHtml(h.local)}${geoLinkForPonto(h.geo, h.data)}`,
+          })
         : emptyStateHtml({ icon: ICONS.clock, title: "Nenhum registro neste período", desc: "Escolha outro dia, semana ou intervalo." });
     }
 
