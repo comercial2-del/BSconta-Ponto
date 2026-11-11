@@ -9,6 +9,83 @@
   <link rel="stylesheet" href="../css/theme-v2.css" />
   <link rel="stylesheet" href="../css/dark-mode.css?v=20261006c" />
   <script src="../js/theme.js?v=20261006c"></script>
+  <style>
+    .dash{display:flex;flex-direction:column;gap:1.1rem}
+    .dash-hero{display:grid;grid-template-columns:1fr auto;gap:1rem 1.5rem;align-items:center;padding:1.4rem 1.5rem;border-radius:18px;background:linear-gradient(135deg,#eef3ff 0%,#f6f3ff 55%,#fff 100%);border:1px solid #e3e9fb}
+    .dash-hero h1{margin:.35rem 0 .2rem;font-size:1.65rem;font-weight:800;letter-spacing:-.02em;color:#101828}
+    .dash-hero p{margin:0;color:#475467;font-size:.9rem}
+    .dash-hero p b{color:#101828}
+    .dash-date{display:inline-flex;align-items:center;gap:.35rem;font-size:.72rem;font-weight:800;color:#2f5bea;text-transform:uppercase;letter-spacing:.05em}
+    .dash-date svg{width:14px;height:14px}
+    .dash-quick{grid-column:1/-1;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.6rem}
+    .dash-quick-a{display:flex;align-items:center;gap:.6rem;padding:.6rem .75rem;border-radius:12px;background:rgba(255,255,255,.85);border:1px solid #e7ecf5;color:#344054;font-weight:700;font-size:.82rem;text-decoration:none;transition:transform .15s,box-shadow .15s,border-color .15s}
+    .dash-quick-a:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(16,24,40,.08);border-color:#c7d4fb}
+    .dash-ic{flex:none;display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:9px}
+    .dash-ic svg{width:16px;height:16px}
+    .dash-ic.indigo{background:#eef2ff;color:#4338ca}.dash-ic.teal{background:#ecfdf8;color:#0f766e}.dash-ic.violet{background:#f4f0ff;color:#6d28d9}.dash-ic.amber{background:#fff8eb;color:#b45309}.dash-ic.green{background:#ecfdf3;color:#067647}.dash-ic.rose{background:#fff1f3;color:#c01048}
+    .dash-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:1.1rem;align-items:start}
+    .dash-col{display:flex;flex-direction:column;gap:1.1rem}
+    .dash-card{padding:1.1rem 1.2rem}
+    .dash-card-h{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin-bottom:.9rem}
+    .dash-card-h h2{display:flex;align-items:center;gap:.55rem;margin:0;font-size:.98rem}
+    .dash-card-h .card-link{display:inline-flex;align-items:center;gap:.15rem;white-space:nowrap}
+    .dash-card-h .card-link svg{width:14px;height:14px}
+    .dash-count{display:inline-flex;align-items:center;justify-content:center;min-width:1.4rem;height:1.4rem;padding:0 .4rem;border-radius:999px;background:#f2f4f7;color:#475467;font-size:.72rem;font-weight:800}
+    .dash-ponto-nums{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem}
+    .dash-num{padding:.75rem .9rem;border-radius:12px;border:1px solid #eef0f4}
+    .dash-num b{display:block;font-size:1.6rem;line-height:1.1;font-weight:800}
+    .dash-num span{font-size:.75rem;font-weight:700;color:#667085}
+    .dash-num.green{background:#f3fcf7}.dash-num.green b{color:#067647}
+    .dash-num.amber{background:#fffaf0}.dash-num.amber b{color:#b45309}
+    .dash-num.red{background:#fff6f5}.dash-num.red b{color:#d92d20}
+    .dash-bar{display:flex;height:8px;border-radius:999px;overflow:hidden;background:#f2f4f7;margin:.9rem 0 .75rem}
+    .dash-bar i{display:block;height:100%}
+    .dash-bar i.green{background:#12b76a}.dash-bar i.amber{background:#f79009}.dash-bar i.red{background:#f04438}
+    .dash-chips{display:flex;flex-wrap:wrap;gap:.45rem}
+    .dash-chip{display:inline-flex;align-items:center;gap:.35rem;padding:.3rem .6rem;border-radius:999px;background:#f8fafc;border:1px solid #eef0f4;font-size:.76rem;font-weight:600;color:#475467}
+    .dash-chip svg{width:13px;height:13px}.dash-chip b{color:#101828}.dash-chip.muted{color:#98a2b3}
+    .dash-attn{margin-top:1rem;padding-top:.8rem;border-top:1px dashed #e4e7ec}
+    .dash-attn-t{margin:0 0 .35rem;font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:#98a2b3}
+    .dash-list{display:flex;flex-direction:column}
+    .dash-person{display:flex;align-items:center;gap:.65rem;padding:.5rem 0;border-bottom:1px solid #f2f4f7}
+    .dash-person:last-child{border-bottom:0}
+    .dash-person-n{flex:1;min-width:0;font-weight:600;font-size:.85rem;color:#1d2939;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .dash-person-n small{display:block;font-weight:500;font-size:.74rem;color:#98a2b3}
+    .dash-pill{display:inline-flex;align-items:center;gap:.3rem;padding:.2rem .55rem;border-radius:999px;font-size:.72rem;font-weight:800;white-space:nowrap}
+    .dash-pill svg{width:12px;height:12px}
+    .dash-pill.red{background:#fef3f2;color:#d92d20}.dash-pill.amber{background:#fffaeb;color:#b54708}.dash-pill.rose{background:#fff1f3;color:#c01048}.dash-pill.teal{background:#ecfdf8;color:#0f766e}
+    .dash-req{display:flex;align-items:center;gap:.7rem;padding:.65rem .55rem;margin:0 -.55rem;border-radius:10px;text-decoration:none;color:inherit;border-bottom:1px solid #f2f4f7}
+    .dash-req:last-child{border-bottom:0}
+    .dash-req:hover{background:#f8fafc}
+    .dash-req-main{flex:1;min-width:0}
+    .dash-req-main b{display:block;font-size:.85rem;color:#1d2939;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .dash-req-main small{display:flex;align-items:center;flex-wrap:wrap;gap:.3rem;font-size:.74rem;color:#98a2b3;margin-top:.15rem}
+    .dash-cat{display:inline-flex;align-items:center;gap:.25rem;font-weight:700}
+    .dash-cat svg{width:12px;height:12px}
+    .dash-cat.amber{color:#b45309}.dash-cat.teal{color:#0f766e}.dash-cat.indigo{color:#4338ca}.dash-cat.violet{color:#6d28d9}
+    .dash-req-go{display:inline-flex;align-items:center;gap:.1rem;font-size:.76rem;font-weight:700;color:#2f5bea;white-space:nowrap}
+    .dash-req-go svg{width:14px;height:14px}
+    .dash-depts{display:flex;flex-direction:column;gap:.6rem}
+    .dash-dept{display:grid;grid-template-columns:minmax(0,9rem) 1fr 1.6rem;align-items:center;gap:.6rem;font-size:.82rem}
+    .dash-dept-n{font-weight:600;color:#344054;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .dash-dept-bar{height:8px;border-radius:999px;background:#f2f4f7;overflow:hidden}
+    .dash-dept-bar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#4f7cff,#2f5bea)}
+    .dash-dept b{text-align:right;color:#101828}
+    .dash-empty{display:flex;align-items:center;gap:.55rem;padding:.9rem;border-radius:12px;background:#f9fafb;color:#98a2b3;font-size:.82rem;font-weight:600}
+    .dash-empty svg{width:18px;height:18px;flex:none}
+    html[data-theme="dark"] .dash-hero{background:linear-gradient(135deg,rgba(47,91,234,.16),rgba(124,58,237,.08) 60%,transparent);border-color:var(--border)}
+    html[data-theme="dark"] .dash-hero h1,html[data-theme="dark"] .dash-hero p b,html[data-theme="dark"] .dash-person-n,html[data-theme="dark"] .dash-req-main b,html[data-theme="dark"] .dash-dept b,html[data-theme="dark"] .dash-chip b{color:#f2f4f7}
+    html[data-theme="dark"] .dash-hero p,html[data-theme="dark"] .dash-dept-n{color:#cbd5e1}
+    html[data-theme="dark"] .dash-quick-a{background:rgba(255,255,255,.04);border-color:var(--border);color:#e4e7ec}
+    html[data-theme="dark"] .dash-num,html[data-theme="dark"] .dash-chip,html[data-theme="dark"] .dash-empty{background:rgba(255,255,255,.04);border-color:var(--border)}
+    html[data-theme="dark"] .dash-bar,html[data-theme="dark"] .dash-dept-bar,html[data-theme="dark"] .dash-count{background:rgba(255,255,255,.08);color:#cbd5e1}
+    html[data-theme="dark"] .dash-person,html[data-theme="dark"] .dash-req{border-bottom-color:var(--border)}
+    html[data-theme="dark"] .dash-req:hover{background:rgba(255,255,255,.04)}
+    html[data-theme="dark"] .dash-ic{filter:saturate(.9) brightness(.95)}
+    @media (max-width:1100px){.dash-quick{grid-template-columns:repeat(3,minmax(0,1fr))}}
+    @media (max-width:980px){.dash-grid{grid-template-columns:1fr}}
+    @media (max-width:640px){.dash-hero{grid-template-columns:1fr;padding:1.1rem}.dash-hero h1{font-size:1.35rem}.dash-quick{grid-template-columns:repeat(2,minmax(0,1fr))}.dash-req-go{display:none}}
+  </style>
 </head>
 <body>
   <div class="app-shell">
@@ -128,145 +205,142 @@
       const k = dash;
       const maxDept = Math.max(1, ...dash.departamentos.map((d) => d.qtd));
       const pontoRows = dash.pontoHoje;
-      const pontoStats = [
-        { label: "Em dia", value: pontoRows.filter((r) => r.status === "completo").length, bg: "var(--emerald-50)", fg: "var(--emerald-600)", icon: ICONS.checkCircle },
-        { label: "Atraso", value: pontoRows.filter((r) => r.status === "atraso").length, bg: "var(--amber-50)", fg: "var(--amber-700)", icon: ICONS.alertCircle },
-        { label: "Falta", value: pontoRows.filter((r) => r.status === "falta").length, bg: "var(--red-50)", fg: "var(--red-600)", icon: ICONS.xCircle },
-        { label: "Home office", value: pontoRows.filter((r) => r.local === "HOME_OFFICE").length, bg: "var(--indigo-50)", fg: "var(--indigo-600)", icon: ICONS.home },
-        { label: "Presencial", value: pontoRows.filter((r) => r.local === "PRESENCIAL").length, bg: "var(--teal-50)", fg: "var(--teal-600)", icon: ICONS.mapPin },
-      ];
+      const esperados = pontoRows.filter((r) => ["completo", "atraso", "falta"].includes(r.status));
+      const qtd = (st) => pontoRows.filter((r) => r.status === st).length;
+      const emDia = qtd("completo"), atraso = qtd("atraso"), falta = qtd("falta");
+      const homeOffice = pontoRows.filter((r) => r.local === "HOME_OFFICE").length;
+      const presencial = pontoRows.filter((r) => r.local === "PRESENCIAL").length;
+      const totalEsp = Math.max(1, esperados.length);
+      const pct = (n) => Math.round((n / totalEsp) * 100);
+      const atencao = pontoRows.filter((r) => r.status === "atraso" || r.status === "falta");
+
+      const hoje = new Date();
+      const dataLonga = hoje.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
+      const hora = hoje.getHours();
+      const saudacao = hora < 12 ? "Bom dia" : hora < 18 ? "Boa tarde" : "Boa noite";
+
+      const catIcon = (c) => /ponto/i.test(c) ? ICONS.clock : /f[ée]rias/i.test(c) ? ICONS.palmTree : /document/i.test(c) ? ICONS.fileText : ICONS.messageSquare;
+      const catTone = (c) => /ponto/i.test(c) ? "amber" : /f[ée]rias/i.test(c) ? "teal" : /document/i.test(c) ? "indigo" : "violet";
+      const diasAtras = (iso) => { const d = Math.round((new Date(rhTodayIso() + "T12:00:00") - new Date(iso + "T12:00:00")) / 86400000); return d <= 0 ? "hoje" : d === 1 ? "ontem" : `há ${d} dias`; };
+      const vazio = (icon, txt) => `<div class="dash-empty">${icon}<span>${txt}</span></div>`;
 
       document.getElementById("content").innerHTML = `
-        <div class="space-y">
-          <div class="row-between">
-            <div>
-              <h1 class="page-title">Olá, ${esc(firstName(session.name))} 👋</h1>
-              <p class="page-sub">Visão geral da equipe BSconta+ — ${k.totalColaboradores} colaboradores no total.</p>
+        <div class="dash">
+          <section class="dash-hero">
+            <div class="dash-hero-txt">
+              <span class="dash-date">${ICONS.calendar}${esc(dataLonga.charAt(0).toUpperCase() + dataLonga.slice(1))}</span>
+              <h1>${saudacao}, ${esc(firstName(session.name))} 👋</h1>
+              <p>Visão geral da equipe BSconta+ · <b>${k.ativos}</b> de ${k.totalColaboradores} colaboradores ativos</p>
             </div>
-            <div class="header-actions">
+            <div class="dash-hero-actions">
               <a href="colaboradores.html?novo=1" class="btn-primary auto">${ICONS.plus}<span>Novo colaborador</span></a>
             </div>
-          </div>
+            <nav class="dash-quick">
+              ${quick("ponto.html", ICONS.clock, "Jornada / Ponto", "indigo")}
+              ${quick("ferias.html", ICONS.palmTree, "Aprovar férias", "teal")}
+              ${quick("comunicados.html", ICONS.megaphone, "Novo comunicado", "violet")}
+              ${quick("documentos.html", ICONS.fileText, "Enviar documento", "amber")}
+              ${quick("relatorios.html", ICONS.reports, "Relatórios", "green")}
+            </nav>
+          </section>
 
           <div id="kpi-grid"></div>
 
-          <div class="grid-2">
-            <div class="card card-p">
-              <h2>Colaboradores por departamento</h2>
-              <div style="display:flex;flex-direction:column;gap:0.75rem">
-                ${dash.departamentos.length
-                  ? dash.departamentos
-                      .map(
-                        (d) => `
-                  <div>
-                    <div class="funnel-row-top" style="font-size:0.85rem;margin-bottom:0.3rem">
-                      <span class="name" style="color:var(--text)">${esc(d.nome)}</span>
-                      <span class="meta">${d.qtd} colaborador${d.qtd === 1 ? "" : "es"}</span>
-                    </div>
-                    <div class="funnel-bar-track"><div class="funnel-bar-fill" style="width:${(d.qtd / maxDept) * 100}%"></div></div>
-                  </div>`
-                      )
-                      .join("")
-                  : `<p class="page-sub" style="margin:0">Nenhum colaborador cadastrado ainda.</p>`}
-              </div>
-            </div>
-
-            <div class="card card-p">
-              <div class="row-between" style="margin-bottom:0.5rem">
-                <h2 style="margin:0">Aniversariantes do mês</h2>
-                <span class="badge badge-neutral">${dash.aniversariantes.length}</span>
-              </div>
-              ${dash.aniversariantes.length
-                ? dash.aniversariantes
-                    .map(
-                      (a) => `
-                <div style="display:flex;align-items:center;gap:0.7rem;padding:0.55rem 0;border-bottom:1px solid var(--surface-2)">
-                  <div class="avatar ${avatarColorClass(a.nome)}">${avatarInner(a.nome)}</div>
-                  <div style="flex:1"><p style="margin:0;font-weight:600;font-size:0.87rem">${esc(a.nome)}</p></div>
-                  <span class="badge badge-neutral">${ICONS.cake}${a.data}</span>
-                </div>`
-                    )
-                    .join("")
-                : `<p class="page-sub" style="margin:0">Nenhum aniversário este mês (ou data de nascimento não cadastrada).</p>`}
-            </div>
-          </div>
-
-          <div class="grid-3-mixed">
-            <div class="card card-p">
-              <div class="row-between" style="margin-bottom:0.4rem">
-                <h2 style="margin:0">Jornada de hoje</h2>
-                <a href="ponto.html" class="card-link">Ver detalhes</a>
-              </div>
-              <div style="display:flex;flex-direction:column">
-                ${pontoStats
-                  .map(
-                    (s) => `
-                  <div style="display:flex;align-items:center;gap:0.65rem;padding:0.45rem 0;border-bottom:1px solid var(--surface-2)">
-                    <span class="benefit-icon" style="width:34px;height:34px;background:${s.bg};color:${s.fg}">${s.icon}</span>
-                    <span style="flex:1;font-size:0.85rem">${s.label}</span>
-                    <strong style="font-size:0.92rem">${s.value}</strong>
-                  </div>`
-                  )
-                  .join("")}
-              </div>
-            </div>
-
-            <div class="card card-p">
-              <div class="row-between" style="margin-bottom:0.5rem">
-                <h2 style="margin:0">Solicitações pendentes</h2>
-                <a href="solicitacoes.html" class="card-link">Ver todas</a>
-              </div>
-              <div class="table-scroll">
-                <table>
-                  <thead><tr><th>Colaborador</th><th>Categoria</th><th>Data</th><th></th></tr></thead>
-                  <tbody>
-                    ${dash.solicitacoesPendentesRows.length
-                      ? dash.solicitacoesPendentesRows
-                          .slice(0, 5)
-                          .map(
-                            (s) => `<tr>
-                        <td><div class="person-cell"><span class="avatar avatar-sm ${avatarColorClass(s.colaborador)}">${avatarInner(s.colaborador)}</span>${esc(s.colaborador)}</div></td>
-                        <td>${esc(s.categoria)}</td>
-                        <td>${fmtDate(s.data)}</td>
-                        <td style="text-align:right"><a href="solicitacoes.html" class="btn-ghost" style="width:auto;padding:0.35rem 0.65rem;font-size:0.8rem">Resolver</a></td>
-                      </tr>`
-                          )
-                          .join("")
-                      : `<tr><td colspan="4"><p class="page-sub" style="margin:0.4rem 0">Nenhuma solicitação pendente.</p></td></tr>`}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div class="card card-p">
-              <h2>Férias próximas</h2>
-              ${dash.feriasProximasRows.length
-                ? dash.feriasProximasRows
-                    .slice(0, 5)
-                    .map(
-                      (v) => `
-                <div style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem 0;border-bottom:1px solid var(--surface-2)">
-                  <span class="avatar avatar-sm ${avatarColorClass(v.colaborador)}">${avatarInner(v.colaborador)}</span>
-                  <div style="flex:1;min-width:0">
-                    <p style="margin:0;font-weight:600;font-size:0.83rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(v.colaborador)}</p>
-                    <p style="margin:0.1rem 0 0;font-size:0.76rem;color:var(--text-faint)">${fmtDate(v.inicio)} a ${fmtDate(v.fim)}</p>
+          <div class="dash-grid">
+            <div class="dash-col">
+              <section class="card dash-card">
+                <header class="dash-card-h">
+                  <h2><span class="dash-ic indigo">${ICONS.clock}</span>Jornada de hoje</h2>
+                  <a href="ponto.html" class="card-link">Ver detalhes ${ICONS.chevronRight}</a>
+                </header>
+                <div class="dash-ponto">
+                  <div class="dash-ponto-nums">
+                    <div class="dash-num green"><b>${emDia}</b><span>Em dia</span></div>
+                    <div class="dash-num amber"><b>${atraso}</b><span>Atraso</span></div>
+                    <div class="dash-num red"><b>${falta}</b><span>Falta</span></div>
                   </div>
-                  <span class="badge badge-neutral">${v.dias}d</span>
-                </div>`
-                    )
-                    .join("")
-                : `<p class="page-sub" style="margin:0">Nenhuma férias aprovada nos próximos 30 dias.</p>`}
-            </div>
-          </div>
+                  <div class="dash-bar" title="${emDia} em dia · ${atraso} atraso · ${falta} falta">
+                    <i class="green" style="width:${pct(emDia)}%"></i><i class="amber" style="width:${pct(atraso)}%"></i><i class="red" style="width:${pct(falta)}%"></i>
+                  </div>
+                  <div class="dash-chips">
+                    <span class="dash-chip">${ICONS.mapPin}Presencial <b>${presencial}</b></span>
+                    <span class="dash-chip">${ICONS.home}Home office <b>${homeOffice}</b></span>
+                    <span class="dash-chip muted">${esperados.length} esperados hoje</span>
+                  </div>
+                  ${atencao.length ? `
+                  <div class="dash-attn">
+                    <p class="dash-attn-t">Precisam de atenção</p>
+                    ${atencao.map((r) => `
+                      <div class="dash-person">
+                        <span class="avatar avatar-sm ${avatarColorClass(r.nome)}">${avatarInner(r.nome)}</span>
+                        <span class="dash-person-n">${esc(r.nome)}</span>
+                        <span class="dash-pill ${r.status === "falta" ? "red" : "amber"}">${r.status === "falta" ? "Falta" : "Atraso"}</span>
+                      </div>`).join("")}
+                  </div>` : ""}
+                </div>
+              </section>
 
-          <div class="card card-p">
-            <h2>Atalhos</h2>
-            <div style="display:flex;flex-wrap:wrap;gap:0.7rem">
-              ${shortcut("colaboradores.html", ICONS.users, "Gerenciar colaboradores")}
-              ${shortcut("ferias.html", ICONS.palmTree, "Aprovar férias")}
-              ${shortcut("comunicados.html", ICONS.megaphone, "Novo comunicado")}
-              ${shortcut("relatorios.html", ICONS.reports, "Ver relatórios")}
-              ${shortcut("documentos.html", ICONS.fileText, "Enviar documento")}
+              <section class="card dash-card">
+                <header class="dash-card-h">
+                  <h2><span class="dash-ic violet">${ICONS.messageSquare}</span>Solicitações pendentes ${k.solicitacoesPendentes ? `<span class="dash-count">${k.solicitacoesPendentes}</span>` : ""}</h2>
+                  <a href="solicitacoes.html" class="card-link">Ver todas ${ICONS.chevronRight}</a>
+                </header>
+                ${dash.solicitacoesPendentesRows.length
+                  ? `<div class="dash-list">${dash.solicitacoesPendentesRows.slice(0, 6).map((s) => `
+                    <a href="solicitacoes.html" class="dash-req">
+                      <span class="avatar avatar-sm ${avatarColorClass(s.colaborador)}">${avatarInner(s.colaborador)}</span>
+                      <span class="dash-req-main"><b>${esc(s.colaborador)}</b><small><span class="dash-cat ${catTone(s.categoria)}">${catIcon(s.categoria)}${esc(s.categoria)}</span> · ${fmtDate(s.data)} · ${diasAtras(s.data)}</small></span>
+                      <span class="dash-req-go">Resolver ${ICONS.chevronRight}</span>
+                    </a>`).join("")}</div>`
+                  : vazio(ICONS.checkCircle, "Nenhuma solicitação pendente. Tudo em dia!")}
+              </section>
+            </div>
+
+            <div class="dash-col">
+              <section class="card dash-card">
+                <header class="dash-card-h">
+                  <h2><span class="dash-ic rose">${ICONS.cake}</span>Aniversariantes do mês</h2>
+                  <span class="dash-count">${dash.aniversariantes.length}</span>
+                </header>
+                ${dash.aniversariantes.length
+                  ? `<div class="dash-list">${dash.aniversariantes.map((a) => `
+                    <div class="dash-person">
+                      <span class="avatar avatar-sm ${avatarColorClass(a.nome)}">${avatarInner(a.nome)}</span>
+                      <span class="dash-person-n">${esc(a.nome)}</span>
+                      <span class="dash-pill rose">${ICONS.cake}${a.data}</span>
+                    </div>`).join("")}</div>`
+                  : vazio(ICONS.cake, "Nenhum aniversário este mês.")}
+              </section>
+
+              <section class="card dash-card">
+                <header class="dash-card-h">
+                  <h2><span class="dash-ic teal">${ICONS.palmTree}</span>Férias nos próximos 30 dias</h2>
+                  <a href="ferias.html" class="card-link">Ver ${ICONS.chevronRight}</a>
+                </header>
+                ${dash.feriasProximasRows.length
+                  ? `<div class="dash-list">${dash.feriasProximasRows.slice(0, 5).map((v) => `
+                    <div class="dash-person">
+                      <span class="avatar avatar-sm ${avatarColorClass(v.colaborador)}">${avatarInner(v.colaborador)}</span>
+                      <span class="dash-person-n">${esc(v.colaborador)}<small>${fmtDate(v.inicio)} a ${fmtDate(v.fim)}</small></span>
+                      <span class="dash-pill teal">${v.dias} dias</span>
+                    </div>`).join("")}</div>`
+                  : vazio(ICONS.palmTree, "Nenhuma férias aprovada para os próximos 30 dias.")}
+              </section>
+
+              <section class="card dash-card">
+                <header class="dash-card-h">
+                  <h2><span class="dash-ic green">${ICONS.building}</span>Equipe por departamento</h2>
+                  <a href="colaboradores.html" class="card-link">Ver ${ICONS.chevronRight}</a>
+                </header>
+                ${dash.departamentos.length
+                  ? `<div class="dash-depts">${dash.departamentos.map((d) => `
+                    <div class="dash-dept">
+                      <span class="dash-dept-n">${esc(d.nome)}</span>
+                      <span class="dash-dept-bar"><i style="width:${Math.max(6, (d.qtd / maxDept) * 100)}%"></i></span>
+                      <b>${d.qtd}</b>
+                    </div>`).join("")}</div>`
+                  : vazio(ICONS.users, "Nenhum colaborador cadastrado ainda.")}
+              </section>
             </div>
           </div>
         </div>
@@ -281,8 +355,8 @@
       ], true);
     }
 
-    function shortcut(href, icon, label) {
-      return `<a href="${href}" class="btn-ghost" style="width:auto">${icon}<span>${label}</span></a>`;
+    function quick(href, icon, label, tone) {
+      return `<a href="${href}" class="dash-quick-a"><span class="dash-ic ${tone}">${icon}</span><span>${label}</span></a>`;
     }
 
     if (session) {
