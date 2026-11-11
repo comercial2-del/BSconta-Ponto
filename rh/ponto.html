@@ -87,6 +87,82 @@
       .ponto-employee-main{width:100%}.ponto-employee-main select{flex:1;min-width:0}
       .ponto-period-label{min-width:120px}
     }
+    /* ---- Aba Hoje (visual 11/11/2026) ---- */
+    .jh-resumo{padding:1.2rem 1.3rem}
+    .jh-resumo-top{display:flex;justify-content:space-between;align-items:flex-end;gap:1rem;flex-wrap:wrap}
+    .jh-data{display:inline-flex;align-items:center;gap:.35rem;margin:0;font-size:.7rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#2f5bea}
+    .jh-data svg{width:14px;height:14px}
+    .jh-resumo h2{margin:.3rem 0 .15rem;font-size:1.25rem;font-weight:800;letter-spacing:-.01em}
+    .jh-sub{margin:0;font-size:.84rem;color:#667085}.jh-sub b{color:#101828}
+    .jh-legend{display:flex;gap:.9rem;flex-wrap:wrap;font-size:.76rem;font-weight:700;color:#475467}
+    .jh-legend span{display:inline-flex;align-items:center;gap:.35rem}
+    .jh-legend i{width:9px;height:9px;border-radius:50%;display:inline-block}
+    .jh-legend i.green,.jh-bar i.green{background:#12b76a}.jh-legend i.amber,.jh-bar i.amber{background:#f79009}.jh-legend i.red,.jh-bar i.red{background:#f04438}
+    .jh-bar{display:flex;height:10px;border-radius:999px;overflow:hidden;background:#f2f4f7;margin:.9rem 0 1rem}
+    .jh-bar i{display:block;height:100%}
+    .jh-tiles{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:.55rem}
+    .jh-tile{display:flex;align-items:center;gap:.55rem;padding:.6rem .65rem;border-radius:12px;border:1px solid #eaecf0;background:#fff;cursor:pointer;text-align:left;font:inherit;transition:border-color .15s,box-shadow .15s,transform .15s}
+    .jh-tile:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(16,24,40,.06)}
+    .jh-tile.active{border-color:#2f5bea;box-shadow:0 0 0 3px rgba(47,91,234,.12)}
+    .jh-tile-ic{flex:none;display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:9px}
+    .jh-tile-ic svg{width:16px;height:16px}
+    .jh-tile-txt b{display:block;font-size:1.15rem;line-height:1.1;font-weight:800;color:#101828}
+    .jh-tile-txt span{font-size:.7rem;font-weight:700;color:#667085;white-space:nowrap}
+    .jh-tile.slate .jh-tile-ic{background:#f2f4f7;color:#475467}.jh-tile.green .jh-tile-ic{background:#ecfdf3;color:#067647}.jh-tile.amber .jh-tile-ic{background:#fffaeb;color:#b54708}.jh-tile.red .jh-tile-ic{background:#fef3f2;color:#d92d20}.jh-tile.teal .jh-tile-ic{background:#ecfdf8;color:#0f766e}.jh-tile.indigo .jh-tile-ic{background:#eef2ff;color:#4338ca}.jh-tile.violet .jh-tile-ic{background:#f4f0ff;color:#6d28d9}
+    .jh-lista{padding:1.1rem 1.2rem}
+    .jh-lista-h{display:flex;justify-content:space-between;align-items:center;gap:.8rem;flex-wrap:wrap;margin-bottom:.8rem}
+    .jh-lista-h h2{margin:0;display:flex;align-items:center;gap:.5rem;font-size:1rem}
+    .jh-count{display:inline-flex;align-items:center;justify-content:center;min-width:1.5rem;height:1.5rem;padding:0 .45rem;border-radius:999px;background:#f2f4f7;color:#475467;font-size:.74rem;font-weight:800}
+    .jh-busca{display:flex;align-items:center;gap:.45rem;padding:.45rem .7rem;border:1px solid #e4e7ec;border-radius:10px;background:#fff;min-width:15rem}
+    .jh-busca svg{width:16px;height:16px;color:#98a2b3}
+    .jh-busca input{border:0;outline:0;background:transparent;font:inherit;font-size:.85rem;width:100%;color:inherit;padding:0}
+    .jh-table{width:100%;border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums}
+    .jh-table thead th{font-size:.62rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#98a2b3;padding:.55rem .45rem;border-bottom:1px solid #eaecf0;text-align:left;white-space:nowrap;background:transparent}
+    .jh-table tbody td{padding:.6rem .45rem;border-bottom:1px solid #f2f4f7;vertical-align:middle;font-size:.84rem}
+    .jh-table tbody tr:hover td{background:#f9fafb}
+    .jh-table tr.jh-atraso td:first-child{box-shadow:inset 3px 0 0 #f79009}
+    .jh-table tr.jh-falta td:first-child{box-shadow:inset 3px 0 0 #f04438}
+    .jh-table .ctr{text-align:center}.jh-table .num{text-align:right}
+    .jh-person{display:flex;align-items:center;gap:.6rem;min-width:0}
+    .jh-person-n{font-weight:700;color:#1d2939;font-size:.84rem;line-height:1.25}
+    .jh-person-n small{display:block;font-weight:500;font-size:.72rem;color:#98a2b3}
+    .jh-hint{display:block;margin-top:.15rem;font-size:.68rem;color:#98a2b3}
+    .jh-hora{display:inline-block;min-width:2.9rem;text-align:center;padding:.2rem .4rem;border-radius:7px;background:#f2f4f7;color:#1d2939;font-weight:700;font-size:.78rem}
+    .jh-hora.vazio{background:transparent;color:#d0d5dd;font-weight:600}
+    .jh-agora{display:inline-flex;align-items:center;gap:.35rem;font-size:.74rem;font-weight:700;white-space:nowrap}
+    .jh-agora::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+    .jh-agora.on{color:#067647}.jh-agora.almoco{color:#b54708}.jh-agora.fim{color:#667085}.jh-agora.off{color:#98a2b3}
+    .jh-saldo{display:inline-block;min-width:4rem;text-align:center;padding:.22rem .5rem;border-radius:999px;font-weight:800;font-size:.76rem;background:#f2f4f7;color:#667085}
+    .jh-saldo.pos{background:#ecfdf3;color:#067647}.jh-saldo.neg{background:#fef3f2;color:#d92d20}
+    .jh-btn{display:inline-flex;align-items:center;gap:.3rem;padding:.35rem .6rem;border-radius:9px;border:1px solid #e4e7ec;background:#fff;color:#344054;font:inherit;font-size:.76rem;font-weight:700;cursor:pointer;white-space:nowrap}
+    .jh-btn:hover{border-color:#2f5bea;color:#2f5bea}
+    .jh-btn svg{width:14px;height:14px}
+    html[data-theme="dark"] .jh-tile,html[data-theme="dark"] .jh-busca,html[data-theme="dark"] .jh-btn{background:var(--surface);border-color:var(--border);color:var(--text,#e4e7ec)}
+    html[data-theme="dark"] .jh-tile-txt b,html[data-theme="dark"] .jh-sub b,html[data-theme="dark"] .jh-person-n{color:#f2f4f7}
+    html[data-theme="dark"] .jh-bar,html[data-theme="dark"] .jh-count{background:rgba(255,255,255,.08);color:#cbd5e1}
+    html[data-theme="dark"] .jh-table thead th,html[data-theme="dark"] .jh-table tbody td{border-color:var(--border)}
+    html[data-theme="dark"] .jh-table tbody tr:hover td{background:rgba(255,255,255,.03)}
+    html[data-theme="dark"] .jh-hora{background:rgba(255,255,255,.07);color:#f2f4f7}
+    html[data-theme="dark"] .jh-hora.vazio{background:transparent;color:#475467}
+    html[data-theme="dark"] .jh-saldo{background:rgba(255,255,255,.07);color:#98a2b3}
+    html[data-theme="dark"] .jh-saldo.pos{background:rgba(74,222,128,.12);color:#4ade80}
+    html[data-theme="dark"] .jh-saldo.neg{background:rgba(248,113,113,.12);color:#f87171}
+    @media (max-width:1200px){.jh-tiles{grid-template-columns:repeat(4,minmax(0,1fr))}}
+    @media (max-width:1100px){.jh-table .jh-btn span{display:none}}
+    @media (max-width:900px){
+      .jh-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .jh-busca{min-width:0;width:100%}
+      .jh-table thead{display:none}
+      .jh-table,.jh-table tbody{display:block}
+      .jh-table tr{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.45rem .5rem;padding:.75rem;border:1px solid #eaecf0;border-radius:12px;margin-bottom:.6rem}
+      .jh-table tbody td{display:block;padding:0;border:0;text-align:left;background:transparent!important;box-shadow:none!important}
+      .jh-table tbody td::before{content:attr(data-label);display:block;font-size:.58rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#98a2b3;margin-bottom:.15rem}
+      .jh-table td:first-child{grid-column:1/-1}.jh-table td:first-child::before{display:none}
+      .jh-table td:nth-child(2),.jh-table td:nth-child(7){grid-column:span 2}
+      .jh-table td:nth-child(8),.jh-table td:nth-child(9){grid-column:span 2}
+      .jh-table td:last-child{grid-column:1/-1}.jh-table td:last-child::before{display:none}
+      .jh-table tr.jh-atraso{border-left:3px solid #f79009}.jh-table tr.jh-falta{border-left:3px solid #f04438}
+    }
   </style>
 </head>
 <body>
@@ -116,6 +192,7 @@
     const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
     let abaAtiva = "hoje";
     let filtro = "TODOS";
+    let buscaHoje = "";
 
     // Lista real dos colaboradores (rh.colaboradores) — antes esta tela usava
     // uma lista de exemplo fixa, depois um cadastro só local no navegador;
@@ -137,7 +214,7 @@
     }
 
     async function carregarColaboradoresAtivos() {
-      const { data, error } = await sb.from("colaboradores").select(`id, nome, ${RH_COLABORADOR_JORNADA_COLS}`).neq("status", "INATIVO").order("nome");
+      const { data, error } = await sb.from("colaboradores").select(`id, nome, departamento, ${RH_COLABORADOR_JORNADA_COLS}`).neq("status", "INATIVO").order("nome");
       if (error) throw error;
       COLABORADORES_ATIVOS = data || [];
     }
@@ -186,7 +263,7 @@
         let status = statusHoje(emp, hoje, hojeIso);
         const abono = status === "falta" ? rhAbonoDoDia(cacheAbonos, emp.id, hojeIso) : null;
         if (abono) status = "abonado";
-        return { nome: emp.nome, status, abonoTipo: abono ? (RH_TIPOS_ABONO[abono.tipo]?.label || abono.tipo) : null, entrada: hoje.entrada, local: hoje.local, saldoBanco: saldos[emp.id] || 0 };
+        return { nome: emp.nome, departamento: emp.departamento || "", status, abonoTipo: abono ? (RH_TIPOS_ABONO[abono.tipo]?.label || abono.tipo) : null, entrada: hoje.entrada, intervaloSaida: hoje.intervaloSaida || null, intervaloVolta: hoje.intervaloVolta || null, saida: hoje.saida || null, local: hoje.local, saldoBanco: saldos[emp.id] || 0 };
       });
     }
     function linhasHoje() {
@@ -325,41 +402,60 @@
     // ------------------------------------------------------------------
     function renderHoje() {
       const rows = linhasHoje();
-      const emDia = rows.filter((r) => r.status === "completo").length;
-      const atrasos = rows.filter((r) => r.status === "atraso").length;
-      const faltas = rows.filter((r) => r.status === "falta").length;
-      const homeOffice = rows.filter((r) => r.local === "HOME_OFFICE").length;
-      const presencial = rows.filter((r) => r.local === "PRESENCIAL").length;
-      const saldoNegativo = rows.filter((r) => r.saldoBanco < 0).length;
+      const n = (fn) => rows.filter(fn).length;
+      const emDia = n((r) => r.status === "completo");
+      const atrasos = n((r) => r.status === "atraso");
+      const faltas = n((r) => r.status === "falta");
+      const homeOffice = n((r) => r.local === "HOME_OFFICE");
+      const presencial = n((r) => r.local === "PRESENCIAL");
+      const saldoNegativo = n((r) => r.saldoBanco < 0);
+      const trabalhando = n((r) => r.entrada && !r.saida && !(r.intervaloSaida && !r.intervaloVolta));
+      const almoco = n((r) => r.intervaloSaida && !r.intervaloVolta && !r.saida);
+      const esperados = Math.max(1, emDia + atrasos + faltas);
+      const pct = (x) => Math.round((x / esperados) * 100);
+      const dataLonga = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
+      const tile = (f, valor, label, tone, icon) => `
+        <button type="button" class="jh-tile ${tone} ${filtro === f ? "active" : ""}" data-f="${f}">
+          <span class="jh-tile-ic">${icon}</span>
+          <span class="jh-tile-txt"><b>${valor}</b><span>${label}</span></span>
+        </button>`;
 
       document.getElementById("aba-conteudo").innerHTML = `
         <div class="space-y">
-          <div id="kpi-grid"></div>
-
-          <div class="card card-p">
-            <div class="row-between" style="margin-bottom:1rem;flex-wrap:wrap;gap:0.7rem">
-              <div class="period-buttons">
-                <button type="button" data-f="TODOS" class="${filtro === "TODOS" ? "active" : ""}">Todos</button>
-                <button type="button" data-f="ATRASO" class="${filtro === "ATRASO" ? "active" : ""}">Atrasos</button>
-                <button type="button" data-f="FALTA" class="${filtro === "FALTA" ? "active" : ""}">Faltas</button>
-                <button type="button" data-f="HOME_OFFICE" class="${filtro === "HOME_OFFICE" ? "active" : ""}">Home office</button>
-                <button type="button" data-f="PRESENCIAL" class="${filtro === "PRESENCIAL" ? "active" : ""}">Presencial</button>
-                <button type="button" data-f="NEGATIVO" class="${filtro === "NEGATIVO" ? "active" : ""}">Banco negativo</button>
+          <section class="card jh-resumo">
+            <div class="jh-resumo-top">
+              <div>
+                <p class="jh-data">${ICONS.calendar}${esc(dataLonga.charAt(0).toUpperCase() + dataLonga.slice(1))}</p>
+                <h2>${emDia + atrasos} de ${emDia + atrasos + faltas} bateram o ponto hoje</h2>
+                <p class="jh-sub"><b>${trabalhando}</b> trabalhando agora · <b>${almoco}</b> no intervalo</p>
+              </div>
+              <div class="jh-legend">
+                <span><i class="green"></i>Em dia ${pct(emDia)}%</span>
+                <span><i class="amber"></i>Atraso ${pct(atrasos)}%</span>
+                <span><i class="red"></i>Falta ${pct(faltas)}%</span>
               </div>
             </div>
+            <div class="jh-bar"><i class="green" style="width:${pct(emDia)}%"></i><i class="amber" style="width:${pct(atrasos)}%"></i><i class="red" style="width:${pct(faltas)}%"></i></div>
+            <div class="jh-tiles">
+              ${tile("TODOS", rows.length, "Todos", "slate", ICONS.users)}
+              ${tile("EM_DIA", emDia, "Em dia", "green", ICONS.checkCircle)}
+              ${tile("ATRASO", atrasos, "Atrasos", "amber", ICONS.alertCircle)}
+              ${tile("FALTA", faltas, "Faltas", "red", ICONS.xCircle)}
+              ${tile("PRESENCIAL", presencial, "Presencial", "teal", ICONS.mapPin)}
+              ${tile("HOME_OFFICE", homeOffice, "Home office", "indigo", ICONS.home)}
+              ${tile("NEGATIVO", saldoNegativo, "Banco negativo", "violet", ICONS.clock)}
+            </div>
+          </section>
+
+          <section class="card jh-lista">
+            <div class="jh-lista-h">
+              <h2>Equipe hoje <span class="jh-count" id="jh-count"></span></h2>
+              <label class="jh-busca">${ICONS.search}<input type="search" id="jh-busca" placeholder="Buscar colaborador..." value="${esc(buscaHoje)}" /></label>
+            </div>
             <div id="table-wrap"></div>
-          </div>
+          </section>
         </div>
       `;
-
-      renderKpiGrid(document.getElementById("kpi-grid"), [
-        { label: "Em dia hoje", value: emDia, tone: "green", icon: ICONS.checkCircle },
-        { label: "Atrasos hoje", value: atrasos, tone: "amber", icon: ICONS.alertCircle },
-        { label: "Faltas hoje", value: faltas, tone: "red", icon: ICONS.xCircle },
-        { label: "Home office hoje", value: homeOffice, tone: "indigo", icon: ICONS.home },
-        { label: "Presencial hoje", value: presencial, tone: "teal", icon: ICONS.mapPin },
-        { label: "Banco de horas negativo", value: saldoNegativo, tone: "violet", icon: ICONS.clock },
-      ], true);
 
       document.querySelectorAll("[data-f]").forEach((btn) =>
         btn.addEventListener("click", () => {
@@ -368,6 +464,7 @@
           renderTable();
         })
       );
+      document.getElementById("jh-busca").addEventListener("input", (e) => { buscaHoje = e.target.value; renderTable(); });
       renderTable();
     }
 
@@ -549,7 +646,10 @@
     }
 
     function renderTable() {
+      const termo = buscaHoje.trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
       const rows = linhasHoje().filter((r) => {
+        if (termo && !r.nome.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").includes(termo)) return false;
+        if (filtro === "EM_DIA") return r.status === "completo";
         if (filtro === "ATRASO") return r.status === "atraso";
         if (filtro === "FALTA") return r.status === "falta";
         if (filtro === "HOME_OFFICE") return r.local === "HOME_OFFICE";
@@ -557,29 +657,41 @@
         if (filtro === "NEGATIVO") return r.saldoBanco < 0;
         return true;
       });
+      const countEl = document.getElementById("jh-count");
+      if (countEl) countEl.textContent = rows.length;
+
+      const hora = (v) => (v ? `<span class="jh-hora">${esc(v)}</span>` : `<span class="jh-hora vazio">—</span>`);
+      const agora = (r) => {
+        if (r.saida) return `<span class="jh-agora fim">Encerrou</span>`;
+        if (r.intervaloSaida && !r.intervaloVolta) return `<span class="jh-agora almoco">No intervalo</span>`;
+        if (r.entrada) return `<span class="jh-agora on">Trabalhando</span>`;
+        return `<span class="jh-agora off">Sem registro</span>`;
+      };
 
       document.getElementById("table-wrap").innerHTML = rows.length
         ? `
-        <div class="table-scroll">
-          <table>
-            <thead><tr><th>Colaborador</th><th>Status hoje</th><th>Entrada</th><th>Local</th><th class="cell-num">Banco de horas</th><th></th></tr></thead>
+          <table class="jh-table">
+            <thead><tr><th>Colaborador</th><th>Status</th><th class="ctr">Entrada</th><th class="ctr">Saída int.</th><th class="ctr">Retorno</th><th class="ctr">Saída</th><th>Agora</th><th>Local</th><th class="num">Banco de horas</th><th></th></tr></thead>
             <tbody>
               ${rows
                 .map(
-                  (r) => `<tr>
-                <td><div class="person-cell"><span class="avatar avatar-sm ${avatarColorClass(r.nome)}">${avatarInner(r.nome)}</span>${esc(r.nome)}</div></td>
-                <td>${statusPill(r.status)}${r.abonoTipo ? ` <span class="hint">${esc(r.abonoTipo)}</span>` : ""}</td>
-                <td>${r.entrada || "—"}</td>
-                <td>${r.local ? localBadgeHtml(r.local) : '<span class="muted">—</span>'}</td>
-                <td class="cell-num ${r.saldoBanco < 0 ? "" : "cell-green"}" style="color:${r.saldoBanco < 0 ? "var(--red-600)" : ""}">${fmtDuracao(r.saldoBanco, { sinal: true })}</td>
-                <td style="text-align:right"><button type="button" class="btn-ghost" style="width:auto;padding:0.4rem 0.7rem" data-detalhe="${esc(r.nome)}">Ver histórico</button></td>
+                  (r) => `<tr class="${r.status === "atraso" ? "jh-atraso" : r.status === "falta" ? "jh-falta" : ""}">
+                <td data-label="Colaborador"><div class="jh-person"><span class="avatar avatar-sm ${avatarColorClass(r.nome)}">${avatarInner(r.nome)}</span><span class="jh-person-n">${esc(r.nome)}${r.departamento ? `<small>${esc(r.departamento)}</small>` : ""}</span></div></td>
+                <td data-label="Status">${statusPill(r.status)}${r.abonoTipo ? `<small class="jh-hint">${esc(r.abonoTipo)}</small>` : ""}</td>
+                <td class="ctr" data-label="Entrada">${hora(r.entrada)}</td>
+                <td class="ctr" data-label="Saída int.">${hora(r.intervaloSaida)}</td>
+                <td class="ctr" data-label="Retorno">${hora(r.intervaloVolta)}</td>
+                <td class="ctr" data-label="Saída">${hora(r.saida)}</td>
+                <td data-label="Agora">${agora(r)}</td>
+                <td data-label="Local">${r.local ? localBadgeHtml(r.local) : '<span class="jh-hora vazio">—</span>'}</td>
+                <td class="num" data-label="Banco de horas"><span class="jh-saldo ${r.saldoBanco < 0 ? "neg" : r.saldoBanco > 0 ? "pos" : ""}">${fmtDuracao(r.saldoBanco, { sinal: true })}</span></td>
+                <td class="num"><button type="button" class="jh-btn" data-detalhe="${esc(r.nome)}" title="Ver histórico de ${esc(r.nome)}">${ICONS.calendar}<span>Histórico</span></button></td>
               </tr>`
                 )
                 .join("")}
             </tbody>
-          </table>
-        </div>`
-        : emptyStateHtml({ icon: ICONS.clock, title: "Ninguém neste filtro", desc: "Tente outro filtro." });
+          </table>`
+        : emptyStateHtml({ icon: ICONS.clock, title: "Ninguém neste filtro", desc: "Tente outro filtro ou limpe a busca." });
 
       document.querySelectorAll("[data-detalhe]").forEach((b) =>
         b.addEventListener("click", async () => {
