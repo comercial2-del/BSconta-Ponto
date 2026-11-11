@@ -1711,8 +1711,39 @@ html[data-theme="dark"] .ponto-page-narrow{--pj-soft:#16294d;--pj-sh:0 1px 2px r
               )
               .join("")}
           </tbody>
+          ${totalHistoricoHtml(rows, comApuracao)}
         </table>`
         : emptyStateHtml({ icon: ICONS.calendar, title: "Nenhum registro neste período", desc: "Selecione um dia no calendário para ver os detalhes da sua jornada." });
+    }
+
+    // Linha de total do período. O dia de hoje fica de fora (ainda está em
+    // andamento e só entra no banco de horas amanhã).
+    function totalHistoricoHtml(rows, comApuracao) {
+      const hoje = todayIso();
+      const dias = rows.filter((h) => h.data !== hoje);
+      if (!dias.length) return "";
+      const t = dias.reduce((a, h) => {
+        a.trab += h.horasTrabalhadas != null ? Math.round(Number(h.horasTrabalhadas) * 60) : Number(h.trabalhadasMin) || 0;
+        a.prev += Number(h.previstasMin) || 0;
+        a.abono += Number(h.abonoMin) || 0;
+        if (h.contaNoBanco !== false) a.saldo += Number(h.saldoMin) || 0;
+        a.extras += Number(h.horasExtras) || 0;
+        a.atraso += Number(h.atrasoMin) || 0;
+        return a;
+      }, { trab: 0, prev: 0, abono: 0, saldo: 0, extras: 0, atraso: 0 });
+      const td = 'style="font-weight:800;border-top:2px solid #e4e7ec;padding-top:.75rem"';
+      const tdNum = 'class="cell-num" ' + td;
+      return `<tfoot><tr>
+        <td ${td} colspan="4">Total do período <span class="hint" style="font-weight:600">(sem o dia de hoje)</span></td>
+        <td ${tdNum}>${fmtMinutos(t.trab)}</td>
+        ${comApuracao ? `
+        <td ${tdNum}>${t.prev ? fmtMinutos(t.prev) : "—"}</td>
+        <td ${tdNum}>${t.abono ? fmtMinutos(t.abono) : "—"}</td>
+        <td ${tdNum}>${t.saldo ? `<span class="${t.saldo < 0 ? "saldo-neg" : "saldo-pos"}">${fmtMinutos(t.saldo, { sinal: true })}</span>` : "0:00"}</td>` : `
+        <td ${tdNum}>${t.extras ? fmtDuracao(t.extras, { sinal: true }) : "—"}</td>
+        <td ${tdNum}>${t.atraso ? fmtMinutos(-t.atraso) : "—"}</td>`}
+        <td ${td} colspan="3"></td>
+      </tr></tfoot>`;
     }
 
     function statusPillApuracao(h) {
